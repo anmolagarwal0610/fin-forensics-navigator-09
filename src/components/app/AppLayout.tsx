@@ -7,7 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 
 export default function AppLayout({ children }: PropsWithChildren) {
   return (
-    <SidebarProvider collapsedWidth={56}>
+    <SidebarProvider>
       <header className="h-12 flex items-center border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <SidebarTrigger className="ml-2" />
         <div className="container mx-auto px-4 flex items-center justify-between">

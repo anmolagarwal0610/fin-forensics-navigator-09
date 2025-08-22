@@ -1,13 +1,22 @@
 
 import { useEffect, useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { Search, Plus } from "lucide-react";
 import AppLayout from "@/components/app/AppLayout";
 import { Button } from "@/components/ui/button";
-import CaseCard from "@/components/app/CaseCard";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useNavigate } from "react-router-dom";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
+
+// New components
+import KPICards from "@/components/app/KPICards";
+import DashboardToolbar from "@/components/app/DashboardToolbar";
+import ModernCaseCard from "@/components/app/ModernCaseCard";
+import CaseListView from "@/components/app/CaseListView";
+import RightRail from "@/components/app/RightRail";
+import DashboardSkeleton from "@/components/app/DashboardSkeleton";
+import EmptyState from "@/components/app/EmptyState";
 
 const STATUS: Array<CaseRecord["status"]> = ["Active", "Processing", "Ready", "Archived"];
 
@@ -15,8 +24,12 @@ export default function Dashboard() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [globalSearch, setGlobalSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<Array<CaseRecord["status"]>>([]);
   const [tagFilter, setTagFilter] = useState("");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(() => {
+    return (localStorage.getItem("dashboard-view") as "grid" | "list") || "grid";
+  });
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -30,85 +43,149 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem("dashboard-view", viewMode);
+  }, [viewMode]);
+
   const filtered = useMemo(() => {
     return cases.filter((c) => {
-      const okName = c.name.toLowerCase().includes(search.toLowerCase());
+      const okName = c.name.toLowerCase().includes(search.toLowerCase()) ||
+                    c.name.toLowerCase().includes(globalSearch.toLowerCase());
       const okStatus = statusFilter.length ? statusFilter.includes(c.status) : true;
       const okTag = tagFilter ? (c.tags ?? []).some((t) => t.toLowerCase().includes(tagFilter.toLowerCase())) : true;
       return okName && okStatus && okTag;
     });
-  }, [cases, search, statusFilter, tagFilter]);
+  }, [cases, search, globalSearch, statusFilter, tagFilter]);
+
+  const handleGlobalSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearch(globalSearch);
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="w-full max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10"
+        >
+          <DashboardSkeleton />
+        </motion.div>
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-semibold">Active Cases</h1>
-        <Button onClick={() => navigate("/app/cases/new")}>New Case</Button>
-      </div>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.3 }}
+        className="w-full max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10"
+      >
+        <div className="grid grid-cols-12 gap-6">
+          {/* Main Content */}
+          <div className="xl:col-span-9 lg:col-span-8 md:col-span-12 col-span-12">
+            {/* Header Bar */}
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-center justify-between mb-8 py-6"
+            >
+              <div>
+                <div className="text-sm uppercase tracking-wide text-muted-foreground mb-1">
+                  FinNavigator
+                </div>
+                <h1 className="text-3xl font-bold">Active Cases</h1>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                {/* Global Search */}
+                <form onSubmit={handleGlobalSearchSubmit} className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search all cases..."
+                    value={globalSearch}
+                    onChange={(e) => setGlobalSearch(e.target.value)}
+                    className="pl-10 w-64"
+                  />
+                </form>
+                
+                <Button onClick={() => navigate("/app/cases/new")}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  New Case
+                </Button>
+              </div>
+            </motion.div>
 
-      <Card className="mb-4">
-        <CardHeader>
-          <CardTitle className="text-sm">Filters</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 md:grid-cols-3">
-          <div>
-            <label className="text-sm text-muted-foreground">Search by name</label>
-            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search…" />
-          </div>
-          <div>
-            <label className="text-sm text-muted-foreground">Status</label>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {STATUS.map((s) => {
-                const active = statusFilter.includes(s);
-                return (
-                  <button
-                    key={s}
-                    type="button"
-                    onClick={() =>
-                      setStatusFilter((prev) =>
-                        prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]
-                      )
-                    }
-                    className={`text-xs px-2 py-1 rounded-full border ${active ? "bg-primary/10 border-primary text-primary" : "bg-background hover:bg-muted"}`}
-                    aria-pressed={active}
+            {/* KPI Cards */}
+            <KPICards cases={cases} />
+
+            {/* Toolbar */}
+            <DashboardToolbar
+              search={search}
+              onSearchChange={setSearch}
+              statusFilter={statusFilter}
+              onStatusFilterChange={setStatusFilter}
+              tagFilter={tagFilter}
+              onTagFilterChange={setTagFilter}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+
+            {/* Cases Content */}
+            {filtered.length === 0 ? (
+              cases.length === 0 ? (
+                <EmptyState />
+              ) : (
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="text-center py-12"
+                >
+                  <p className="text-muted-foreground mb-4">No cases match your filters.</p>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSearch("");
+                      setGlobalSearch("");
+                      setStatusFilter([]);
+                      setTagFilter("");
+                    }}
                   >
-                    {s}
-                  </button>
-                );
-              })}
+                    Clear Filters
+                  </Button>
+                </motion.div>
+              )
+            ) : viewMode === "grid" ? (
+              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
+                {filtered.map((c, index) => (
+                  <ModernCaseCard
+                    key={c.id}
+                    id={c.id}
+                    name={c.name}
+                    color_hex={c.color_hex}
+                    tags={c.tags ?? []}
+                    status={c.status}
+                    updated_at={c.updated_at}
+                    index={index}
+                  />
+                ))}
+              </div>
+            ) : (
+              <CaseListView cases={filtered} />
+            )}
+          </div>
+
+          {/* Right Rail */}
+          <div className="xl:col-span-3 lg:col-span-4 md:hidden col-span-12">
+            <div className="sticky top-6">
+              <RightRail />
             </div>
           </div>
-          <div>
-            <label className="text-sm text-muted-foreground">Tag filter</label>
-            <Input value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} placeholder="Tag…" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {loading ? (
-        <Card><CardContent className="p-6">Loading…</CardContent></Card>
-      ) : filtered.length === 0 ? (
-        <Card>
-          <CardContent className="p-6 text-center">
-            <div className="text-sm text-muted-foreground mb-3">No cases yet.</div>
-            <Button variant="cta" onClick={() => navigate("/app/cases/new")}>New Case</Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {filtered.map((c) => (
-            <CaseCard
-              key={c.id}
-              id={c.id}
-              name={c.name}
-              color_hex={c.color_hex}
-              tags={c.tags ?? []}
-              status={c.status}
-              updated_at={c.updated_at}
-            />
-          ))}
         </div>
-      )}
+      </motion.div>
     </AppLayout>
   );
 }

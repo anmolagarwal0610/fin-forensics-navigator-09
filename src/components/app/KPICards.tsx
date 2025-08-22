@@ -25,7 +25,7 @@ export default function KPICards({ cases }: KPICardsProps) {
     {
       icon: Clock,
       value: processingCount,
-      label: "Processing",
+      label: "Processing",  
       trend: "+5%",
       color: "text-orange-600 dark:text-orange-400"
     },
@@ -46,22 +46,23 @@ export default function KPICards({ cases }: KPICardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-12 gap-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {kpis.map((kpi, index) => (
         <motion.div
           key={kpi.label}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05, duration: 0.3 }}
-          className="col-span-12 sm:col-span-6 lg:col-span-3"
         >
-          <Card className="w-full hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 rounded-2xl">
-            <CardContent className="p-4 md:p-5">
+          <Card className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+            <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <kpi.icon className={`h-5 w-5 ${kpi.color}`} />
+                  <div className={`p-2 rounded-lg bg-muted/50`}>
+                    <kpi.icon className={`h-5 w-5 ${kpi.color}`} />
+                  </div>
                   <div>
-                    <div className="text-2xl xl:text-3xl font-bold">{kpi.value}</div>
+                    <div className="text-2xl font-bold">{kpi.value}</div>
                     <div className="text-sm text-muted-foreground">{kpi.label}</div>
                   </div>
                 </div>

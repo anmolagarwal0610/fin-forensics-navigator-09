@@ -1,6 +1,5 @@
 
-import { useState, useEffect } from "react";
-import { Search, Grid3X3, List, ChevronDown } from "lucide-react";
+import { Grid3X3, List, Filter } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -11,11 +10,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import type { CaseRecord } from "@/api/cases";
 
 interface DashboardToolbarProps {
-  search: string;
-  onSearchChange: (value: string) => void;
   statusFilter: Array<CaseRecord["status"]>;
   onStatusFilterChange: (statuses: Array<CaseRecord["status"]>) => void;
   tagFilter: string;
@@ -27,8 +30,6 @@ interface DashboardToolbarProps {
 const STATUS_OPTIONS: Array<CaseRecord["status"]> = ["Active", "Processing", "Ready", "Archived"];
 
 export default function DashboardToolbar({
-  search,
-  onSearchChange,
   statusFilter,
   onStatusFilterChange,
   tagFilter,
@@ -36,15 +37,6 @@ export default function DashboardToolbar({
   viewMode,
   onViewModeChange,
 }: DashboardToolbarProps) {
-  const [debouncedSearch, setDebouncedSearch] = useState(search);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      onSearchChange(debouncedSearch);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [debouncedSearch, onSearchChange]);
-
   const handleStatusToggle = (status: CaseRecord["status"]) => {
     const newFilter = statusFilter.includes(status)
       ? statusFilter.filter(s => s !== status)
@@ -52,57 +44,70 @@ export default function DashboardToolbar({
     onStatusFilterChange(newFilter);
   };
 
-  return (
-    <div className="sticky top-0 z-10">
-      <Card className="w-full backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <CardContent className="p-4">
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
-            {/* Search */}
-            <div className="relative flex-1 min-w-[220px]">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search cases..."
-                value={debouncedSearch}
-                onChange={(e) => setDebouncedSearch(e.target.value)}
-                className="pl-10 w-full"
-              />
-            </div>
+  const clearFilters = () => {
+    onStatusFilterChange([]);
+    onTagFilterChange("");
+  };
 
+  const hasActiveFilters = statusFilter.length > 0 || tagFilter.length > 0;
+
+  return (
+    <Card className="sticky top-4 z-10 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <CardContent className="p-4">
+        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
+          {/* Left side - Filters */}
+          <div className="flex flex-col sm:flex-row gap-3 flex-1">
             {/* Status Filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Status:</span>
-              <div className="flex gap-2 flex-wrap">
-                {STATUS_OPTIONS.map((status) => {
-                  const active = statusFilter.includes(status);
-                  return (
-                    <Button
-                      key={status}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleStatusToggle(status)}
-                      className={`h-8 text-[13px] font-medium ${active ? "bg-primary/10 border-primary text-primary" : ""}`}
-                    >
-                      {status}
-                    </Button>
-                  );
-                })}
-              </div>
-            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="justify-start gap-2">
+                  <Filter className="h-4 w-4" />
+                  Status
+                  {statusFilter.length > 0 && (
+                    <Badge variant="secondary" className="ml-1 h-5">
+                      {statusFilter.length}
+                    </Badge>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64" align="start">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium mb-3">Filter by Status</div>
+                  {STATUS_OPTIONS.map((status) => (
+                    <label key={status} className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={statusFilter.includes(status)}
+                        onChange={() => handleStatusToggle(status)}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{status}</span>
+                    </label>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
 
             {/* Tag Filter */}
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground whitespace-nowrap">Tags:</span>
-              <Input
-                placeholder="Filter by tag..."
-                value={tagFilter}
-                onChange={(e) => onTagFilterChange(e.target.value)}
-                className="min-w-[180px]"
-              />
-            </div>
+            <Input
+              placeholder="Filter by tag..."
+              value={tagFilter}
+              onChange={(e) => onTagFilterChange(e.target.value)}
+              className="w-full sm:w-48"
+            />
 
-            {/* Sort */}
+            {/* Clear Filters */}
+            {hasActiveFilters && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Right side - Sort and View */}
+          <div className="flex items-center gap-3">
             <Select defaultValue="updated">
-              <SelectTrigger className="min-w-[120px]">
+              <SelectTrigger className="w-32">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -132,8 +137,8 @@ export default function DashboardToolbar({
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

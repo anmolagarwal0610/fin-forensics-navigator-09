@@ -53,25 +53,25 @@ export default function DashboardToolbar({
   };
 
   return (
-    <div className="sticky top-0 z-10 mb-6">
-      <Card className="backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <div className="sticky top-0 z-10">
+      <Card className="w-full backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <CardContent className="p-4">
           <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center">
             {/* Search */}
-            <div className="relative flex-1 lg:max-w-xs">
+            <div className="relative flex-1 min-w-[220px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search cases..."
                 value={debouncedSearch}
                 onChange={(e) => setDebouncedSearch(e.target.value)}
-                className="pl-10"
+                className="pl-10 w-full"
               />
             </div>
 
             {/* Status Filter */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground whitespace-nowrap">Status:</span>
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 {STATUS_OPTIONS.map((status) => {
                   const active = statusFilter.includes(status);
                   return (
@@ -80,7 +80,7 @@ export default function DashboardToolbar({
                       variant="outline"
                       size="sm"
                       onClick={() => handleStatusToggle(status)}
-                      className={`h-8 ${active ? "bg-primary/10 border-primary text-primary" : ""}`}
+                      className={`h-8 text-[13px] font-medium ${active ? "bg-primary/10 border-primary text-primary" : ""}`}
                     >
                       {status}
                     </Button>
@@ -96,13 +96,13 @@ export default function DashboardToolbar({
                 placeholder="Filter by tag..."
                 value={tagFilter}
                 onChange={(e) => onTagFilterChange(e.target.value)}
-                className="w-32"
+                className="min-w-[180px]"
               />
             </div>
 
             {/* Sort */}
             <Select defaultValue="updated">
-              <SelectTrigger className="w-32">
+              <SelectTrigger className="min-w-[120px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -46,16 +46,17 @@ export default function KPICards({ cases }: KPICardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-6">
+    <div className="grid grid-cols-12 gap-4">
       {kpis.map((kpi, index) => (
         <motion.div
           key={kpi.label}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05, duration: 0.3 }}
+          className="col-span-12 sm:col-span-6 lg:col-span-3"
         >
-          <Card className="hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 rounded-2xl">
-            <CardContent className="p-4">
+          <Card className="w-full hover:shadow-md hover:-translate-y-[1px] transition-all duration-200 rounded-2xl">
+            <CardContent className="p-4 md:p-5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <kpi.icon className={`h-5 w-5 ${kpi.color}`} />

@@ -43,20 +43,22 @@ export default function ModernCaseCard(props: Props) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: props.index * 0.03, duration: 0.3 }}
+      className="w-full"
     >
-      <Card className="group hover:shadow-lg hover:-translate-y-1 transition-all duration-200 cursor-pointer">
-        <CardContent className="p-5">
+      <Card className="w-full min-h-[140px] group hover:shadow-md hover:-translate-y-1 transition-all duration-200 cursor-pointer rounded-2xl shadow-sm">
+        <CardContent className="p-4 md:p-5 h-full flex flex-col">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center gap-3 flex-1 min-w-0">
               <span
-                className="inline-block h-3 w-3 rounded-full border border-white/20"
-                style={{ backgroundColor: props.color_hex }}
+                className="inline-block h-3 w-3 rounded-full border"
+                style={{ backgroundColor: props.color_hex, borderColor: 'rgba(255,255,255,0.2)' }}
                 aria-hidden
               />
               <h3 
                 className="font-semibold text-base truncate cursor-pointer"
                 onClick={() => navigate(`/app/cases/${props.id}`)}
+                title={props.name}
               >
                 {props.name}
               </h3>
@@ -69,13 +71,14 @@ export default function ModernCaseCard(props: Props) {
             {props.tags?.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
+                className="text-[13px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium"
+                title={tag}
               >
                 {tag}
               </span>
             ))}
             {props.tags?.length > 3 && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+              <span className="text-[13px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">
                 +{props.tags.length - 3}
               </span>
             )}
@@ -87,7 +90,7 @@ export default function ModernCaseCard(props: Props) {
               <FileText className="h-4 w-4" />
               <span>3 files</span>
             </div>
-            <span>{formatTimeAgo(props.updated_at)}</span>
+            <span>Updated {formatTimeAgo(props.updated_at)}</span>
           </div>
 
           {/* Progress bar for Processing status */}
@@ -98,7 +101,7 @@ export default function ModernCaseCard(props: Props) {
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mt-auto">
             <div className="flex gap-2">
               <Button
                 variant="ghost"
@@ -107,7 +110,7 @@ export default function ModernCaseCard(props: Props) {
                   e.stopPropagation();
                   navigate(`/app/cases/${props.id}/upload`);
                 }}
-                className="h-8 px-3"
+                className="h-8 px-3 text-[13px] font-medium"
               >
                 <Upload className="h-4 w-4 mr-1" />
                 Upload
@@ -119,7 +122,7 @@ export default function ModernCaseCard(props: Props) {
                   e.stopPropagation();
                   navigate(`/app/cases/${props.id}`);
                 }}
-                className="h-8 px-3"
+                className="h-8 px-3 text-[13px] font-medium"
               >
                 <ExternalLink className="h-4 w-4 mr-1" />
                 Open

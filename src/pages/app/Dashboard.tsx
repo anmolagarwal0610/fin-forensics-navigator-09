@@ -65,127 +65,118 @@ export default function Dashboard() {
   if (loading) {
     return (
       <AppLayout>
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="w-full max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10"
-        >
-          <DashboardSkeleton />
-        </motion.div>
+        <div className="w-full max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <DashboardSkeleton />
+          </motion.div>
+        </div>
       </AppLayout>
     );
   }
 
   return (
     <AppLayout>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
-        className="w-full max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10"
-      >
-        <div className="grid grid-cols-12 gap-6">
-          {/* Main Content */}
-          <div className="xl:col-span-9 lg:col-span-8 md:col-span-12 col-span-12">
-            {/* Header Bar */}
-            <motion.div
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex items-center justify-between mb-8 py-6"
-            >
-              <div>
-                <div className="text-sm uppercase tracking-wide text-muted-foreground mb-1">
-                  FinNavigator
-                </div>
-                <h1 className="text-3xl font-bold">Active Cases</h1>
+      <div className="w-full max-w-screen-2xl mx-auto px-6 md:px-8 lg:px-10">
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3 }}
+          className="space-y-6"
+        >
+          {/* Header Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center justify-between py-6"
+          >
+            <div>
+              <div className="text-sm uppercase tracking-wide text-muted-foreground mb-1">
+                FinNavigator
               </div>
-              
-              <div className="flex items-center gap-4">
-                {/* Global Search */}
-                <form onSubmit={handleGlobalSearchSubmit} className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search all cases..."
-                    value={globalSearch}
-                    onChange={(e) => setGlobalSearch(e.target.value)}
-                    className="pl-10 w-64"
-                  />
-                </form>
-                
-                <Button onClick={() => navigate("/app/cases/new")}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Case
-                </Button>
-              </div>
-            </motion.div>
-
-            {/* KPI Cards */}
-            <KPICards cases={cases} />
-
-            {/* Toolbar */}
-            <DashboardToolbar
-              search={search}
-              onSearchChange={setSearch}
-              statusFilter={statusFilter}
-              onStatusFilterChange={setStatusFilter}
-              tagFilter={tagFilter}
-              onTagFilterChange={setTagFilter}
-              viewMode={viewMode}
-              onViewModeChange={setViewMode}
-            />
-
-            {/* Cases Content */}
-            {filtered.length === 0 ? (
-              cases.length === 0 ? (
-                <EmptyState />
-              ) : (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="text-center py-12"
-                >
-                  <p className="text-muted-foreground mb-4">No cases match your filters.</p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearch("");
-                      setGlobalSearch("");
-                      setStatusFilter([]);
-                      setTagFilter("");
-                    }}
-                  >
-                    Clear Filters
-                  </Button>
-                </motion.div>
-              )
-            ) : viewMode === "grid" ? (
-              <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
-                {filtered.map((c, index) => (
-                  <ModernCaseCard
-                    key={c.id}
-                    id={c.id}
-                    name={c.name}
-                    color_hex={c.color_hex}
-                    tags={c.tags ?? []}
-                    status={c.status}
-                    updated_at={c.updated_at}
-                    index={index}
-                  />
-                ))}
-              </div>
-            ) : (
-              <CaseListView cases={filtered} />
-            )}
-          </div>
-
-          {/* Right Rail */}
-          <div className="xl:col-span-3 lg:col-span-4 md:hidden col-span-12">
-            <div className="sticky top-6">
-              <RightRail />
+              <h1 className="text-2xl md:text-3xl font-semibold">Active Cases</h1>
             </div>
-          </div>
-        </div>
-      </motion.div>
+            
+            <div className="flex items-center gap-4">
+              {/* Global Search */}
+              <form onSubmit={handleGlobalSearchSubmit} className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search all cases..."
+                  value={globalSearch}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  className="pl-10 w-64"
+                />
+              </form>
+              
+              <Button onClick={() => navigate("/app/cases/new")}>
+                <Plus className="h-4 w-4 mr-2" />
+                New Case
+              </Button>
+            </div>
+          </motion.div>
+
+          {/* KPI Cards */}
+          <KPICards cases={cases} />
+
+          {/* Toolbar */}
+          <DashboardToolbar
+            search={search}
+            onSearchChange={setSearch}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            tagFilter={tagFilter}
+            onTagFilterChange={setTagFilter}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+          />
+
+          {/* Cases Content */}
+          {filtered.length === 0 ? (
+            cases.length === 0 ? (
+              <EmptyState />
+            ) : (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-12"
+              >
+                <p className="text-muted-foreground mb-4">No cases match your filters.</p>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSearch("");
+                    setGlobalSearch("");
+                    setStatusFilter([]);
+                    setTagFilter("");
+                  }}
+                >
+                  Clear Filters
+                </Button>
+              </motion.div>
+            )
+          ) : viewMode === "grid" ? (
+            <div className="grid gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {filtered.map((c, index) => (
+                <ModernCaseCard
+                  key={c.id}
+                  id={c.id}
+                  name={c.name}
+                  color_hex={c.color_hex}
+                  tags={c.tags ?? []}
+                  status={c.status}
+                  updated_at={c.updated_at}
+                  index={index}
+                />
+              ))}
+            </div>
+          ) : (
+            <CaseListView cases={filtered} />
+          )}
+        </motion.div>
+      </div>
     </AppLayout>
   );
 }

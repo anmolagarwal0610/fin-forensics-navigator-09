@@ -4,6 +4,7 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 
 export function useAuthSession() {
+  // Initialize with null values and handle potential dispatcher issues
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -40,9 +41,7 @@ export function useAuthSession() {
         if (mounted) {
           setSession(session);
           setUser(session?.user ?? null);
-          if (loading) {
-            setLoading(false);
-          }
+          setLoading(false);
         }
       }
     );

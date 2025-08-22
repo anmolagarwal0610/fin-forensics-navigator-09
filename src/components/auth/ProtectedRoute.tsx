@@ -21,7 +21,18 @@ const LoadingFallback = () => (
 );
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const { user, loading } = useAuthSession();
+  let user, loading;
+  
+  try {
+    const authData = useAuthSession();
+    user = authData.user;
+    loading = authData.loading;
+  } catch (error) {
+    console.error('Error in useAuthSession:', error);
+    // Fallback to redirect to sign in if hook fails
+    return <Navigate to="/signin" replace />;
+  }
+
   const location = useLocation();
 
   if (loading) {

@@ -2,6 +2,7 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
+import { AuthProvider } from "@/contexts/AuthContext";
 import Layout from "@/components/layout/Layout";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -28,34 +29,36 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <Router>
-          <Routes>
-            {/* Public routes */}
-            <Route path="/" element={<Layout><Landing /></Layout>} />
-            <Route path="/pricing" element={<Layout><Pricing /></Layout>} />
-            <Route path="/security" element={<Layout><Security /></Layout>} />
-            <Route path="/about" element={<Layout><About /></Layout>} />
-            <Route path="/contact" element={<Layout><Contact /></Layout>} />
-            <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
-            <Route path="/terms" element={<Layout><Terms /></Layout>} />
-            
-            {/* Auth routes */}
-            <Route path="/signin" element={<Layout showHeaderFooter={false}><SignIn /></Layout>} />
-            <Route path="/signup" element={<Layout showHeaderFooter={false}><SignUp /></Layout>} />
-            <Route path="/reset" element={<Layout showHeaderFooter={false}><Reset /></Layout>} />
-            
-            {/* Protected app routes */}
-            <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-            <Route path="/app/cases/new" element={<ProtectedRoute><NewCase /></ProtectedRoute>} />
-            <Route path="/app/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
-            <Route path="/app/cases/:id/upload" element={<ProtectedRoute><CaseUpload /></ProtectedRoute>} />
-            <Route path="/app/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
-            <Route path="/app/admin/cases" element={<ProtectedRoute><AdminCases /></ProtectedRoute>} />
-            
-            {/* 404 route */}
-            <Route path="*" element={<Layout><NotFound /></Layout>} />
-          </Routes>
-        </Router>
+        <AuthProvider>
+          <Router>
+            <Routes>
+              {/* Public routes */}
+              <Route path="/" element={<Layout><Landing /></Layout>} />
+              <Route path="/pricing" element={<Layout><Pricing /></Layout>} />
+              <Route path="/security" element={<Layout><Security /></Layout>} />
+              <Route path="/about" element={<Layout><About /></Layout>} />
+              <Route path="/contact" element={<Layout><Contact /></Layout>} />
+              <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
+              <Route path="/terms" element={<Layout><Terms /></Layout>} />
+              
+              {/* Auth routes */}
+              <Route path="/signin" element={<Layout showHeaderFooter={false}><SignIn /></Layout>} />
+              <Route path="/signup" element={<Layout showHeaderFooter={false}><SignUp /></Layout>} />
+              <Route path="/reset" element={<Layout showHeaderFooter={false}><Reset /></Layout>} />
+              
+              {/* Protected app routes */}
+              <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/app/cases/new" element={<ProtectedRoute><NewCase /></ProtectedRoute>} />
+              <Route path="/app/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
+              <Route path="/app/cases/:id/upload" element={<ProtectedRoute><CaseUpload /></ProtectedRoute>} />
+              <Route path="/app/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+              <Route path="/app/admin/cases" element={<ProtectedRoute><AdminCases /></ProtectedRoute>} />
+              
+              {/* 404 route */}
+              <Route path="*" element={<Layout><NotFound /></Layout>} />
+            </Routes>
+          </Router>
+        </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>
   );

@@ -1,6 +1,6 @@
 
 import { Navigate, Outlet, useLocation } from "react-router-dom";
-import { useAuthSession } from "@/hooks/useAuthSession";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import AppLayout from "@/components/app/AppLayout";
 import { Suspense } from "react";
@@ -21,8 +21,7 @@ const LoadingFallback = () => (
 );
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  // Simplified approach - let React handle the context properly
-  const { user, loading } = useAuthSession();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {

@@ -1,10 +1,10 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuthSession } from "@/hooks/useAuthSession";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function useIsAdmin() {
-  const { user, loading: authLoading } = useAuthSession();
+  const { user, loading: authLoading } = useAuth();
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -46,4 +46,3 @@ export function useIsAdmin() {
 
   return { isAdmin, loading };
 }
-

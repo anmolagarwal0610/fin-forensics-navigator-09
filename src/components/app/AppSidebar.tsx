@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
 import { LayoutDashboard, FolderGit2, UserCog } from "lucide-react";
@@ -24,7 +25,6 @@ export default function AppSidebar() {
   const location = useLocation();
   const currentPath = location.pathname;
   const isActive = (p: string) => currentPath === p;
-  const isExpanded = items.some((i) => isActive(i.url));
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
 
@@ -32,7 +32,10 @@ export default function AppSidebar() {
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>FinNavigator</SidebarGroupLabel>
+          <div className="flex items-center justify-between p-2">
+            <SidebarGroupLabel>FinNavigator</SidebarGroupLabel>
+            <SidebarTrigger />
+          </div>
           <SidebarGroupContent>
             <SidebarMenu>
               {items.map((item) => (

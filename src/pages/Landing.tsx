@@ -104,8 +104,8 @@ const Landing = () => {
           </div>
         </section>
 
-        {/* How it Works Section */}
-        <section className="py-20 bg-background">
+        {/* How it Works Section - Fixed background to match design system */}
+        <section className="py-20 bg-muted/30">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
@@ -119,7 +119,7 @@ const Landing = () => {
             <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               {howItWorksSteps.map((step, index) => (
                 <div key={step.title} className="text-center">
-                  <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-6 mx-auto">
+                  <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-6 mx-auto shadow-elegant">
                     <step.icon className="w-8 h-8 text-primary-foreground" />
                   </div>
                   <h3 className="text-xl font-semibold mb-3 text-foreground">{step.title}</h3>
@@ -133,7 +133,7 @@ const Landing = () => {
         </section>
 
         {/* Features Grid */}
-        <section className="py-20 bg-muted/30">
+        <section className="py-20 bg-background">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-16">
               <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">

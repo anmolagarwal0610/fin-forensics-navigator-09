@@ -1,11 +1,12 @@
+
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { cleanupAuthState } from "@/utils/auth";
 
@@ -20,6 +21,8 @@ const SignUp = () => {
     password: "",
     confirmPassword: ""
   });
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -29,20 +32,23 @@ const SignUp = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Sign up attempt:", formData);
-
+    
     if (formData.password !== formData.confirmPassword) {
       toast({ title: "Passwords do not match" });
       return;
     }
 
-    cleanupAuthState();
+    setLoading(true);
+    
+    try {
+      cleanupAuthState();
+      await supabase.auth.signOut({ scope: 'global' });
 
-    const redirectUrl = `${window.location.origin}/`;
-    supabase.auth.signOut({ scope: 'global' }).finally(() => {
-      supabase.auth.signUp({
+      const redirectUrl = `${window.location.origin}/`;
+      
+      const { error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -53,15 +59,27 @@ const SignUp = () => {
             organization: formData.organization,
           }
         }
-      }).then(({ error }) => {
-        if (error) {
-          toast({ title: error.message });
-          return;
-        }
-        toast({ title: "Check your email to confirm your account." });
-        window.location.href = "/signin";
       });
-    });
+      
+      if (error) {
+        toast({ 
+          title: "Sign up failed", 
+          description: error.message 
+        });
+        return;
+      }
+      
+      toast({ 
+        title: "Success!", 
+        description: "Check your inbox to confirm your account." 
+      });
+      navigate("/signin");
+    } catch (error) {
+      console.error("Sign up error:", error);
+      toast({ title: "An error occurred during sign up" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -217,8 +235,8 @@ const SignUp = () => {
                 </div>
               </div>
 
-              <Button type="submit" variant="cta" className="w-full">
-                Create account
+              <Button type="submit" variant="cta" className="w-full" disabled={loading}>
+                {loading ? "Creating account..." : "Create account"}
               </Button>
             </form>
 

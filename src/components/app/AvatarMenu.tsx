@@ -9,22 +9,26 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { getInitials, cleanupAuthState } from "@/utils/auth";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { toast } from "@/hooks/use-toast";
+import { useNavigate } from "react-router-dom";
 
 export default function AvatarMenu() {
   const { user } = useAuthSession();
+  const navigate = useNavigate();
 
   const handleSignOut = async () => {
-    cleanupAuthState();
     try {
+      cleanupAuthState();
       await supabase.auth.signOut({ scope: "global" });
-    } catch (e) {
-      // ignore errors
+      toast({ title: "Signed out successfully" });
+      navigate("/signin");
+    } catch (error) {
+      console.error("Sign out error:", error);
+      toast({ title: "Signed out" });
+      navigate("/signin");
     }
-    toast({ title: "Signed out" });
-    window.location.href = "/signin";
   };
 
   return (
@@ -39,7 +43,7 @@ export default function AvatarMenu() {
       <DropdownMenuContent align="end" className="w-44">
         <DropdownMenuLabel>My Account</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => (window.location.href = "/app/account")}>
+        <DropdownMenuItem onClick={() => navigate("/app/account")}>
           Account
         </DropdownMenuItem>
         <DropdownMenuSeparator />

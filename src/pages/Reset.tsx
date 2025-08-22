@@ -1,3 +1,4 @@
+
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -5,16 +6,38 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Mail } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "@/hooks/use-toast";
 
 const Reset = () => {
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Password reset requested for:", email);
-    setIsSubmitted(true);
-    // Password reset logic will be added in a future iteration
+    setLoading(true);
+    
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset`
+      });
+      
+      if (error) {
+        toast({ 
+          title: "Reset failed", 
+          description: error.message 
+        });
+        return;
+      }
+      
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error("Password reset error:", error);
+      toast({ title: "An error occurred during password reset" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (isSubmitted) {
@@ -98,8 +121,8 @@ const Reset = () => {
                 />
               </div>
 
-              <Button type="submit" variant="cta" className="w-full">
-                Send reset instructions
+              <Button type="submit" variant="cta" className="w-full" disabled={loading}>
+                {loading ? "Sending..." : "Send reset instructions"}
               </Button>
             </form>
 

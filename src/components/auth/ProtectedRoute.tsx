@@ -2,8 +2,13 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { Card } from "@/components/ui/card";
+import AppLayout from "@/components/app/AppLayout";
 
-const ProtectedRoute = () => {
+interface ProtectedRouteProps {
+  children?: React.ReactNode;
+}
+
+const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, loading } = useAuthSession();
   const location = useLocation();
 
@@ -19,7 +24,15 @@ const ProtectedRoute = () => {
     return <Navigate to="/signin" replace state={{ from: location }} />;
   }
 
-  return <Outlet />;
+  if (children) {
+    return <AppLayout>{children}</AppLayout>;
+  }
+
+  return (
+    <AppLayout>
+      <Outlet />
+    </AppLayout>
+  );
 };
 
 export default ProtectedRoute;

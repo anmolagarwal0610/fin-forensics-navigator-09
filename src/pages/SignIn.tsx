@@ -1,11 +1,12 @@
+
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
 import { cleanupAuthState } from "@/utils/auth";
 
@@ -15,6 +16,8 @@ const SignIn = () => {
     email: "",
     password: ""
   });
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -24,24 +27,39 @@ const SignIn = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Sign in attempt:", formData);
-    cleanupAuthState();
-    supabase.auth.signOut({ scope: 'global' }).finally(() => {
-      supabase.auth.signInWithPassword({
+    setLoading(true);
+    
+    try {
+      cleanupAuthState();
+      await supabase.auth.signOut({ scope: 'global' });
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: formData.email,
         password: formData.password,
-      }).then(({ data, error }) => {
-        if (error) {
-          toast({ title: error.message });
-          return;
-        }
-        if (data.user) {
-          window.location.href = "/app/dashboard";
-        }
       });
-    });
+      
+      if (error) {
+        toast({ 
+          title: "Sign in failed", 
+          description: error.message === "Invalid login credentials" 
+            ? "Invalid credentials or account not confirmed." 
+            : error.message 
+        });
+        return;
+      }
+      
+      if (data.user) {
+        toast({ title: "Welcome back!" });
+        navigate("/app/dashboard");
+      }
+    } catch (error) {
+      console.error("Sign in error:", error);
+      toast({ title: "An error occurred during sign in" });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -129,8 +147,8 @@ const SignIn = () => {
                 </div>
               </div>
 
-              <Button type="submit" variant="cta" className="w-full">
-                Sign in
+              <Button type="submit" variant="cta" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign in"}
               </Button>
             </form>
 

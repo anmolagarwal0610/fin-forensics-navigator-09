@@ -2,6 +2,8 @@
 import { motion } from "framer-motion";
 import { Activity, Clock, CheckCircle, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/lib/supabase";
 import type { CaseRecord } from "@/api/cases";
 
 interface KPICardsProps {
@@ -12,7 +14,27 @@ export default function KPICards({ cases }: KPICardsProps) {
   const activeCount = cases.filter(c => c.status === "Active").length;
   const processingCount = cases.filter(c => c.status === "Processing").length;
   const readyCount = cases.filter(c => c.status === "Ready").length;
-  const filesCount = cases.length * 3; // Placeholder
+
+  // Fetch actual file count from the database
+  const { data: fileCount = 0 } = useQuery({
+    queryKey: ['file-count', cases.map(c => c.id)],
+    queryFn: async () => {
+      if (cases.length === 0) return 0;
+      
+      const { data, error } = await supabase
+        .from('case_files')
+        .select('id', { count: 'exact', head: true })
+        .in('case_id', cases.map(c => c.id));
+      
+      if (error) {
+        console.error('Error fetching file count:', error);
+        return 0;
+      }
+      
+      return data?.length || 0;
+    },
+    enabled: cases.length > 0,
+  });
 
   const kpis = [
     {
@@ -38,7 +60,7 @@ export default function KPICards({ cases }: KPICardsProps) {
     },
     {
       icon: FileText,
-      value: filesCount,
+      value: fileCount,
       label: "Files (7d)",
       trend: "+24%",
       color: "text-purple-600 dark:text-purple-400"

@@ -17,6 +17,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import StatusBadge from "./StatusBadge";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { getCaseFiles } from "@/api/cases";
 import type { CaseRecord } from "@/api/cases";
 
 interface CaseListViewProps {
@@ -37,6 +39,33 @@ export default function CaseListView({ cases }: CaseListViewProps) {
     if (diffInDays < 7) return `${diffInDays}d ago`;
     return date.toLocaleDateString();
   };
+
+  // Hook to get file counts for all cases
+  const useFileCounts = (caseIds: string[]) => {
+    return useQuery({
+      queryKey: ['case-file-counts', caseIds],
+      queryFn: async () => {
+        const fileCounts: Record<string, number> = {};
+        
+        await Promise.all(
+          caseIds.map(async (caseId) => {
+            try {
+              const files = await getCaseFiles(caseId);
+              fileCounts[caseId] = files.length;
+            } catch (error) {
+              console.error(`Error fetching files for case ${caseId}:`, error);
+              fileCounts[caseId] = 0;
+            }
+          })
+        );
+        
+        return fileCounts;
+      },
+      enabled: caseIds.length > 0,
+    });
+  };
+
+  const { data: fileCounts = {} } = useFileCounts(cases.map(c => c.id));
 
   return (
     <div className="rounded-lg border">
@@ -91,7 +120,7 @@ export default function CaseListView({ cases }: CaseListViewProps) {
               <TableCell>
                 <div className="flex items-center gap-1">
                   <FileText className="h-4 w-4" />
-                  <span>3 files</span>
+                  <span>{fileCounts[caseItem.id] || 0} files</span>
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">

@@ -22,10 +22,6 @@ export default function Account() {
                 <p className="text-sm">{user?.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">User ID</label>
-                <p className="text-sm font-mono">{user?.id}</p>
-              </div>
-              <div>
                 <label className="text-sm font-medium text-muted-foreground">Created</label>
                 <p className="text-sm">{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
               </div>

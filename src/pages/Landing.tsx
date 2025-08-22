@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, FileSearch, TrendingUp, Shield, Users, Zap } from "lucide-react";
+import { CheckCircle, FileSearch, TrendingUp, Shield, Users, Zap, FileText, Upload, Eye } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 
 const Landing = () => {
@@ -37,6 +37,24 @@ const Landing = () => {
       icon: CheckCircle,
       title: "Court-Ready Reports",
       description: "Generate comprehensive, professional reports suitable for legal proceedings."
+    }
+  ];
+
+  const howItWorksSteps = [
+    {
+      icon: FileText,
+      title: "Create Case",
+      description: "Set up a new investigation case with relevant metadata and context."
+    },
+    {
+      icon: Upload,
+      title: "Upload Files",
+      description: "Upload bank statements, ledgers, and financial documents for analysis."
+    },
+    {
+      icon: Eye,
+      title: "Get Results",
+      description: "Review insights, persons of interest, and normalized activity scores."
     }
   ];
 
@@ -82,6 +100,34 @@ const Landing = () => {
               <p className="text-sm text-muted-foreground font-mono">
                 Your partner in financial forensics.
               </p>
+            </div>
+          </div>
+        </section>
+
+        {/* How it Works Section */}
+        <section className="py-20 bg-background">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl lg:text-4xl font-bold text-foreground mb-4">
+                How it works
+              </h2>
+              <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+                Three simple steps to transform complex financial data into actionable intelligence.
+              </p>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              {howItWorksSteps.map((step, index) => (
+                <div key={step.title} className="text-center">
+                  <div className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-6 mx-auto">
+                    <step.icon className="w-8 h-8 text-primary-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-3 text-foreground">{step.title}</h3>
+                  <p className="text-muted-foreground leading-relaxed">
+                    {step.description}
+                  </p>
+                </div>
+              ))}
             </div>
           </div>
         </section>

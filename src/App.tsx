@@ -23,12 +23,20 @@ import CaseUpload from "@/pages/app/CaseUpload";
 import Account from "@/pages/app/Account";
 import AdminCases from "@/pages/app/AdminCases";
 
-const queryClient = new QueryClient();
+// Create QueryClient outside component to prevent recreation on re-renders
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <Router>
             <Routes>
@@ -59,8 +67,8 @@ function App() {
             </Routes>
           </Router>
         </AuthProvider>
-      </ThemeProvider>
-    </QueryClientProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

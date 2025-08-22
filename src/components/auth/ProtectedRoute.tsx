@@ -3,21 +3,29 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { Card } from "@/components/ui/card";
 import AppLayout from "@/components/app/AppLayout";
+import { Suspense } from "react";
 
 interface ProtectedRouteProps {
   children?: React.ReactNode;
 }
+
+const LoadingFallback = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <Card className="p-6">
+      <div className="flex items-center space-x-2">
+        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+        <span>Loading...</span>
+      </div>
+    </Card>
+  </div>
+);
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const { user, loading } = useAuthSession();
   const location = useLocation();
 
   if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Card className="p-6">Loading…</Card>
-      </div>
-    );
+    return <LoadingFallback />;
   }
 
   if (!user) {
@@ -25,12 +33,20 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   }
 
   if (children) {
-    return <AppLayout>{children}</AppLayout>;
+    return (
+      <AppLayout>
+        <Suspense fallback={<LoadingFallback />}>
+          {children}
+        </Suspense>
+      </AppLayout>
+    );
   }
 
   return (
     <AppLayout>
-      <Outlet />
+      <Suspense fallback={<LoadingFallback />}>
+        <Outlet />
+      </Suspense>
     </AppLayout>
   );
 };

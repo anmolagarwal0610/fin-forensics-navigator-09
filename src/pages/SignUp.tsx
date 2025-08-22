@@ -5,6 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "@/hooks/use-toast";
+import { cleanupAuthState } from "@/utils/auth";
 
 const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +32,36 @@ const SignUp = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Sign up attempt:", formData);
-    // Authentication logic will be added in a future iteration
+
+    if (formData.password !== formData.confirmPassword) {
+      toast({ title: "Passwords do not match" });
+      return;
+    }
+
+    cleanupAuthState();
+
+    const redirectUrl = `${window.location.origin}/`;
+    supabase.auth.signOut({ scope: 'global' }).finally(() => {
+      supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            organization: formData.organization,
+          }
+        }
+      }).then(({ error }) => {
+        if (error) {
+          toast({ title: error.message });
+          return;
+        }
+        toast({ title: "Check your email to confirm your account." });
+        window.location.href = "/signin";
+      });
+    });
   };
 
   return (

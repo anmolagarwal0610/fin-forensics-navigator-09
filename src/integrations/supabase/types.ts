@@ -14,7 +14,115 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      case_files: {
+        Row: {
+          case_id: string
+          file_name: string
+          file_url: string | null
+          id: string
+          type: Database["public"]["Enums"]["file_type"]
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          case_id: string
+          file_name: string
+          file_url?: string | null
+          id?: string
+          type?: Database["public"]["Enums"]["file_type"]
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          case_id?: string
+          file_name?: string
+          file_url?: string | null
+          id?: string
+          type?: Database["public"]["Enums"]["file_type"]
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_files_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cases: {
+        Row: {
+          color_hex: string
+          created_at: string
+          creator_id: string
+          description: string | null
+          id: string
+          name: string
+          org_id: string | null
+          status: Database["public"]["Enums"]["case_status"]
+          tags: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          color_hex?: string
+          created_at?: string
+          creator_id: string
+          description?: string | null
+          id?: string
+          name: string
+          org_id?: string | null
+          status?: Database["public"]["Enums"]["case_status"]
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          color_hex?: string
+          created_at?: string
+          creator_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          org_id?: string | null
+          status?: Database["public"]["Enums"]["case_status"]
+          tags?: string[] | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      events: {
+        Row: {
+          case_id: string
+          created_at: string
+          id: string
+          payload: Json | null
+          type: Database["public"]["Enums"]["event_type"]
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          type: Database["public"]["Enums"]["event_type"]
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          id?: string
+          payload?: Json | null
+          type?: Database["public"]["Enums"]["event_type"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +131,14 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      case_status: "Active" | "Processing" | "Ready" | "Archived"
+      event_type:
+        | "created"
+        | "files_uploaded"
+        | "analysis_submitted"
+        | "analysis_ready"
+        | "note_added"
+      file_type: "upload" | "result"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +265,16 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      case_status: ["Active", "Processing", "Ready", "Archived"],
+      event_type: [
+        "created",
+        "files_uploaded",
+        "analysis_submitted",
+        "analysis_ready",
+        "note_added",
+      ],
+      file_type: ["upload", "result"],
+    },
   },
 } as const

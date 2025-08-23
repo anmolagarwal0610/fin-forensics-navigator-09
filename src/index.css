@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -60,19 +61,12 @@ All colors MUST be HSL. Typography: Inter (UI) + JetBrains Mono (technical)
     --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
@@ -133,6 +127,7 @@ All colors MUST be HSL. Typography: Inter (UI) + JetBrains Mono (technical)
   body {
     @apply bg-background text-foreground font-sans antialiased;
     font-family: var(--font-sans);
+    scroll-behavior: smooth;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -157,5 +152,60 @@ All colors MUST be HSL. Typography: Inter (UI) + JetBrains Mono (technical)
   
   .shadow-strong {
     box-shadow: var(--shadow-strong);
+  }
+
+  /* Animation Utilities */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-20px);
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 20px hsl(var(--accent) / 0.2);
+  }
+  to {
+    box-shadow: 0 0 30px hsl(var(--accent) / 0.4);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design for Mobile */
+@media (max-width: 768px) {
+  .animate-float {
+    animation-duration: 4s;
   }
 }

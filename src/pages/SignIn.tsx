@@ -5,182 +5,108 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/lib/supabase";
 import { toast } from "@/hooks/use-toast";
-import { cleanupAuthState } from "@/utils/auth";
+import { supabase } from "@/lib/supabase";
+import DocumentHead from "@/components/common/DocumentHead";
+import BackToLanding from "@/components/auth/BackToLanding";
 
-const SignIn = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: "",
-    password: ""
-  });
+export default function SignIn() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
-      cleanupAuthState();
-      await supabase.auth.signOut({ scope: 'global' });
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
       });
-      
+
       if (error) {
-        toast({ 
-          title: "Sign in failed", 
-          description: error.message === "Invalid login credentials" 
-            ? "Invalid credentials or account not confirmed." 
-            : error.message 
+        toast({
+          title: "Error signing in",
+          description: error.message,
+          variant: "destructive",
         });
-        return;
-      }
-      
-      if (data.user) {
-        toast({ title: "Welcome back!" });
+      } else {
+        toast({
+          title: "Welcome back!",
+          description: "You have been signed in successfully.",
+        });
         navigate("/app/dashboard");
       }
     } catch (error) {
-      console.error("Sign in error:", error);
-      toast({ title: "An error occurred during sign in" });
+      toast({
+        title: "Error signing in",
+        description: "An unexpected error occurred.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <Link to="/" className="text-2xl font-bold text-foreground hover:text-accent transition-colors">
-            FinNavigator
-          </Link>
-          <p className="mt-2 text-sm text-muted-foreground font-mono">
-            Your partner in financial forensics
-          </p>
-        </div>
-
-        <Card className="shadow-elegant">
+    <>
+      <DocumentHead title="Sign In - FinNavigator" />
+      <div className="min-h-screen flex items-center justify-center bg-background relative">
+        <BackToLanding />
+        <Card className="w-full max-w-md">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Sign in to your account</CardTitle>
+            <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
             <CardDescription>
-              Enter your credentials to access the FinNavigator platform
+              Enter your credentials to access your account
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSignIn} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
+                <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
-                  name="email"
                   type="email"
-                  autoComplete="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  placeholder="you@organization.com"
                 />
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="password">Password</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    required
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    placeholder="Enter your password"
-                  />
-                  <button
-                    type="button"
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </button>
-                </div>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
               </div>
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <input
-                    id="remember-me"
-                    name="remember-me"
-                    type="checkbox"
-                    className="h-4 w-4 text-accent focus:ring-accent border-border rounded"
-                  />
-                  <label htmlFor="remember-me" className="ml-2 block text-sm text-muted-foreground">
-                    Remember me
-                  </label>
-                </div>
-
-                <div className="text-sm">
-                  <Link
-                    to="/reset"
-                    className="text-accent hover:text-accent-hover font-medium transition-colors"
-                  >
-                    Forgot your password?
-                  </Link>
-                </div>
-              </div>
-
-              <Button type="submit" variant="cta" className="w-full" disabled={loading}>
-                {loading ? "Signing in..." : "Sign in"}
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing in..." : "Sign In"}
               </Button>
             </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-sm text-muted-foreground">
+            <div className="mt-6 text-center space-y-2">
+              <Link
+                to="/reset"
+                className="text-sm text-muted-foreground hover:text-primary"
+              >
+                Forgot your password?
+              </Link>
+              <div className="text-sm text-muted-foreground">
                 Don't have an account?{" "}
-                <Link
-                  to="/signup"
-                  className="text-accent hover:text-accent-hover font-medium transition-colors"
-                >
+                <Link to="/signup" className="text-primary hover:underline">
                   Sign up
                 </Link>
-              </p>
+              </div>
             </div>
           </CardContent>
         </Card>
-
-        <div className="mt-8 text-center">
-          <p className="text-xs text-muted-foreground">
-            By signing in, you agree to our{" "}
-            <Link to="/terms" className="text-accent hover:text-accent-hover">
-              Terms of Service
-            </Link>{" "}
-            and{" "}
-            <Link to="/privacy" className="text-accent hover:text-accent-hover">
-              Privacy Policy
-            </Link>
-          </p>
-        </div>
       </div>
-    </div>
+    </>
   );
-};
-
-export default SignIn;
+}

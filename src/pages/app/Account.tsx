@@ -1,6 +1,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthSession } from "@/hooks/useAuthSession";
+import ChangePassword from "@/components/auth/ChangePassword";
 
 export default function Account() {
   const { user } = useAuthSession();
@@ -26,6 +27,8 @@ export default function Account() {
           </div>
         </CardContent>
       </Card>
+
+      <ChangePassword />
     </div>
   );
 }

@@ -1,7 +1,6 @@
-
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { FileText, Upload, Eye, CheckCircle } from "lucide-react";
-import { useState } from "react";
 
 interface ProcessStepProps {
   icon: React.ElementType;
@@ -81,7 +80,7 @@ const ProcessFlowAnimation = () => {
   ];
 
   // Auto-advance through steps
-  React.useEffect(() => {
+  useEffect(() => {
     const interval = setInterval(() => {
       setActiveStep((prev) => {
         const next = (prev + 1) % steps.length;

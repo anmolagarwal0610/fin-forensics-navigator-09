@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import React from "react";
 
-const EnhancedDataFlowAnimation: React.FC = () => {
+const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
   const inputDocuments = [
     { icon: FileText, label: "Bank Statements", delay: 0, y: -60 },
     { icon: Database, label: "Ledgers", delay: 0.2, y: -20 },
@@ -175,4 +175,4 @@ const EnhancedDataFlowAnimation: React.FC = () => {
   );
 };
 
-export default EnhancedDataFlowAnimation;
+export default EnhancedDataFlowAnimationHorizontal;

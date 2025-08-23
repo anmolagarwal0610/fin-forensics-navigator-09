@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle, FileSearch, TrendingUp, Shield, Users, Zap, Brain } from "lucide-react";
 import { motion } from "framer-motion";
 import DocumentHead from "@/components/common/DocumentHead";
-import EnhancedDataFlowAnimation from "@/components/animations/EnhancedDataFlowAnimation";
+import ResponsiveDataFlowAnimation from "@/components/animations/ResponsiveDataFlowAnimation";
 import ProcessFlowAnimation from "@/components/animations/ProcessFlowAnimation";
 import DifferentiatorSection from "@/components/sections/DifferentiatorSection";
 import InteractiveStatsSection from "@/components/sections/InteractiveStatsSection";
@@ -172,7 +172,7 @@ const Landing = () => {
               duration: 0.8,
               delay: 0.4
             }}>
-                <EnhancedDataFlowAnimation />
+                <ResponsiveDataFlowAnimation />
               </motion.div>
             </div>
           </div>

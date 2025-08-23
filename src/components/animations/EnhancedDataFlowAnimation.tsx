@@ -1,45 +1,44 @@
 
 import { motion } from "framer-motion";
-import { FileText, Database, Receipt, Brain, TrendingUp, Users, Shield, CheckCircle, Zap } from "lucide-react";
+import { FileText, Database, Receipt, Brain, TrendingUp, BarChart3, Zap } from "lucide-react";
 
 const EnhancedDataFlowAnimation = () => {
-  // Input documents with staggered animation
+  // Input documents with staggered animation - more data streams
   const inputDocuments = [
-    { icon: FileText, label: "Bank Statements", delay: 0, y: -40 },
-    { icon: Database, label: "Ledgers", delay: 0.3, y: 0 },
-    { icon: Receipt, label: "Transactions", delay: 0.6, y: 40 },
+    { icon: FileText, label: "Bank Statements", delay: 0, y: -60 },
+    { icon: Database, label: "Ledgers", delay: 0.2, y: -20 },
+    { icon: Receipt, label: "Transactions", delay: 0.4, y: 20 },
+    { icon: FileText, label: "Invoices", delay: 0.6, y: 60 },
+    { icon: Database, label: "Records", delay: 0.8, y: 100 },
   ];
 
-  // AI Processing indicators
-  const processingNodes = Array.from({ length: 8 }, (_, i) => ({
-    angle: (i * 45) * (Math.PI / 180),
-    delay: 1.2 + (i * 0.1),
-  }));
-
-  // Output insights
+  // Output insights - simplified to 2 key outputs
   const outputs = [
-    { icon: Users, label: "Key Persons", delay: 2.8, y: -30, color: "text-accent" },
-    { icon: TrendingUp, label: "Money Flow", delay: 3.1, y: 10, color: "text-success" },
-    { icon: Shield, label: "Risk Scores", delay: 3.4, y: 50, color: "text-warning" },
+    { icon: BarChart3, label: "Actionable Insights", delay: 2.8, y: -20, color: "text-success" },
+    { icon: TrendingUp, label: "Graphs", delay: 3.1, y: 20, color: "text-accent" },
   ];
 
   return (
-    <div className="relative w-full h-80 flex items-center justify-center overflow-hidden bg-gradient-to-br from-muted/20 to-accent/5 rounded-2xl">
+    <div className="relative w-full h-80 lg:h-96 flex items-center justify-center overflow-hidden bg-gradient-to-br from-muted/20 to-accent/5 rounded-2xl">
       {/* Background grid pattern */}
       <div className="absolute inset-0 opacity-10">
         <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px),linear-gradient(hsl(var(--border))_1px,transparent_1px)] bg-[size:20px_20px]" />
       </div>
 
-      {/* Input Stage - Left Side */}
-      <div className="absolute left-8 lg:left-16">
+      {/* Input Stage - Left Side on Desktop, Top on Mobile */}
+      <div className="absolute left-4 lg:left-16 lg:top-auto top-8 flex lg:flex-col flex-row lg:space-y-4 space-x-4 lg:space-x-0">
         {inputDocuments.map((doc, index) => (
           <motion.div
             key={`input-${index}`}
-            className="absolute flex items-center space-x-3"
-            style={{ top: `calc(50% + ${doc.y}px)` }}
-            initial={{ x: -100, opacity: 0, scale: 0.8 }}
+            className="flex lg:flex-row flex-col items-center lg:space-x-3 space-y-2 lg:space-y-0"
+            style={{ 
+              top: window.innerWidth >= 1024 ? `calc(20% + ${doc.y}px)` : 'auto',
+              left: window.innerWidth < 1024 ? `${index * 80}px` : 'auto'
+            }}
+            initial={{ x: window.innerWidth >= 1024 ? -100 : 0, y: window.innerWidth < 1024 ? -50 : 0, opacity: 0, scale: 0.8 }}
             animate={{ 
               x: 0, 
+              y: 0,
               opacity: [0, 1, 0.9],
               scale: [0.8, 1.1, 1]
             }}
@@ -49,11 +48,11 @@ const EnhancedDataFlowAnimation = () => {
               ease: "easeOut"
             }}
           >
-            <div className="w-12 h-12 bg-card border-2 border-accent/30 rounded-lg flex items-center justify-center shadow-elegant">
-              <doc.icon className="w-6 h-6 text-accent" />
+            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-card border-2 border-accent/30 rounded-lg flex items-center justify-center shadow-elegant">
+              <doc.icon className="w-4 h-4 lg:w-6 lg:h-6 text-accent" />
             </div>
-            <div className="hidden lg:block">
-              <div className="text-sm font-medium text-foreground">{doc.label}</div>
+            <div className="hidden xl:block">
+              <div className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">{doc.label}</div>
               <div className="text-xs text-muted-foreground">Processing...</div>
             </div>
           </motion.div>
@@ -62,68 +61,41 @@ const EnhancedDataFlowAnimation = () => {
 
       {/* Data Flow Lines */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        {/* Input to AI flow */}
-        <motion.path
-          d="M 120 160 Q 200 140 280 160"
-          stroke="url(#flowGradient1)"
-          strokeWidth="3"
-          fill="none"
-          strokeDasharray="8,4"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.7 }}
-          transition={{ duration: 1.5, delay: 1.0 }}
-        />
-        <motion.path
-          d="M 120 200 Q 200 180 280 160"
-          stroke="url(#flowGradient1)"
-          strokeWidth="2"
-          fill="none"
-          strokeDasharray="6,3"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.5 }}
-          transition={{ duration: 1.5, delay: 1.2 }}
-        />
-        <motion.path
-          d="M 120 240 Q 200 220 280 160"
-          stroke="url(#flowGradient1)"
-          strokeWidth="2"
-          fill="none"
-          strokeDasharray="6,3"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.5 }}
-          transition={{ duration: 1.5, delay: 1.4 }}
-        />
+        {/* Multiple Input to AI flows - showing data abundance */}
+        {Array.from({ length: 5 }, (_, i) => (
+          <motion.path
+            key={`input-flow-${i}`}
+            d={`M ${80 + i * 20} ${140 + i * 40} Q ${180 + i * 10} ${160 + i * 20} 280 190`}
+            stroke="url(#flowGradient1)"
+            strokeWidth={3 - i * 0.3}
+            fill="none"
+            strokeDasharray={`${8 - i},${4 - i * 0.5}`}
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 0.6 - i * 0.1 }}
+            transition={{ duration: 1.5, delay: 1.0 + i * 0.2 }}
+          />
+        ))}
 
-        {/* AI to Output flow */}
+        {/* AI to Output flows - only 2 clean outputs */}
         <motion.path
-          d="M 320 160 Q 400 140 480 130"
+          d="M 320 180 Q 400 150 480 140"
           stroke="url(#flowGradient2)"
-          strokeWidth="3"
+          strokeWidth="4"
           fill="none"
-          strokeDasharray="8,4"
+          strokeDasharray="10,5"
           initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.8 }}
+          animate={{ pathLength: 1, opacity: 0.9 }}
           transition={{ duration: 1.2, delay: 2.5 }}
         />
         <motion.path
-          d="M 320 160 Q 400 160 480 170"
+          d="M 320 200 Q 400 220 480 200"
           stroke="url(#flowGradient2)"
-          strokeWidth="3"
+          strokeWidth="4"
           fill="none"
-          strokeDasharray="8,4"
+          strokeDasharray="10,5"
           initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.8 }}
+          animate={{ pathLength: 1, opacity: 0.9 }}
           transition={{ duration: 1.2, delay: 2.7 }}
-        />
-        <motion.path
-          d="M 320 160 Q 400 180 480 210"
-          stroke="url(#flowGradient2)"
-          strokeWidth="3"
-          fill="none"
-          strokeDasharray="8,4"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 0.8 }}
-          transition={{ duration: 1.2, delay: 2.9 }}
         />
 
         <defs>
@@ -138,93 +110,100 @@ const EnhancedDataFlowAnimation = () => {
         </defs>
       </svg>
 
-      {/* Central AI Brain - Enhanced */}
+      {/* Central AI Brain - Enhanced and More Complex */}
       <motion.div
-        className="relative z-10"
+        className="relative z-10 lg:static absolute top-1/2 left-1/2 lg:transform-none transform -translate-x-1/2 -translate-y-1/2"
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.8, delay: 1.6 }}
       >
-        <div className="relative w-24 h-24 bg-gradient-to-br from-primary via-accent to-success rounded-full flex items-center justify-center shadow-strong">
-          <Brain className="w-12 h-12 text-primary-foreground" />
+        <div className="relative w-28 h-28 lg:w-32 lg:h-32 bg-gradient-to-br from-primary via-accent to-success rounded-full flex items-center justify-center shadow-strong border-4 border-primary/20">
+          <Brain className="w-14 h-14 lg:w-16 lg:h-16 text-primary-foreground" />
           
-          {/* Neural network rings */}
+          {/* Neural network rings - more complex */}
           <motion.div
             className="absolute inset-0 rounded-full border-2 border-accent/40"
-            animate={{ rotate: 360, scale: [1, 1.1, 1] }}
+            animate={{ rotate: 360, scale: [1, 1.15, 1] }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
           />
           <motion.div
             className="absolute inset-2 rounded-full border border-success/30"
-            animate={{ rotate: -360, scale: [1, 0.9, 1] }}
+            animate={{ rotate: -360, scale: [1, 0.85, 1] }}
             transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
           />
-
-          {/* Processing nodes around the brain */}
-          {processingNodes.map((node, i) => (
-            <motion.div
-              key={i}
-              className="absolute w-3 h-3 bg-warning rounded-full"
-              style={{
-                top: '50%',
-                left: '50%',
-                transformOrigin: '0 0',
-              }}
-              initial={{ scale: 0, opacity: 0 }}
-              animate={{
-                scale: [0, 1, 0.8, 1],
-                opacity: [0, 1, 0.7, 0],
-                x: Math.cos(node.angle) * 50,
-                y: Math.sin(node.angle) * 50,
-              }}
-              transition={{
-                duration: 2,
-                delay: node.delay,
-                repeat: Infinity,
-                repeatDelay: 1,
-                ease: "easeInOut"
-              }}
-            />
-          ))}
-
-          {/* Central processing indicator */}
           <motion.div
-            className="absolute inset-4 rounded-full bg-accent/20"
+            className="absolute inset-4 rounded-full border border-primary/25"
+            animate={{ rotate: 180, scale: [1, 1.1, 1] }}
+            transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+          />
+
+          {/* Central processing indicator with nested circles */}
+          <motion.div
+            className="absolute inset-6 rounded-full bg-accent/30 flex items-center justify-center"
             animate={{ 
-              scale: [1, 1.2, 1],
-              opacity: [0.3, 0.6, 0.3]
+              scale: [1, 1.3, 1],
+              opacity: [0.4, 0.8, 0.4]
             }}
             transition={{ 
-              duration: 2, 
+              duration: 3, 
               delay: 2,
               repeat: Infinity,
               ease: "easeInOut" 
             }}
-          />
+          >
+            <motion.div
+              className="w-4 h-4 bg-warning rounded-full"
+              animate={{ 
+                scale: [0.5, 1, 0.5],
+                opacity: [0.5, 1, 0.5]
+              }}
+              transition={{ 
+                duration: 2, 
+                repeat: Infinity,
+                ease: "easeInOut" 
+              }}
+            />
+          </motion.div>
         </div>
 
-        {/* AI Processing Labels */}
+        {/* AI/ML Labels integrated into the brain design */}
         <motion.div
-          className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs font-medium text-center"
+          className="absolute -top-12 left-1/2 transform -translate-x-1/2 text-center"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 2.0 }}
         >
-          <div className="text-accent">AI Processing</div>
-          <div className="text-muted-foreground">ML Models Active</div>
+          <div className="text-xs lg:text-sm font-bold text-accent bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full border border-accent/20">
+            AI Engine
+          </div>
+        </motion.div>
+        
+        <motion.div
+          className="absolute -bottom-12 left-1/2 transform -translate-x-1/2 text-center"
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 2.2 }}
+        >
+          <div className="text-xs lg:text-sm font-bold text-primary bg-card/80 backdrop-blur-sm px-3 py-1 rounded-full border border-primary/20">
+            ML Models
+          </div>
         </motion.div>
       </motion.div>
 
-      {/* Output Stage - Right Side */}
-      <div className="absolute right-8 lg:right-16">
+      {/* Output Stage - Right Side on Desktop, Bottom on Mobile */}
+      <div className="absolute right-4 lg:right-16 lg:bottom-auto bottom-8 flex lg:flex-col flex-row lg:space-y-6 space-x-6 lg:space-x-0">
         {outputs.map((output, index) => (
           <motion.div
             key={`output-${index}`}
-            className="absolute flex items-center space-x-3"
-            style={{ top: `calc(50% + ${output.y}px)` }}
-            initial={{ x: 100, opacity: 0, scale: 0.8 }}
+            className="flex lg:flex-row flex-col items-center lg:space-x-4 space-y-2 lg:space-y-0"
+            style={{ 
+              top: window.innerWidth >= 1024 ? `calc(35% + ${output.y}px)` : 'auto',
+              right: window.innerWidth < 1024 ? `${index * 100}px` : 'auto'
+            }}
+            initial={{ x: window.innerWidth >= 1024 ? 100 : 0, y: window.innerWidth < 1024 ? 50 : 0, opacity: 0, scale: 0.8 }}
             animate={{ 
               x: 0, 
+              y: 0,
               opacity: [0, 1, 1],
               scale: [0.8, 1.1, 1]
             }}
@@ -234,35 +213,50 @@ const EnhancedDataFlowAnimation = () => {
               ease: "easeOut"
             }}
           >
-            <div className="hidden lg:block text-right">
-              <div className="text-sm font-medium text-foreground">{output.label}</div>
+            <div className="hidden xl:block lg:text-right text-center lg:order-1 order-2">
+              <div className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">{output.label}</div>
               <div className="text-xs text-success">Ready</div>
             </div>
-            <div className="w-12 h-12 bg-card border-2 border-success/40 rounded-lg flex items-center justify-center shadow-elegant">
-              <output.icon className={`w-6 h-6 ${output.color}`} />
+            <div className="w-10 h-10 lg:w-12 lg:h-12 bg-card border-2 border-success/40 rounded-lg flex items-center justify-center shadow-elegant lg:order-2 order-1 relative">
+              <output.icon className={`w-4 h-4 lg:w-6 lg:h-6 ${output.color}`} />
+              <motion.div
+                className="absolute -right-1 -top-1 w-4 h-4 lg:w-5 lg:h-5 bg-success/30 rounded-full flex items-center justify-center border border-success/50"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: output.delay + 0.3 }}
+              >
+                <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+              </motion.div>
             </div>
-            <motion.div
-              className="absolute -right-2 -top-2 w-6 h-6 bg-success/20 rounded-full flex items-center justify-center"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: output.delay + 0.3 }}
-            >
-              <CheckCircle className="w-4 h-4 text-success" />
-            </motion.div>
           </motion.div>
         ))}
       </div>
 
-      {/* Success Indicator */}
+      {/* Success Indicator - Only Lightning */}
       <motion.div
-        className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex items-center space-x-2"
+        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 flex items-center justify-center"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 3.8 }}
       >
-        <Zap className="w-4 h-4 text-warning" />
-        <span className="text-sm font-medium text-success">Analysis Complete</span>
-        <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
+        <motion.div
+          className="w-8 h-8 bg-warning/20 rounded-full flex items-center justify-center"
+          animate={{ 
+            scale: [1, 1.2, 1],
+            boxShadow: [
+              "0 0 0 0 rgba(234, 179, 8, 0.4)",
+              "0 0 0 10px rgba(234, 179, 8, 0)",
+              "0 0 0 0 rgba(234, 179, 8, 0)"
+            ]
+          }}
+          transition={{ 
+            duration: 2, 
+            repeat: Infinity,
+            ease: "easeInOut" 
+          }}
+        >
+          <Zap className="w-4 h-4 text-warning" />
+        </motion.div>
       </motion.div>
     </div>
   );

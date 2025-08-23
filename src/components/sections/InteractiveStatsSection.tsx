@@ -29,10 +29,10 @@ const InteractiveStatsSection = () => {
       color: "from-primary to-success"
     },
     {
-      icon: Users,
-      value: "500+",
-      label: "Investigators",
-      description: "Trusted by forensic professionals worldwide",
+      icon: Shield,
+      value: "100%",
+      label: "Data Privacy",
+      description: "All processing happens in our in-house systems. Data never leaves our servers ensuring the highest standards of data privacy. All ML and AI models run internally.",
       color: "from-warning to-accent"
     }
   ];
@@ -60,7 +60,7 @@ const InteractiveStatsSection = () => {
             </span>
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Numbers that speak to our commitment to excellence and innovation in financial forensics.
+            Your data security is our priority. Experience enterprise-grade protection with in-house processing.
           </p>
         </motion.div>
 

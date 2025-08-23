@@ -7,8 +7,9 @@ import { ArrowRight, Sparkles, Zap } from "lucide-react";
 const EnhancedCTASection = () => {
   return (
     <section className="py-20 relative overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-accent via-primary to-accent" />
+      {/* Gradient Background with overlay for better text readability */}
+      <div className="absolute inset-0 bg-gradient-to-br from-accent/80 via-primary/80 to-accent/80" />
+      <div className="absolute inset-0 bg-background/10" />
       
       {/* Animated Background Elements */}
       <div className="absolute inset-0">
@@ -83,7 +84,7 @@ const EnhancedCTASection = () => {
 
           {/* Heading */}
           <motion.h2
-            className="text-4xl lg:text-6xl font-bold mb-6 text-accent-foreground"
+            className="text-4xl lg:text-6xl font-bold mb-6 text-white drop-shadow-lg"
             initial={{ y: 30, opacity: 0 }}
             whileInView={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.2 }}
@@ -91,12 +92,12 @@ const EnhancedCTASection = () => {
           >
             Ready to accelerate your{" "}
             <motion.span
-              className="inline-block"
+              className="inline-block text-white"
               animate={{ 
                 textShadow: [
-                  "0 0 0px rgba(255,255,255,0.5)",
-                  "0 0 20px rgba(255,255,255,0.8)",
-                  "0 0 0px rgba(255,255,255,0.5)"
+                  "0 0 0px rgba(255,255,255,0.8)",
+                  "0 0 15px rgba(255,255,255,1)",
+                  "0 0 0px rgba(255,255,255,0.8)"
                 ]
               }}
               transition={{ duration: 2, repeat: Infinity }}
@@ -107,7 +108,7 @@ const EnhancedCTASection = () => {
 
           {/* Description */}
           <motion.p
-            className="text-xl mb-10 max-w-3xl mx-auto text-accent-foreground/90 leading-relaxed"
+            className="text-xl mb-10 max-w-3xl mx-auto text-white/95 leading-relaxed drop-shadow-md"
             initial={{ y: 30, opacity: 0 }}
             whileInView={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.4 }}
@@ -133,7 +134,7 @@ const EnhancedCTASection = () => {
                 <Button 
                   size="lg" 
                   variant="secondary" 
-                  className="min-w-[200px] h-14 text-lg font-semibold group bg-accent-foreground text-accent hover:bg-accent-foreground/90"
+                  className="min-w-[200px] h-14 text-lg font-semibold group bg-white text-primary hover:bg-white/90 shadow-lg"
                 >
                   Start Free Trial
                   <motion.div
@@ -155,7 +156,7 @@ const EnhancedCTASection = () => {
                 <Button 
                   size="lg" 
                   variant="outline" 
-                  className="min-w-[200px] h-14 text-lg font-semibold border-accent-foreground/30 text-accent-foreground hover:bg-accent-foreground/10 hover:border-accent-foreground/50"
+                  className="min-w-[200px] h-14 text-lg font-semibold border-white/50 text-white hover:bg-white/10 hover:border-white/70 shadow-lg"
                 >
                   Contact Sales
                 </Button>
@@ -165,7 +166,7 @@ const EnhancedCTASection = () => {
 
           {/* Trust indicators */}
           <motion.div
-            className="mt-12 flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-8 text-accent-foreground/70"
+            className="mt-12 flex flex-col sm:flex-row items-center justify-center space-y-4 sm:space-y-0 sm:space-x-8 text-white/80"
             initial={{ y: 30, opacity: 0 }}
             whileInView={{ y: 0, opacity: 1 }}
             transition={{ duration: 0.8, delay: 0.8 }}

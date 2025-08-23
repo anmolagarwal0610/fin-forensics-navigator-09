@@ -242,7 +242,7 @@ const EnhancedDataFlowAnimation = () => {
       }}>
             <div className="hidden xl:block lg:text-right text-center lg:order-1 order-2">
               <div className="text-xs lg:text-sm font-medium text-foreground whitespace-nowrap">{output.label}</div>
-              <div className="text-xs text-success">Ready</div>
+              
             </div>
             <div className="w-10 h-10 lg:w-12 lg:h-12 bg-card border-2 border-success/40 rounded-lg flex items-center justify-center shadow-elegant lg:order-2 order-1 relative">
               <output.icon className={`w-4 h-4 lg:w-6 lg:h-6 ${output.color}`} />

@@ -1,6 +1,5 @@
 
 import { useState } from "react";
-import AppLayout from "@/components/app/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -40,35 +39,33 @@ export default function NewCase() {
   };
 
   return (
-    <AppLayout>
-      <form onSubmit={onSubmit}>
-        <Card>
-          <CardHeader>
-            <CardTitle>New Case</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Case name" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="desc">Description</Label>
-              <Textarea id="desc" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional details" />
-            </div>
-            <div className="space-y-2">
-              <Label>Tags</Label>
-              <TagInput value={tags} onChange={setTags} placeholder="Type a tag and press Enter" />
-            </div>
-            <div className="space-y-2">
-              <Label>Color</Label>
-              <ColorPicker value={color} onChange={setColor} />
-            </div>
-            <div className="pt-2">
-              <Button type="submit" disabled={submitting}>{submitting ? "Creating…" : "Create Case"}</Button>
-            </div>
-          </CardContent>
-        </Card>
-      </form>
-    </AppLayout>
+    <form onSubmit={onSubmit}>
+      <Card>
+        <CardHeader>
+          <CardTitle>New Case</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Case name" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="desc">Description</Label>
+            <Textarea id="desc" value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Optional details" />
+          </div>
+          <div className="space-y-2">
+            <Label>Tags</Label>
+            <TagInput value={tags} onChange={setTags} placeholder="Type a tag and press Enter" />
+          </div>
+          <div className="space-y-2">
+            <Label>Color</Label>
+            <ColorPicker value={color} onChange={setColor} />
+          </div>
+          <div className="pt-2">
+            <Button type="submit" disabled={submitting}>{submitting ? "Creating…" : "Create Case"}</Button>
+          </div>
+        </CardContent>
+      </Card>
+    </form>
   );
 }

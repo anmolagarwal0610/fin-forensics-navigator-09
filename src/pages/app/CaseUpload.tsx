@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import AppLayout from "@/components/app/AppLayout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUploader from "@/components/app/FileUploader";
@@ -80,13 +79,11 @@ export default function CaseUpload() {
 
   if (loading) {
     return (
-      <AppLayout>
-        <div className="flex items-center justify-center py-12">
-          <div className="text-center">
-            <div className="text-lg font-medium mb-2">Loading case...</div>
-          </div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <div className="text-lg font-medium mb-2">Loading case...</div>
         </div>
-      </AppLayout>
+      </div>
     );
   }
 
@@ -95,55 +92,53 @@ export default function CaseUpload() {
   }
 
   return (
-    <AppLayout>
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate("/app/dashboard")}
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <div className="flex items-center gap-2">
-            <span
-              className="inline-block h-3 w-3 rounded-full"
-              style={{ backgroundColor: case_.color_hex }}
-            />
-            <h1 className="text-2xl font-semibold">{case_.name}</h1>
-          </div>
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => navigate("/app/dashboard")}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Dashboard
+        </Button>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block h-3 w-3 rounded-full"
+            style={{ backgroundColor: case_.color_hex }}
+          />
+          <h1 className="text-2xl font-semibold">{case_.name}</h1>
         </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Files for Analysis</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <FileUploader
-              files={files}
-              onFilesChange={setFiles}
-            />
-
-            {files.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No files uploaded yet.</p>
-                <p className="text-sm mt-1">Upload files to begin analysis</p>
-              </div>
-            ) : (
-              <div className="flex justify-end">
-                <Button 
-                  onClick={handleStartAnalysis}
-                  disabled={submitting}
-                  size="lg"
-                >
-                  {submitting ? "Submitting..." : "Start Analysis"}
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
-    </AppLayout>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Upload Files for Analysis</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <FileUploader
+            files={files}
+            onFilesChange={setFiles}
+          />
+
+          {files.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <p>No files uploaded yet.</p>
+              <p className="text-sm mt-1">Upload files to begin analysis</p>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <Button 
+                onClick={handleStartAnalysis}
+                disabled={submitting}
+                size="lg"
+              >
+                {submitting ? "Submitting..." : "Start Analysis"}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }

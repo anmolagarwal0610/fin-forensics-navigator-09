@@ -154,7 +154,7 @@ All colors MUST be HSL. Typography: Inter (UI) + JetBrains Mono (technical)
     box-shadow: var(--shadow-strong);
   }
 
-  /* Animation Utilities */
+  /* Enhanced Animation Utilities */
   .animate-float {
     animation: float 6s ease-in-out infinite;
   }
@@ -166,14 +166,57 @@ All colors MUST be HSL. Typography: Inter (UI) + JetBrains Mono (technical)
   .animate-slide-up {
     animation: slideUp 0.6s ease-out;
   }
+
+  .animate-pulse-slow {
+    animation: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .animate-bounce-subtle {
+    animation: bounceSubtle 2s ease-in-out infinite;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 0.6s ease-out forwards;
+  }
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+
+  /* Interactive hover effects */
+  .hover-lift {
+    @apply transition-transform duration-300 hover:-translate-y-2;
+  }
+
+  .hover-glow {
+    @apply transition-shadow duration-300 hover:shadow-[0_0_30px_hsl(var(--accent)/0.3)];
+  }
+
+  .hover-scale {
+    @apply transition-transform duration-200 hover:scale-105;
+  }
+
+  /* Background patterns */
+  .bg-grid {
+    background-image: 
+      linear-gradient(rgba(0,0,0,0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,0,0,0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .bg-dots {
+    background-image: radial-gradient(circle, rgba(0,0,0,0.1) 1px, transparent 1px);
+    background-size: 15px 15px;
+  }
 }
 
+/* Enhanced Keyframes */
 @keyframes float {
   0%, 100% {
     transform: translateY(0px);
@@ -203,9 +246,89 @@ All colors MUST be HSL. Typography: Inter (UI) + JetBrains Mono (technical)
   }
 }
 
+@keyframes bounceSubtle {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes ripple {
+  0% {
+    transform: scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(4);
+    opacity: 0;
+  }
+}
+
 /* Responsive Design for Mobile */
 @media (max-width: 768px) {
   .animate-float {
     animation-duration: 4s;
   }
+  
+  .animate-bounce-subtle {
+    animation-duration: 3s;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--accent) / 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--accent) / 0.5);
+}
+
+/* Smooth focus transitions */
+*:focus-visible {
+  outline: 2px solid hsl(var(--accent));
+  outline-offset: 2px;
+  transition: outline-offset 0.2s ease;
 }

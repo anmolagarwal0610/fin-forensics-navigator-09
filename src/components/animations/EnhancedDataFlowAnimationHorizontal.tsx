@@ -1,73 +1,200 @@
-/* src/components/animations/EnhancedDataFlowAnimation.tsx */
-import { motion } from "framer-motion";
+/* src/components/animations/EnhancedDataFlowAnimationHorizontal.tsx */
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
-  FileText, Database, Receipt, Brain, TrendingUp, BarChart3, Zap,
+  FileText,
+  Database,
+  Receipt,
+  Brain,
+  TrendingUp,
+  BarChart3,
+  Zap,
 } from "lucide-react";
-import React from "react";
 
 const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
+  const prefersReducedMotion = useReducedMotion();
+
+  // ---------- Normalized SVG space ----------
+  const VB_W = 1000;
+  const VB_H = 520;
+
+  // Brain center + radius (for path math; the visible circle scales via CSS)
+  const cx = 520;
+  const cy = VB_H / 2;
+  const brainR = 95;
+
+  // Columns & control points (viewBox units)
+  const LEFT_X = 140;
+  const RIGHT_X = 775; // <— arrow tips end here
+  const L_CTRL_X = 300;
+  const R_CTRL_X = 700;
+
+  // *** New: CSS position for right labels so they begin AFTER the arrow tip ***
+  const rightLabelCssLeft = `${(RIGHT_X / VB_W) * 100}%`;
+  const RIGHT_LABEL_GAP_PX = 12; // space between arrow tip and labels
+
+  // Distinct entry/exit angles (keep multiple touch points on the circle)
+  const leftAngles = useMemo(() => [-0.5, -0.2, 0.05, 0.32, 0.6], []);
+  const rightAngles = useMemo(() => ({ top: -0.12, bottom: 0.18 }), []);
+
+  const ptOnCircle = (a: number) => ({
+    x: cx + brainR * Math.cos(a),
+    y: cy + brainR * Math.sin(a),
+  });
+
+  // Left list Y anchors (roughly centered vertically)
+  const leftListY = useMemo(() => {
+    const start = cy - 120;
+    const gap = 48;
+    return [0, 1, 2, 3, 4].map((i) => start + i * gap);
+  }, [cy]);
+
   const inputDocuments = [
-    { icon: FileText, label: "Bank Statements", delay: 0, y: -60 },
-    { icon: Database, label: "Ledgers", delay: 0.2, y: -20 },
-    { icon: Receipt, label: "Transactions", delay: 0.4, y: 20 },
-    { icon: FileText, label: "Invoices", delay: 0.6, y: 60 },
-    { icon: Database, label: "Records", delay: 0.8, y: 100 },
+    { icon: FileText, label: "Bank Statements", delay: 0.0 },
+    { icon: Database, label: "Ledgers", delay: 0.15 },
+    { icon: Receipt, label: "Transactions", delay: 0.3 },
+    { icon: FileText, label: "Invoices", delay: 0.45 },
+    { icon: Database, label: "Records", delay: 0.6 },
   ];
 
-  // Path strings (used for both visible lines and dot motion)
-  const leftPaths = Array.from({ length: 5 }).map((_, i) => {
-    const yBase = 150 + i * 28;
-    return `M ${120 + i * 6} ${yBase} Q ${220 + i * 12} ${yBase - 8} 340 190`;
-  });
-  const rightTopPath = `M 380 185 Q 440 168 500 165`;   // Insights (green)
-  const rightBottomPath = `M 380 205 Q 440 222 500 225`; // Graphs (purple)
+  // Build left curves
+  type PathInfo = { id: string; d: string };
+  const leftPaths: PathInfo[] = useMemo(() => {
+    return leftAngles.map((ang, i) => {
+      const end = ptOnCircle(ang);
+      const ys = leftListY[i];
+      const d = `M ${LEFT_X} ${ys} Q ${L_CTRL_X} ${
+        ys + (end.y - ys) * 0.25
+      } ${end.x} ${end.y}`;
+      return { id: `lp-${i}`, d };
+    });
+  }, [leftAngles, leftListY]);
+
+  // Build right curves (brain → right)
+  const rightPaths: PathInfo[] = useMemo(() => {
+    const top = ptOnCircle(rightAngles.top);
+    const bot = ptOnCircle(rightAngles.bottom);
+    return [
+      {
+        id: "rp-top",
+        d: `M ${top.x} ${top.y} Q ${R_CTRL_X} ${top.y - 25} ${RIGHT_X} ${
+          top.y - 20
+        }`,
+      },
+      {
+        id: "rp-bottom",
+        d: `M ${bot.x} ${bot.y} Q ${R_CTRL_X} ${bot.y + 25} ${RIGHT_X} ${
+          bot.y + 20
+        }`,
+      },
+    ];
+  }, [rightAngles]);
+
+  // Durations proportional to path lengths (keeps speed natural)
+  const leftRefs = useRef<(SVGPathElement | null)[]>([]);
+  const rightRefs = useRef<Record<string, SVGPathElement | null>>({});
+  const [leftDur, setLeftDur] = useState<number[]>([]);
+  const [rightDur, setRightDur] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    const SPEED = 200; // viewBox units per second
+    const l = leftRefs.current.map((p) => (p ? p.getTotalLength() : 500));
+    setLeftDur(l.map((len) => Math.max(1.8, len / SPEED)));
+    const r: Record<string, number> = {};
+    Object.entries(rightRefs.current).forEach(([k, el]) => {
+      const len = el ? el.getTotalLength() : 400;
+      r[k] = Math.max(1.6, len / SPEED);
+    });
+    setRightDur(r);
+  }, [leftPaths, rightPaths]);
+
+  // Scalable sizes via clamp()
+  const cls = {
+    container:
+      "relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-muted/20 to-accent/5",
+    height: "h-[clamp(18rem,40vw,26rem)]",
+    leftItemText:
+      "text-[clamp(0.8rem,0.95vw,0.95rem)] font-medium",
+    rightItemText:
+      "text-[clamp(0.8rem,0.95vw,0.95rem)] font-semibold leading-tight",
+    iconBox:
+      "flex items-center justify-center rounded-lg bg-card border border-accent/40",
+    iconBoxSize:
+      "w-[clamp(2.25rem,2.8vw,2.6rem)] h-[clamp(2.25rem,2.8vw,2.6rem)]",
+    iconSize:
+      "w-[clamp(1.0rem,1.4vw,1.2rem)] h-[clamp(1.0rem,1.4vw,1.2rem)]",
+  };
 
   return (
-    <div className="relative w-full h-80 lg:h-96 flex items-center justify-center overflow-hidden bg-gradient-to-br from-muted/20 to-accent/5 rounded-2xl">
+    <div className={`${cls.container} ${cls.height} flex items-center justify-center`}>
       {/* Grid */}
       <div className="absolute inset-0 opacity-10 pointer-events-none">
         <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px),linear-gradient(hsl(var(--border))_1px,transparent_1px)] bg-[size:20px_20px]" />
       </div>
 
       {/* Left items */}
-      <div className="absolute left-6 top-1/2 -translate-y-1/2 flex flex-col space-y-4">
+      <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex flex-col gap-[clamp(0.5rem,1.5vh,1.1rem)]">
         {inputDocuments.map((doc, i) => (
-          <motion.div key={i} className="flex items-center space-x-3"
-            initial={{ x: -60, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: doc.delay }}>
-            <div className="w-10 h-10 bg-card border border-accent/40 rounded-lg flex items-center justify-center">
-              <doc.icon className="w-5 h-5 text-accent" />
+          <motion.div
+            key={i}
+            className="flex items-center gap-3"
+            initial={{ x: -60, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: doc.delay }}
+          >
+            <div className={`${cls.iconBox} ${cls.iconBoxSize}`}>
+              <doc.icon className={`${cls.iconSize} text-accent`} />
             </div>
-            <span className="text-sm font-medium">{doc.label}</span>
+            <span className={cls.leftItemText}>{doc.label}</span>
           </motion.div>
         ))}
       </div>
 
-      {/* --- SVG: visible lines + DOTS that follow those lines --- */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+      {/* SVG */}
+      <svg
+        className="absolute inset-0 w-full h-full pointer-events-none"
+        viewBox={`0 0 ${VB_W} ${VB_H}`}
+        preserveAspectRatio="xMidYMid meet"
+      >
         <defs>
           <linearGradient id="leftTrail" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="hsl(var(--accent))" stopOpacity="0.18" />
             <stop offset="100%" stopColor="hsl(var(--accent))" stopOpacity="0.55" />
           </linearGradient>
-          <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5"
-                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <marker
+            id="arrowGreen"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
             <path d="M0 0 L10 5 L0 10 Z" fill="hsl(var(--success))" />
           </marker>
-          <marker id="arrowPurple" viewBox="0 0 10 10" refX="9" refY="5"
-                  markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <marker
+            id="arrowPurple"
+            viewBox="0 0 10 10"
+            refX="9"
+            refY="5"
+            markerWidth="6"
+            markerHeight="6"
+            orient="auto-start-reverse"
+          >
             <path d="M0 0 L10 5 L0 10 Z" fill="hsl(var(--accent))" />
           </marker>
         </defs>
 
-        {/* LEFT trails (with IDs) */}
-        {leftPaths.map((d, i) => (
+        {/* LEFT trails */}
+        {leftPaths.map((p, i) => (
           <motion.path
-            id={`lp-${i}`}
-            key={`lp-${i}`}
-            d={d}
+            ref={(el) => (leftRefs.current[i] = el)}
+            id={p.id}
+            key={p.id}
+            d={p.d}
             stroke="url(#leftTrail)"
-            strokeWidth="4"
+            // strokeWidth={3} // input line thickness
+            strokeWidth={Math.max(3, 1000 / VB_W)}
             fill="none"
             strokeDasharray="8 6"
             initial={{ pathLength: 0, opacity: 0 }}
@@ -76,100 +203,148 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
           />
         ))}
 
-        {/* RIGHT arrows (with IDs) */}
-        <motion.path id="rp-top" d={rightTopPath}
-          stroke="hsl(var(--success))" strokeWidth="2" fill="none"
-          markerEnd="url(#arrowGreen)"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.8, delay: 1.8 }}
-        />
-        <motion.path id="rp-bottom" d={rightBottomPath}
-          stroke="hsl(var(--accent))" strokeWidth="2" fill="none"
-          markerEnd="url(#arrowPurple)"
-          initial={{ pathLength: 0, opacity: 0 }}
-          animate={{ pathLength: 1, opacity: 1 }}
-          transition={{ duration: 0.8, delay: 2.0 }}
-        />
-
-        {/* DOT RUNNERS — follow the actual paths via animateMotion */}
-        {/* Left → Brain (accent-blue dots) */}
-        {leftPaths.map((_, i) => (
-          <g key={`ldots-${i}`}>
-            <circle r="2" fill="hsl(var(--accent))" opacity="0.75"
-                    filter="url(#)"><animateMotion
-              dur={`${2.8 + i * 0.2}s`} repeatCount="indefinite" begin={`${0.8 + i * 0.15}s`}>
-              <mpath xlinkHref={`#lp-${i}`} href={`#lp-${i}`} />
-            </animateMotion></circle>
-            <circle r="2" fill="hsl(var(--accent))" opacity="0.6">
-              <animateMotion dur={`${3.3 + i * 0.25}s`} repeatCount="indefinite" begin={`${1.6 + i * 0.2}s`}>
-                <mpath xlinkHref={`#lp-${i}`} href={`#lp-${i}`} />
-              </animateMotion>
-            </circle>
-          </g>
+        {/* RIGHT arrows */}
+        {rightPaths.map((p, i) => (
+          <motion.path
+            ref={(el) => (rightRefs.current[p.id] = el)}
+            id={p.id}
+            key={p.id}
+            d={p.d}
+            stroke={i === 0 ? "hsl(var(--success))" : "hsl(var(--accent))"}
+            strokeWidth={2}
+            fill="none"
+            markerEnd={`url(#${i === 0 ? "arrowGreen" : "arrowPurple"})`}
+            initial={{ pathLength: 0, opacity: 0 }}
+            animate={{ pathLength: 1, opacity: 1 }}
+            transition={{ duration: 0.8, delay: 1.8 + i * 0.2 }}
+          />
         ))}
 
-        {/* Brain → Right (green for Insights, purple for Graphs) */}
-        {/* Top path dots (green) */}
-        <circle r="2" fill="hsl(var(--success))" opacity="0.85">
-          <animateMotion dur="2.4s" repeatCount="indefinite" begin="2s">
-            <mpath xlinkHref="#rp-top" href="#rp-top" />
-          </animateMotion>
-        </circle>
-        <circle r="2" fill="hsl(var(--success))" opacity="0.6">
-          <animateMotion dur="3s" repeatCount="indefinite" begin="2.8s">
-            <mpath xlinkHref="#rp-top" href="#rp-top" />
-          </animateMotion>
-        </circle>
+        {/* Animated dots */}
+        {!prefersReducedMotion && (
+          <>
+            {leftPaths.map((p, i) => (
+              <g key={`ldots-${i}`}>
+                <circle r="4" fill="hsl(var(--accent))" opacity="0.75">
+                  <animateMotion
+                    dur={`${(leftDur[i] ?? 2.8).toFixed(2)}s`}
+                    repeatCount="indefinite"
+                    begin={`${(0.8 + i * 0.15).toFixed(2)}s`}
+                  >
+                    <mpath href={`#${p.id}`} />
+                  </animateMotion>
+                </circle>
+                <circle r="4" fill="hsl(var(--accent))" opacity="0.6">
+                  <animateMotion
+                    dur={`${(((leftDur[i] ?? 3.3) * 1.15)).toFixed(2)}s`}
+                    repeatCount="indefinite"
+                    begin={`${(1.6 + i * 0.2).toFixed(2)}s`}
+                  >
+                    <mpath href={`#${p.id}`} />
+                  </animateMotion>
+                </circle>
+              </g>
+            ))}
 
-        {/* Bottom path dots (purple/accent) */}
-        <circle r="2" fill="hsl(var(--accent))" opacity="0.85">
-          <animateMotion dur="2.6s" repeatCount="indefinite" begin="2.2s">
-            <mpath xlinkHref="#rp-bottom" href="#rp-bottom" />
-          </animateMotion>
-        </circle>
-        <circle r="2" fill="hsl(var(--accent))" opacity="0.6">
-          <animateMotion dur="3.2s" repeatCount="indefinite" begin="3s">
-            <mpath xlinkHref="#rp-bottom" href="#rp-bottom" />
-          </animateMotion>
-        </circle>
+            <circle r="4" fill="hsl(var(--success))" opacity="0.85">
+              <animateMotion
+                dur={`${(rightDur["rp-top"] ?? 2.4).toFixed(2)}s`}
+                repeatCount="indefinite"
+                begin="2s"
+              >
+                <mpath href="#rp-top" />
+              </animateMotion>
+            </circle>
+            <circle r="4" fill="hsl(var(--success))" opacity="0.6">
+              <animateMotion
+                dur={`${(((rightDur["rp-top"] ?? 2.4) * 1.25)).toFixed(2)}s`}
+                repeatCount="indefinite"
+                begin="2.8s"
+              >
+                <mpath href="#rp-top" />
+              </animateMotion>
+            </circle>
+
+            <circle r="4" fill="hsl(var(--accent))" opacity="0.85">
+              <animateMotion
+                dur={`${(rightDur["rp-bottom"] ?? 2.6).toFixed(2)}s`}
+                repeatCount="indefinite"
+                begin="2.2s"
+              >
+                <mpath href="#rp-bottom" />
+              </animateMotion>
+            </circle>
+            <circle r="4" fill="hsl(var(--accent))" opacity="0.6">
+              <animateMotion
+                dur={`${(((rightDur["rp-bottom"] ?? 2.6) * 1.23)).toFixed(2)}s`}
+                repeatCount="indefinite"
+                begin="3s"
+              >
+                <mpath href="#rp-bottom" />
+              </animateMotion>
+            </circle>
+          </>
+        )}
       </svg>
 
-      {/* CENTER brain */}
+      {/* Brain circle */}
       <div className="relative z-10 flex items-center justify-center">
-        <div className="relative w-44 h-44 bg-gradient-to-br from-primary via-accent to-success rounded-full flex items-center justify-center border-2 border-primary/30 shadow-[0_0_25px_rgba(58,134,255,0.3)]">
-          <Brain className="w-[92%] h-[92%] text-primary-foreground" strokeWidth={0.3} />
-          <div className="absolute left-[25%] top-1/2 -translate-y-1/2 text-[13px] font-semibold text-white/95">ML</div>
-          <div className="absolute right-[25%] top-1/2 -translate-y-1/2 text-[13px] font-semibold text-white/95">AI</div>
+        <div
+          className="relative rounded-full flex items-center justify-center border-2 border-primary/30 shadow-[0_0_25px_rgba(58,134,255,0.3)] bg-gradient-to-br from-primary via-accent to-success"
+          style={{
+            width: "clamp(9.5rem, 18vw, 11.5rem)",
+            height: "clamp(9.5rem, 18vw, 11.5rem)",
+          }}
+        >
+          <Brain
+            className="w-[92%] h-[92%] text-primary-foreground"
+            strokeWidth={0.3}
+          />
+          <div className="absolute left-[25%] top-1/2 -translate-y-1/2 text-[clamp(0.72rem,0.9vw,0.82rem)] font-semibold text-white/95">
+            ML
+          </div>
+          <div className="absolute right-[25%] top-1/2 -translate-y-1/2 text-[clamp(0.72rem,0.9vw,0.82rem)] font-semibold text-white/95">
+            AI
+          </div>
         </div>
 
-        {/* Engine badge (close to circle) */}
-        <motion.div className="absolute -top-8 left-1/2 -translate-x-1/2"
-          initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.2 }}>
-          <div className="text-[12px] font-medium text-slate-200/85 bg-slate-900/30 px-2.5 py-0.5 rounded-full border border-white/10 backdrop-blur-sm">
+        {/* Engine badge (perfectly centered over the circle) */}
+        <motion.div
+          className="absolute -top-8 inset-x-0 flex justify-center"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.2 }}
+        >
+          <div className="text-[12px] sm:text-[13px] font-medium text-slate-200/85 bg-slate-900/30 px-2.5 py-0.5 rounded-full border border-white/10 backdrop-blur-sm">
             Engine
           </div>
         </motion.div>
+
       </div>
 
-      {/* RIGHT labels */}
-      <div className="absolute right-10 top-1/2 -translate-y-1/2 flex flex-col space-y-14">
-        <div className="flex flex-col items-center">
-          <BarChart3 className="w-6 h-6 text-success mb-1" />
-          <span className="text-sm font-semibold whitespace-nowrap">Actionable Insights</span>
+      {/* RIGHT labels – begin AFTER the arrow tip */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 flex flex-col gap-[clamp(1.5rem,5vh,3.5rem)]"
+        style={{ left: `calc(${rightLabelCssLeft} + ${RIGHT_LABEL_GAP_PX}px)` }}
+      >
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-[clamp(1.1rem,1.6vw,1.4rem)] h-[clamp(1.1rem,1.6vw,1.4rem)] text-success" />
+        {/* Force two lines for better fit */}
+          <span className={`${cls.rightItemText}`}>Actionable<br />Insights</span>
         </div>
-        <div className="flex flex-col items-center ml-6">
-          <span className="text-sm font-semibold whitespace-nowrap mb-1">Graphs</span>
-          <TrendingUp className="w-6 h-6 text-accent" />
+
+        <div className="flex items-center gap-2 ml-[clamp(0.1rem,0.5vw,0.4rem)]">
+          <TrendingUp className="w-[clamp(1.1rem,1.6vw,1.4rem)] h-[clamp(1.1rem,1.6vw,1.4rem)] text-accent" />
+          <span className={cls.rightItemText}>Graphs</span>
         </div>
       </div>
 
-      {/* Lightning – static white, smaller */}
-      <div className="absolute left-1/2 -translate-x-1/2" style={{ top: "calc(50% + 118px)" }}>
-        <div className="flex items-center justify-center">
-          <Zap className="w-4 h-4 text-white" />
-        </div>
+      {/* Lightning */}
+      <div
+        className="absolute left-1/2 -translate-x-1/2"
+        style={{ top: "calc(50% + min(9.5rem,18vw) * 0.70)" }}
+      >
+        <Zap className="w-4 h-4 text-white" />
       </div>
     </div>
   );

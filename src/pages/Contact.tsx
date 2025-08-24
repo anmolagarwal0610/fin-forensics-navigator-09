@@ -165,7 +165,7 @@ const Contact = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">Email</h4>
-                    <p className="text-muted-foreground">contact@promarma.tech</p>
+                    <p className="text-muted-foreground">hello@finnavigatorai.com</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       We typically respond within 24 hours
                     </p>
@@ -178,7 +178,7 @@ const Contact = () => {
                   </div>
                   <div>
                     <h4 className="font-semibold mb-1">Phone</h4>
-                    <p className="text-muted-foreground">Available upon request</p>
+                    <p className="text-muted-foreground">+91-7774008649</p>
                     <p className="text-sm text-muted-foreground mt-1">
                       For enterprise clients and government agencies
                     </p>

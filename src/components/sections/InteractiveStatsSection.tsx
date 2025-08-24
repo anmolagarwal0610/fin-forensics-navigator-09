@@ -1,6 +1,6 @@
 
 import { motion } from "framer-motion";
-import { TrendingUp, Clock, Shield, Users } from "lucide-react";
+import { TrendingUp, Activity, Shield, Users, Lock, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
 const InteractiveStatsSection = () => {
@@ -8,31 +8,31 @@ const InteractiveStatsSection = () => {
   
   const stats = [
     {
-      icon: TrendingUp,
+      icon: TrendingUp,   // accuracy, performance
       value: "99.7%",
       label: "Accuracy Rate",
       description: "Industry-leading precision in financial document analysis",
       color: "from-success to-accent"
     },
     {
-      icon: Clock,
-      value: "2.5hrs",
-      label: "Average Processing",
-      description: "From upload to actionable insights in hours, not weeks",
+      icon: Activity,     // uptime, heartbeat = always-on
+      value: "24/7",
+      label: "Availability",
+      description: "Always ready when you are.",
       color: "from-accent to-primary"
     },
     {
-      icon: Shield,
+      icon: Lock,         // compliance, encryption
       value: "SOC 2",
       label: "Compliance",
       description: "Enterprise-grade security with bank-level encryption",
       color: "from-primary to-success"
     },
     {
-      icon: Shield,
+      icon: ShieldCheck,  // strong, verified privacy
       value: "100%",
       label: "Data Privacy",
-      description: "All processing happens in our in-house systems. Data never leaves our servers ensuring the highest standards of data privacy. All ML and AI models run internally.",
+      description: "AI models run fully in-house for maximum security. Data never leave our servers.",
       color: "from-warning to-accent"
     }
   ];

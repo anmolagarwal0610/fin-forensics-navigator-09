@@ -57,6 +57,12 @@ export default function SignIn() {
         <BackToLanding />
         <Card className="w-full max-w-md">
           <CardHeader className="text-center">
+            <div className="text-xl font-bold text-foreground mb-2">
+              FinNavigator
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Your AI partner in financial forensics.
+            </p>
             <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
             <CardDescription>
               Enter your credentials to access your account

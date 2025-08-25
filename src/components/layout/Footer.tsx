@@ -65,11 +65,11 @@ const Footer = () => {
         
         <div className="border-t border-border mt-8 pt-8 flex flex-col sm:flex-row justify-between items-center">
           <p className="text-sm text-muted-foreground">
-            © 2024 Promarma Technologies. All rights reserved.
+            © 2025 Promarma Technologies. All rights reserved.
           </p>
           <div className="mt-4 sm:mt-0">
             <p className="text-sm text-muted-foreground">
-              Contact: contact@promarma.tech
+              Contact: hello@finnavigatorai.com
             </p>
           </div>
         </div>

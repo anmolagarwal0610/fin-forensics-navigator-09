@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ScrollToTop from "@/components/ScrollToTop";
 import Layout from "@/components/layout/Layout";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
@@ -39,6 +40,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <Router>
+            <ScrollToTop />
             <Routes>
               {/* Public routes */}
               <Route path="/" element={<Layout><Landing /></Layout>} />

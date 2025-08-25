@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 const Header = () => {
   return (
@@ -39,7 +40,8 @@ const Header = () => {
             </Link>
           </nav>
           
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            <ThemeToggle />
             <Link to="/signin">
               <Button variant="ghost" size="sm">
                 Sign In

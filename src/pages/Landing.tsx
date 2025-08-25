@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,7 +12,9 @@ import DifferentiatorSection from "@/components/sections/DifferentiatorSection";
 import InteractiveStatsSection from "@/components/sections/InteractiveStatsSection";
 import EnhancedCTASection from "@/components/sections/EnhancedCTASection";
 import GeometricBackground from "@/components/animations/GeometricBackground";
+import BookDemoModal from "@/components/modals/BookDemoModal";
 const Landing = () => {
+  const [isBookDemoOpen, setIsBookDemoOpen] = useState(false);
   const features = [{
     icon: Brain,
     title: "AI-Powered Analysis",
@@ -126,25 +129,28 @@ const Landing = () => {
                 duration: 0.8,
                 delay: 0.7
               }}>
-                  <Link to="/signup">
-                    <motion.div whileHover={{
+                  <motion.div whileHover={{
                     scale: 1.05
                   }} whileTap={{
                     scale: 0.95
                   }}>
-                      <Button size="lg" variant="cta" className="min-w-[180px] h-14 text-lg font-semibold">
-                        Start Free Trial
-                      </Button>
-                    </motion.div>
-                  </Link>
-                  <Link to="/pricing">
+                    <Button 
+                      size="lg" 
+                      variant="cta" 
+                      className="min-w-[180px] h-14 text-lg font-semibold"
+                      onClick={() => setIsBookDemoOpen(true)}
+                    >
+                      Book a Demo
+                    </Button>
+                  </motion.div>
+                  <Link to="/contact">
                     <motion.div whileHover={{
                     scale: 1.05
                   }} whileTap={{
                     scale: 0.95
                   }}>
                       <Button size="lg" variant="outline" className="min-w-[180px] h-14 text-lg font-semibold">
-                        View Pricing
+                        Contact Sales
                       </Button>
                     </motion.div>
                   </Link>
@@ -218,6 +224,12 @@ const Landing = () => {
         {/* Enhanced CTA Section */}
         <EnhancedCTASection />
       </div>
+      
+      {/* Book Demo Modal */}
+      <BookDemoModal 
+        isOpen={isBookDemoOpen} 
+        onClose={() => setIsBookDemoOpen(false)} 
+      />
     </>;
 };
 export default Landing;

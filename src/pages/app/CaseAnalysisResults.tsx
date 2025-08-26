@@ -1,394 +1,514 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, FileText, Users, TrendingUp, AlertTriangle } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
-import { getCaseById } from "@/api/cases";
-import type { CaseRecord } from "@/api/cases";
+import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign } from "lucide-react";
+import DocumentHead from "@/components/common/DocumentHead";
+import ImageLightbox from "@/components/app/ImageLightbox";
+import JSZip from "jszip";
+import * as XLSX from "xlsx";
 
-interface AnalysisFile {
-  name: string;
-  type: 'beneficiaries' | 'summary' | 'raw' | 'poi' | 'other';
-  downloadUrl: string;
-  originalFileName?: string;
-}
-
-interface BeneficiaryData {
-  name: string;
-  totalAmount: number;
-  transactionCount: number;
-  riskLevel: 'high' | 'medium' | 'low';
-  cellColor?: string;
+interface ParsedAnalysisData {
+  beneficiaries: Array<{ [key: string]: any }>;
+  beneficiaryHeaders: string[];
+  mainGraphUrl: string | null;
+  egoImages: Array<{ name: string; url: string }>;
+  poiFileCount: number;
+  fileSummaries: Array<{
+    originalFile: string;
+    rawTransactionsFile: string | null;
+    summaryFile: string | null;
+  }>;
 }
 
 export default function CaseAnalysisResults() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [case_, setCase] = useState<CaseRecord | null>(null);
+  const [files, setFiles] = useState<CaseFileRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [analysisFiles, setAnalysisFiles] = useState<AnalysisFile[]>([]);
-  const [beneficiariesData, setBeneficiariesData] = useState<BeneficiaryData[]>([]);
-  const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+  const [analysisData, setAnalysisData] = useState<ParsedAnalysisData | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   useEffect(() => {
-    if (id) {
-      loadCaseAndResults();
-    }
+    if (!id) return;
+    loadCaseAndResults();
   }, [id]);
 
   const loadCaseAndResults = async () => {
     try {
-      setLoading(true);
-      const caseData = await getCaseById(id!);
-      
-      if (!caseData) {
-        toast({
-          title: "Case not found",
-          description: "The requested case could not be found.",
-          variant: "destructive",
-        });
-        navigate("/app");
-        return;
-      }
+      const [caseData, filesData] = await Promise.all([
+        getCaseById(id!),
+        getCaseFiles(id!)
+      ]);
 
-      if (caseData.analysis_status !== 'completed' || !caseData.result_zip_url) {
-        toast({
-          title: "Analysis not ready",
-          description: "The analysis for this case is not yet complete.",
-          variant: "destructive",
-        });
-        navigate("/app");
+      if (!caseData) {
+        toast({ title: "Case not found", variant: "destructive" });
+        navigate("/app/dashboard");
         return;
       }
 
       setCase(caseData);
-      await loadAnalysisFiles(caseData.result_zip_url);
+      setFiles(filesData);
+
+      if (caseData.status === 'Ready' && caseData.result_zip_url) {
+        await loadAnalysisFiles(caseData.result_zip_url, filesData);
+      }
     } catch (error) {
-      console.error("Error loading case:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load case analysis results.",
-        variant: "destructive",
-      });
-      navigate("/app");
+      console.error("Failed to load case:", error);
+      toast({ title: "Failed to load case", variant: "destructive" });
+      navigate("/app/dashboard");
     } finally {
       setLoading(false);
     }
   };
 
-  const loadAnalysisFiles = async (zipUrl: string) => {
+  const loadAnalysisFiles = async (zipUrl: string, originalFiles: CaseFileRecord[]) => {
     try {
-      // In a real implementation, you would extract and process the zip file
-      // For now, we'll simulate the expected files
-      const mockFiles: AnalysisFile[] = [
-        {
-          name: "beneficiaries_by_file.xlsx",
-          type: "beneficiaries",
-          downloadUrl: zipUrl,
-        },
-        {
-          name: "POI_detailed_analysis.xlsx",
-          type: "poi",
-          downloadUrl: zipUrl,
-        },
-        {
-          name: "POI_transaction_patterns.xlsx",
-          type: "poi",
-          downloadUrl: zipUrl,
-        },
-      ];
-
-      // Mock beneficiaries data with top 25 entries
-      const mockBeneficiaries: BeneficiaryData[] = Array.from({ length: 25 }, (_, i) => ({
-        name: `Person ${i + 1}`,
-        totalAmount: Math.floor(Math.random() * 1000000) + 10000,
-        transactionCount: Math.floor(Math.random() * 100) + 1,
-        riskLevel: ['high', 'medium', 'low'][Math.floor(Math.random() * 3)] as 'high' | 'medium' | 'low',
-        cellColor: ['#ff6b6b', '#ffd93d', '#6bcf7f'][Math.floor(Math.random() * 3)],
-      }));
-
-      setAnalysisFiles(mockFiles);
-      setBeneficiariesData(mockBeneficiaries);
-    } catch (error) {
-      console.error("Error loading analysis files:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load analysis files.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleDownload = async (file: AnalysisFile) => {
-    try {
-      setDownloadingFile(file.name);
+      const response = await fetch(zipUrl);
+      if (!response.ok) throw new Error('Failed to fetch ZIP file');
       
-      // Create a temporary download link
-      const link = document.createElement('a');
-      link.href = file.downloadUrl;
-      link.download = file.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const arrayBuffer = await response.arrayBuffer();
+      const zip = new JSZip();
+      const zipData = await zip.loadAsync(arrayBuffer);
+      
+      const parsedData: ParsedAnalysisData = {
+        beneficiaries: [],
+        beneficiaryHeaders: [],
+        mainGraphUrl: null,
+        egoImages: [],
+        poiFileCount: 0,
+        fileSummaries: []
+      };
 
-      toast({
-        title: "Download started",
-        description: `Downloading ${file.name}`,
+      // Process beneficiaries_by_file.xlsx
+      const beneficiariesFile = zipData.file("beneficiaries_by_file.xlsx");
+      if (beneficiariesFile) {
+        const content = await beneficiariesFile.async("arraybuffer");
+        const workbook = XLSX.read(content, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        
+        if (jsonData.length > 1) {
+          parsedData.beneficiaryHeaders = jsonData[0] as string[];
+          parsedData.beneficiaries = jsonData.slice(1, 26).map(row => {
+            const obj: { [key: string]: any } = {};
+            parsedData.beneficiaryHeaders.forEach((header, index) => {
+              obj[header] = row[index] || '';
+            });
+            return obj;
+          });
+        }
+      }
+
+      // Process main graph (poi_flows.png)
+      const mainGraphFile = zipData.file("poi_flows.png");
+      if (mainGraphFile) {
+        const content = await mainGraphFile.async("blob");
+        parsedData.mainGraphUrl = URL.createObjectURL(content);
+      }
+
+      // Process ego images
+      const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
+      for (const fileName of egoFiles) {
+        const file = zipData.file(fileName);
+        if (file) {
+          const content = await file.async("blob");
+          parsedData.egoImages.push({
+            name: fileName,
+            url: URL.createObjectURL(content)
+          });
+        }
+      }
+
+      // Count POI files
+      parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
+        name.startsWith('POI_') && name.endsWith('.xlsx')
+      ).length;
+
+      // Match original files with analysis results
+      const analysisFileNames = Object.keys(zipData.files);
+      originalFiles.forEach(originalFile => {
+        const baseName = originalFile.file_name.replace(/\.[^/.]+$/, ""); // Remove extension
+        const rawTransactionsFile = analysisFileNames.find(name => 
+          name.startsWith(`raw_transactions_${baseName}`) && name.endsWith('.xlsx')
+        );
+        const summaryFile = analysisFileNames.find(name => 
+          name.startsWith(`summary_${baseName}`) && name.endsWith('.xlsx')
+        );
+
+        if (rawTransactionsFile || summaryFile) {
+          parsedData.fileSummaries.push({
+            originalFile: originalFile.file_name,
+            rawTransactionsFile: rawTransactionsFile || null,
+            summaryFile: summaryFile || null
+          });
+        }
       });
+
+      setAnalysisData(parsedData);
     } catch (error) {
-      console.error("Download error:", error);
-      toast({
-        title: "Download failed",
-        description: "Failed to download the file.",
-        variant: "destructive",
-      });
-    } finally {
-      setDownloadingFile(null);
+      console.error("Failed to parse ZIP file:", error);
+      toast({ title: "Failed to parse analysis results", variant: "destructive" });
     }
   };
 
-  const downloadAllPOIFiles = async () => {
-    const poiFiles = analysisFiles.filter(file => file.type === 'poi');
-    for (const file of poiFiles) {
-      await handleDownload(file);
-    }
+  const handleDownload = (url: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
   };
 
-  const downloadCompleteReport = async () => {
+  const downloadAllPOIFiles = () => {
+    if (!case_?.result_zip_url) return;
+    
+    handleDownload(case_.result_zip_url, `POI_files_${case_.name}.zip`);
+    toast({ title: `Downloading ${analysisData?.poiFileCount || 0} POI files` });
+  };
+
+  const downloadCompleteReport = () => {
     if (case_?.result_zip_url) {
-      const link = document.createElement('a');
-      link.href = case_.result_zip_url;
-      link.download = `complete_analysis_${case_.name}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      toast({
-        title: "Download started",
-        description: "Downloading complete analysis report",
-      });
+      handleDownload(case_.result_zip_url, `analysis_report_${case_.name}.zip`);
+      toast({ title: "Downloading complete analysis report" });
     }
   };
 
-  const getRiskBadgeVariant = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'high': return 'error';
-      case 'medium': return 'warning';
-      case 'low': return 'success';
-      default: return 'default';
-    }
+  const openLightbox = (index: number) => {
+    setLightboxIndex(index);
+    setLightboxOpen(true);
   };
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-6 space-y-6">
         <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded mb-6"></div>
-          <div className="space-y-4">
-            <div className="h-32 bg-muted rounded"></div>
-            <div className="h-64 bg-muted rounded"></div>
-            <div className="h-48 bg-muted rounded"></div>
+          <div className="h-8 bg-muted rounded mb-6 w-1/3"></div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 bg-muted rounded"></div>
+            ))}
           </div>
+          <div className="h-64 bg-muted rounded mb-6"></div>
+          <div className="h-48 bg-muted rounded"></div>
         </div>
       </div>
     );
   }
 
-  if (!case_) {
-    return null;
+  if (!case_ || case_.status !== 'Ready') {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate("/app/dashboard")}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Dashboard
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-lg font-medium mb-2">Analysis Not Ready</h3>
+              <p className="text-muted-foreground">
+                The analysis for this case is not yet complete. Please check back later.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!analysisData) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => navigate(`/app/cases/${case_.id}`)}
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Case
+          </Button>
+        </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <div className="text-lg font-medium mb-2">Loading analysis results...</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Analysis Results</h1>
-          <p className="text-muted-foreground mt-1">
-            Case: {case_.name} • Analysis completed
-          </p>
-        </div>
-        <Button onClick={() => navigate("/app")} variant="outline">
-          Back to Dashboard
-        </Button>
-      </div>
-
-      {/* Key Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <Users className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total Persons</p>
-                <p className="text-2xl font-bold">{beneficiariesData.length}</p>
-              </div>
+    <>
+      <DocumentHead title={`Analysis Results - ${case_.name} - FinNavigator`} />
+      <div className="container mx-auto p-6 space-y-8">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => navigate(`/app/cases/${case_.id}`)}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Case
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                Analysis Results
+              </h1>
+              <p className="text-lg text-muted-foreground">{case_.name}</p>
             </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-destructive" />
-              <div>
-                <p className="text-sm text-muted-foreground">High Risk</p>
-                <p className="text-2xl font-bold">
-                  {beneficiariesData.filter(b => b.riskLevel === 'high').length}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Total Amount</p>
-                <p className="text-2xl font-bold">
-                  ${beneficiariesData.reduce((sum, b) => sum + b.totalAmount, 0).toLocaleString()}
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <div>
-                <p className="text-sm text-muted-foreground">Analysis Files</p>
-                <p className="text-2xl font-bold">{analysisFiles.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Persons of Interest Table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
-          <CardTitle className="flex items-center gap-2">
-            <Users className="h-5 w-5" />
-            Persons of Interest (Top 25)
-          </CardTitle>
-          <Button 
-            onClick={() => handleDownload(analysisFiles.find(f => f.type === 'beneficiaries')!)}
-            disabled={downloadingFile === 'beneficiaries_by_file.xlsx'}
-            size="sm"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download Table
-          </Button>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>#</TableHead>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Total Amount</TableHead>
-                  <TableHead>Transactions</TableHead>
-                  <TableHead>Risk Level</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {beneficiariesData.map((person, index) => (
-                  <TableRow 
-                    key={index}
-                    style={{ backgroundColor: person.cellColor ? `${person.cellColor}20` : undefined }}
-                  >
-                    <TableCell className="font-medium">{index + 1}</TableCell>
-                    <TableCell>{person.name}</TableCell>
-                    <TableCell>${person.totalAmount.toLocaleString()}</TableCell>
-                    <TableCell>{person.transactionCount}</TableCell>
-                    <TableCell>
-                      <Badge variant={getRiskBadgeVariant(person.riskLevel)}>
-                        {person.riskLevel.toUpperCase()}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* POI Files Download */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Person of Interest Raw Data</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Download detailed analysis for all persons of interest
-          </p>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={downloadAllPOIFiles} className="w-full sm:w-auto">
+          <Button onClick={downloadCompleteReport} size="lg" className="shadow-lg">
             <Download className="h-4 w-4 mr-2" />
-            Download All POI Files ({analysisFiles.filter(f => f.type === 'poi').length} files)
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Uploaded Files Analysis */}
-      <Card>
-        <CardHeader>
-          <CardTitle>File Analysis Summary</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Analysis results for each uploaded file
-          </p>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Mock uploaded files analysis */}
-            {['transactions.xlsx', 'bank_statements.pdf', 'invoices.xlsx'].map((fileName, index) => (
-              <div key={index} className="border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-medium">{fileName}</h4>
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline">
-                      <Download className="h-4 w-4 mr-2" />
-                      Summary
-                    </Button>
-                    <Button size="sm" variant="outline">
-                      <Download className="h-4 w-4 mr-2" />
-                      Raw Data
-                    </Button>
-                  </div>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Analysis completed • {Math.floor(Math.random() * 500) + 100} transactions found
-                </p>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Complete Report Download */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Complete Analysis Report</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Download the complete analysis report as a zip file
-          </p>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={downloadCompleteReport} size="lg" className="w-full sm:w-auto">
-            <Download className="h-5 w-5 mr-2" />
             Download Complete Report
           </Button>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+        {/* Key Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Total Beneficiaries</CardTitle>
+              <Users className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{analysisData.beneficiaries.length}</div>
+              <p className="text-xs text-muted-foreground">Identified in analysis</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">POI Files</CardTitle>
+              <FileText className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{analysisData.poiFileCount}</div>
+              <p className="text-xs text-muted-foreground">Person of Interest reports</p>
+            </CardContent>
+          </Card>
+          
+          <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Analysis Files</CardTitle>
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{analysisData.fileSummaries.length}</div>
+              <p className="text-xs text-muted-foreground">Original files processed</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Beneficiaries Table */}
+        {analysisData.beneficiaries.length > 0 && (
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Top 25 Beneficiaries
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Detailed analysis of persons of interest identified in the financial data
+              </p>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ScrollArea className="w-full">
+                <div className="min-w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/50">
+                        {analysisData.beneficiaryHeaders.map((header, index) => (
+                          <TableHead key={index} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-foreground uppercase tracking-wider border-r last:border-r-0">
+                            {header}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {analysisData.beneficiaries.map((beneficiary, index) => (
+                        <TableRow key={index} className="hover:bg-muted/50 transition-colors border-b">
+                          {analysisData.beneficiaryHeaders.map((header, colIndex) => (
+                            <TableCell key={colIndex} className="px-4 py-3 text-sm whitespace-nowrap border-r last:border-r-0">
+                              {beneficiary[header] || '-'}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Main Flow Graph */}
+        {analysisData.mainGraphUrl && (
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Transaction Flow Analysis
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Visual representation of person of interest relationships and transaction flows
+              </p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="relative group">
+                <img 
+                  src={analysisData.mainGraphUrl} 
+                  alt="POI Flow Analysis" 
+                  className="w-full h-auto rounded-lg border shadow-sm"
+                />
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Person of Interest Raw Data */}
+        <Card className="shadow-lg bg-gradient-to-br from-orange-50 to-amber-50 dark:from-orange-950/30 dark:to-amber-950/30">
+          <CardHeader>
+            <CardTitle className="text-xl flex items-center gap-2">
+              <Download className="h-5 w-5" />
+              Person of Interest Raw Data
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Download detailed analysis for all persons of interest
+            </p>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={downloadAllPOIFiles} size="lg" className="w-full sm:w-auto shadow-lg">
+              <Download className="h-4 w-4 mr-2" />
+              Download All POI Files ({analysisData.poiFileCount} files)
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Ego Network Images */}
+        {analysisData.egoImages.length > 0 && (
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Network Analysis Visualizations
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Individual ego networks showing relationship patterns for each person of interest
+              </p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <ScrollArea className="w-full">
+                <div className="flex gap-4 pb-4">
+                  {analysisData.egoImages.map((image, index) => (
+                    <div 
+                      key={index}
+                      className="flex-shrink-0 cursor-pointer group relative"
+                      onClick={() => openLightbox(index)}
+                    >
+                      <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
+                        <img 
+                          src={image.url} 
+                          alt={image.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium">
+                        {image.name.replace('ego_', '').replace('.png', '')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* File Analysis Summary */}
+        {analysisData.fileSummaries.length > 0 && (
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                File Analysis Summary
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Comparison of uploaded files with their corresponding analysis results
+              </p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                {analysisData.fileSummaries.map((summary, index) => (
+                  <div key={index} className="border rounded-lg p-4 bg-gradient-to-r from-muted/30 to-muted/50 hover:from-muted/50 hover:to-muted/70 transition-all">
+                    <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      Original File: <span className="text-primary font-mono">{summary.originalFile}</span>
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {summary.rawTransactionsFile && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <span className="text-muted-foreground">Raw Transactions:</span>
+                          <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
+                            {summary.rawTransactionsFile}
+                          </span>
+                        </div>
+                      )}
+                      {summary.summaryFile && (
+                        <div className="flex items-center gap-2 text-sm">
+                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                          <span className="text-muted-foreground">Summary:</span>
+                          <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
+                            {summary.summaryFile}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        images={analysisData.egoImages}
+        isOpen={lightboxOpen}
+        onClose={() => setLightboxOpen(false)}
+        initialIndex={lightboxIndex}
+      />
+    </>
   );
 }

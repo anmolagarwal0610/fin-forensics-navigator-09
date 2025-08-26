@@ -50,22 +50,27 @@ export default function CaseUpload() {
       if (authError || !user) {
         throw new Error("Authentication required");
       }
+      console.log('User authenticated for upload:', user.id);
 
       // Upload files to Supabase storage
       const uploadedFiles = [];
       for (const file of files) {
         const filePath = `${user.id}/${case_.id}/${file.name}`;
+        console.log('Uploading to storage path:', filePath, 'size:', file.size);
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('case-files')
           .upload(filePath, file.file);
         
         if (uploadError) {
+          console.error('Upload error for', file.name, uploadError);
           throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
         }
+        console.log('Upload success:', uploadData);
         
         const { data: urlData } = supabase.storage
           .from('case-files')
           .getPublicUrl(filePath);
+        console.log('Public URL (may require auth if bucket is private):', urlData.publicUrl);
         
         uploadedFiles.push({
           name: file.name,
@@ -74,31 +79,37 @@ export default function CaseUpload() {
       }
 
       // Add files to database with storage URLs
-      await addFiles(case_.id, uploadedFiles.map(f => ({ 
+      const inserted = await addFiles(case_.id, uploadedFiles.map(f => ({ 
         name: f.name, 
         url: f.url 
       })));
+      console.log('Inserted case_files records:', inserted?.length);
       
       // Add files_uploaded event
       await addEvent(case_.id, "files_uploaded", {
         file_count: files.length,
         files: files.map(f => ({ name: f.name, size: f.size }))
       });
+      console.log('Event logged: files_uploaded');
       
       // Add analysis_submitted event
       await addEvent(case_.id, "analysis_submitted", {
         submitted_at: new Date().toISOString(),
         file_count: files.length
       });
+      console.log('Event logged: analysis_submitted');
 
       // Update case status to Processing
       await updateCaseStatus(case_.id, "Processing");
+      console.log('Case status updated to Processing');
       
       // Call edge function to process files
+      console.log('Invoking edge function process-case-files with caseId:', case_.id);
       const { data: processResult, error: processError } = await supabase.functions
         .invoke('process-case-files', {
           body: { caseId: case_.id }
         });
+      console.log('Edge function result:', processResult, 'error:', processError);
 
       if (processError) {
         console.error("Processing error:", processError);

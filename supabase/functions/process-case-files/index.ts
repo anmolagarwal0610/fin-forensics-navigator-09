@@ -226,9 +226,9 @@ async function getStorageFiles(supabase: any, userId: string, caseId: string, fi
     throw new Error(`Failed to list files in storage: ${error.message}`);
   }
 
-  const fileNames = files?.map((file: any) => file.name) || [];
-  console.log('Found files in storage:', fileNames);
-  return fileNames;
+  const storageFileNames = files?.map((file: any) => file.name) || [];
+  console.log('Found files in storage:', storageFileNames);
+  return storageFileNames;
 }
 
 async function createZipFromStorage(supabase: any, fileNames: string[], userId: string, caseId: string): Promise<Blob> {

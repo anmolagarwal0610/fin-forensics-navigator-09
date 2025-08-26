@@ -23,6 +23,7 @@ interface ParsedAnalysisData {
     rawTransactionsFile: string | null;
     summaryFile: string | null;
   }>;
+  zipData?: JSZip | null;
 }
 
 export default function CaseAnalysisResults() {
@@ -90,17 +91,26 @@ export default function CaseAnalysisResults() {
       const beneficiariesFile = zipData.file("beneficiaries_by_file.xlsx");
       if (beneficiariesFile) {
         const content = await beneficiariesFile.async("arraybuffer");
-        const workbook = XLSX.read(content, { type: "array" });
+        const workbook = XLSX.read(content, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
-        if (jsonData.length > 1) {
+        if (jsonData.length > 2) {
           parsedData.beneficiaryHeaders = jsonData[0] as string[];
-          parsedData.beneficiaries = jsonData.slice(1, 26).map(row => {
+          // Start from row 2 (index 2) since data starts from 3rd row, take up to 25 beneficiaries
+          parsedData.beneficiaries = jsonData.slice(2, 27).map((row, rowIndex) => {
             const obj: { [key: string]: any } = {};
             parsedData.beneficiaryHeaders.forEach((header, index) => {
-              obj[header] = row[index] || '';
+              const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 2, c: index });
+              const cell = worksheet[cellAddress];
+              obj[header] = {
+                value: row[index] || '',
+                style: cell?.s ? {
+                  backgroundColor: cell.s.fgColor ? `#${cell.s.fgColor.rgb || 'ffffff'}` : undefined,
+                  color: cell.s.font?.color ? `#${cell.s.font.color.rgb || '000000'}` : undefined
+                } : undefined
+              };
             });
             return obj;
           });
@@ -152,6 +162,7 @@ export default function CaseAnalysisResults() {
         }
       });
 
+      parsedData.zipData = zip;
       setAnalysisData(parsedData);
     } catch (error) {
       console.error("Failed to parse ZIP file:", error);
@@ -177,6 +188,18 @@ export default function CaseAnalysisResults() {
     if (case_?.result_zip_url) {
       handleDownload(case_.result_zip_url, `analysis_report_${case_.name}.zip`);
       toast({ title: "Downloading complete analysis report" });
+    }
+  };
+
+  const downloadIndividualFile = async (fileName: string) => {
+    if (!analysisData?.zipData) return;
+    
+    const file = analysisData.zipData.file(fileName);
+    if (file) {
+      const content = await file.async("blob");
+      const url = URL.createObjectURL(content);
+      handleDownload(url, fileName);
+      toast({ title: `Downloading ${fileName}` });
     }
   };
 
@@ -330,30 +353,43 @@ export default function CaseAnalysisResults() {
                 Detailed analysis of persons of interest identified in the financial data
               </p>
             </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="w-full">
-                <div className="min-w-full">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-muted/50">
-                        {analysisData.beneficiaryHeaders.map((header, index) => (
-                          <TableHead key={index} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-foreground uppercase tracking-wider border-r last:border-r-0">
-                            {header}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {analysisData.beneficiaries.map((beneficiary, index) => (
-                        <TableRow key={index} className="hover:bg-muted/50 transition-colors border-b">
-                          {analysisData.beneficiaryHeaders.map((header, colIndex) => (
-                            <TableCell key={colIndex} className="px-4 py-3 text-sm whitespace-nowrap border-r last:border-r-0">
-                              {beneficiary[header] || '-'}
-                            </TableCell>
-                          ))}
-                        </TableRow>
-                      ))}
-                    </TableBody>
+             <CardContent className="p-0">
+               <ScrollArea className="w-full h-[500px]">
+                 <div className="min-w-max">
+                   <Table>
+                     <TableHeader className="sticky top-0 bg-background z-10">
+                       <TableRow className="bg-muted/50">
+                         {analysisData.beneficiaryHeaders.map((header, index) => (
+                           <TableHead key={index} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-foreground uppercase tracking-wider border-r last:border-r-0 min-w-[120px]">
+                             {header}
+                           </TableHead>
+                         ))}
+                       </TableRow>
+                     </TableHeader>
+                     <TableBody>
+                       {analysisData.beneficiaries.map((beneficiary, index) => (
+                         <TableRow key={index} className="hover:bg-muted/50 transition-colors border-b">
+                           {analysisData.beneficiaryHeaders.map((header, colIndex) => {
+                             const cellData = beneficiary[header];
+                             const value = typeof cellData === 'object' ? cellData.value : cellData;
+                             const style = typeof cellData === 'object' ? cellData.style : undefined;
+                             
+                             return (
+                               <TableCell 
+                                 key={colIndex} 
+                                 className="px-4 py-3 text-sm whitespace-nowrap border-r last:border-r-0"
+                                 style={{
+                                   backgroundColor: style?.backgroundColor,
+                                   color: style?.color
+                                 }}
+                               >
+                                 {value || '-'}
+                               </TableCell>
+                             );
+                           })}
+                         </TableRow>
+                       ))}
+                     </TableBody>
                   </Table>
                 </div>
               </ScrollArea>
@@ -424,33 +460,33 @@ export default function CaseAnalysisResults() {
                 Individual ego networks showing relationship patterns for each person of interest
               </p>
             </CardHeader>
-            <CardContent className="p-6">
-              <ScrollArea className="w-full">
-                <div className="flex gap-4 pb-4">
-                  {analysisData.egoImages.map((image, index) => (
-                    <div 
-                      key={index}
-                      className="flex-shrink-0 cursor-pointer group relative"
-                      onClick={() => openLightbox(index)}
-                    >
-                      <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
-                        <img 
-                          src={image.url} 
-                          alt={image.name}
-                          className="w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                          <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium">
-                        {image.name.replace('ego_', '').replace('.png', '')}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
+             <CardContent className="p-6">
+               <div className="overflow-x-auto">
+                 <div className="flex gap-4 pb-4 min-w-max">
+                   {analysisData.egoImages.map((image, index) => (
+                     <div 
+                       key={index}
+                       className="flex-shrink-0 cursor-pointer group relative"
+                       onClick={() => openLightbox(index)}
+                     >
+                       <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
+                         <img 
+                           src={image.url} 
+                           alt={image.name}
+                           className="w-full h-full object-cover"
+                         />
+                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                           <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                         </div>
+                       </div>
+                       <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-48">
+                         {image.name.replace('ego_', '').replace('.png', '')}
+                       </p>
+                     </div>
+                   ))}
+                 </div>
+               </div>
+             </CardContent>
           </Card>
         )}
 
@@ -474,26 +510,46 @@ export default function CaseAnalysisResults() {
                       <FileText className="h-4 w-4 text-primary" />
                       Original File: <span className="text-primary font-mono">{summary.originalFile}</span>
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {summary.rawTransactionsFile && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          <span className="text-muted-foreground">Raw Transactions:</span>
-                          <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
-                            {summary.rawTransactionsFile}
-                          </span>
-                        </div>
-                      )}
-                      {summary.summaryFile && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="text-muted-foreground">Summary:</span>
-                          <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
-                            {summary.summaryFile}
-                          </span>
-                        </div>
-                      )}
-                    </div>
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                       {summary.rawTransactionsFile && (
+                         <div className="flex items-center justify-between gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
+                           <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                             <span className="text-muted-foreground">Raw Transactions:</span>
+                             <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
+                               {summary.rawTransactionsFile}
+                             </span>
+                           </div>
+                           <Button
+                             size="sm"
+                             variant="outline"
+                             onClick={() => downloadIndividualFile(summary.rawTransactionsFile!)}
+                             className="flex-shrink-0"
+                           >
+                             <Download className="h-3 w-3" />
+                           </Button>
+                         </div>
+                       )}
+                       {summary.summaryFile && (
+                         <div className="flex items-center justify-between gap-2 text-sm bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
+                           <div className="flex items-center gap-2">
+                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                             <span className="text-muted-foreground">Summary:</span>
+                             <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
+                               {summary.summaryFile}
+                             </span>
+                           </div>
+                           <Button
+                             size="sm"
+                             variant="outline"
+                             onClick={() => downloadIndividualFile(summary.summaryFile!)}
+                             className="flex-shrink-0"
+                           >
+                             <Download className="h-3 w-3" />
+                           </Button>
+                         </div>
+                       )}
+                     </div>
                   </div>
                 ))}
               </div>

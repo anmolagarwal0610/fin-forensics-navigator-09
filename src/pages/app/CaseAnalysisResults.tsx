@@ -15,6 +15,7 @@ import * as XLSX from "xlsx";
 interface ParsedAnalysisData {
   beneficiaries: Array<{ [key: string]: any }>;
   beneficiaryHeaders: string[];
+  totalBeneficiaryCount: number;
   mainGraphUrl: string | null;
   egoImages: Array<{ name: string; url: string }>;
   poiFileCount: number;
@@ -81,6 +82,7 @@ export default function CaseAnalysisResults() {
       const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
         beneficiaryHeaders: [],
+        totalBeneficiaryCount: 0,
         mainGraphUrl: null,
         egoImages: [],
         poiFileCount: 0,
@@ -98,17 +100,55 @@ export default function CaseAnalysisResults() {
         
         if (jsonData.length > 2) {
           parsedData.beneficiaryHeaders = jsonData[0] as string[];
-          // Start from row 2 (index 2) since data starts from 3rd row, take up to 25 beneficiaries
+          // Calculate total beneficiaries (all rows minus header rows)
+          const totalBeneficiaries = jsonData.length - 3; // Subtract 3 for headers
+          parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
+          
+          // Start from row 2 (index 2) since data starts from 3rd row, take up to 25 beneficiaries for display
           parsedData.beneficiaries = jsonData.slice(2, 27).map((row, rowIndex) => {
             const obj: { [key: string]: any } = {};
             parsedData.beneficiaryHeaders.forEach((header, index) => {
               const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 2, c: index });
               const cell = worksheet[cellAddress];
+              
+              // Enhanced color parsing for different Excel color formats
+              let backgroundColor, color;
+              
+              if (cell?.s) {
+                // Handle background color
+                if (cell.s.fgColor) {
+                  if (cell.s.fgColor.rgb) {
+                    backgroundColor = `#${cell.s.fgColor.rgb}`;
+                  } else if (cell.s.fgColor.theme !== undefined) {
+                    // Handle theme colors - simplified mapping
+                    const themeColors = ['#000000', '#FFFFFF', '#1F497D', '#4F81BD', '#9CBB58', '#F79646', '#C0504D', '#8064A2'];
+                    backgroundColor = themeColors[cell.s.fgColor.theme] || '#FFFFFF';
+                  }
+                }
+                
+                // Handle text color
+                if (cell.s.font?.color) {
+                  if (cell.s.font.color.rgb) {
+                    color = `#${cell.s.font.color.rgb}`;
+                  } else if (cell.s.font.color.theme !== undefined) {
+                    const themeColors = ['#000000', '#FFFFFF', '#1F497D', '#4F81BD', '#9CBB58', '#F79646', '#C0504D', '#8064A2'];
+                    color = themeColors[cell.s.font.color.theme] || '#000000';
+                  }
+                }
+                
+                // Handle pattern fills
+                if (cell.s.patternType && cell.s.bgColor) {
+                  if (cell.s.bgColor.rgb) {
+                    backgroundColor = `#${cell.s.bgColor.rgb}`;
+                  }
+                }
+              }
+              
               obj[header] = {
                 value: row[index] || '',
-                style: cell?.s ? {
-                  backgroundColor: cell.s.fgColor ? `#${cell.s.fgColor.rgb || 'ffffff'}` : undefined,
-                  color: cell.s.font?.color ? `#${cell.s.font.color.rgb || '000000'}` : undefined
+                style: backgroundColor || color ? {
+                  backgroundColor,
+                  color
                 } : undefined
               };
             });
@@ -200,6 +240,18 @@ export default function CaseAnalysisResults() {
       const url = URL.createObjectURL(content);
       handleDownload(url, fileName);
       toast({ title: `Downloading ${fileName}` });
+    }
+  };
+
+  const downloadBeneficiariesFile = async () => {
+    if (!analysisData?.zipData) return;
+    
+    const file = analysisData.zipData.file("beneficiaries_by_file.xlsx");
+    if (file) {
+      const content = await file.async("blob");
+      const url = URL.createObjectURL(content);
+      handleDownload(url, "beneficiaries_by_file.xlsx");
+      toast({ title: "Downloading beneficiaries file" });
     }
   };
 
@@ -313,7 +365,7 @@ export default function CaseAnalysisResults() {
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analysisData.beneficiaries.length}</div>
+              <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
               <p className="text-xs text-muted-foreground">Identified in analysis</p>
             </CardContent>
           </Card>
@@ -345,55 +397,70 @@ export default function CaseAnalysisResults() {
         {analysisData.beneficiaries.length > 0 && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-t-lg">
-              <CardTitle className="text-xl flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Top 25 Beneficiaries
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Detailed analysis of persons of interest identified in the financial data
-              </p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <Users className="h-5 w-5" />
+                    Top 25 Beneficiaries
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Detailed analysis of persons of interest identified in the financial data
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={downloadBeneficiariesFile}
+                  className="flex items-center gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  Download Excel
+                </Button>
+              </div>
             </CardHeader>
              <CardContent className="p-0">
-               <ScrollArea className="w-full h-[500px]">
-                 <div className="min-w-max">
-                   <Table>
-                     <TableHeader className="sticky top-0 bg-background z-10">
-                       <TableRow className="bg-muted/50">
-                         {analysisData.beneficiaryHeaders.map((header, index) => (
-                           <TableHead key={index} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-foreground uppercase tracking-wider border-r last:border-r-0 min-w-[120px]">
-                             {header}
-                           </TableHead>
-                         ))}
-                       </TableRow>
-                     </TableHeader>
-                     <TableBody>
-                       {analysisData.beneficiaries.map((beneficiary, index) => (
-                         <TableRow key={index} className="hover:bg-muted/50 transition-colors border-b">
-                           {analysisData.beneficiaryHeaders.map((header, colIndex) => {
-                             const cellData = beneficiary[header];
-                             const value = typeof cellData === 'object' ? cellData.value : cellData;
-                             const style = typeof cellData === 'object' ? cellData.style : undefined;
-                             
-                             return (
-                               <TableCell 
-                                 key={colIndex} 
-                                 className="px-4 py-3 text-sm whitespace-nowrap border-r last:border-r-0"
-                                 style={{
-                                   backgroundColor: style?.backgroundColor,
-                                   color: style?.color
-                                 }}
-                               >
-                                 {value || '-'}
-                               </TableCell>
-                             );
-                           })}
-                         </TableRow>
-                       ))}
-                     </TableBody>
-                  </Table>
-                </div>
-              </ScrollArea>
-            </CardContent>
+                <div className="overflow-auto max-h-[500px] border border-border rounded-b-lg">
+                  <Table className="relative">
+                    <TableHeader className="sticky top-0 bg-background/95 backdrop-blur-sm z-20 shadow-sm">
+                      <TableRow className="bg-muted/50 border-b-2">
+                        {analysisData.beneficiaryHeaders.map((header, index) => (
+                          <TableHead key={index} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-foreground uppercase tracking-wider border-r last:border-r-0 min-w-[140px] bg-muted/30">
+                            {header}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {analysisData.beneficiaries.map((beneficiary, index) => (
+                        <TableRow key={index} className="hover:bg-muted/30 transition-colors border-b">
+                          {analysisData.beneficiaryHeaders.map((header, colIndex) => {
+                            const cellData = beneficiary[header];
+                            const value = typeof cellData === 'object' ? cellData.value : cellData;
+                            const style = typeof cellData === 'object' ? cellData.style : undefined;
+                            
+                            // Ensure good contrast for styled cells
+                            const cellStyle = style ? {
+                              backgroundColor: style.backgroundColor,
+                              color: style.color || (style.backgroundColor ? '#000000' : undefined),
+                              fontWeight: style.backgroundColor ? '500' : 'normal'
+                            } : {};
+                            
+                            return (
+                              <TableCell 
+                                key={colIndex} 
+                                className="px-4 py-3 text-sm whitespace-nowrap border-r last:border-r-0 min-w-[140px]"
+                                style={cellStyle}
+                              >
+                                {value || '-'}
+                              </TableCell>
+                            );
+                          })}
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                 </Table>
+               </div>
+             </CardContent>
           </Card>
         )}
 
@@ -457,12 +524,13 @@ export default function CaseAnalysisResults() {
                 Network Analysis Visualizations
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Individual ego networks showing relationship patterns for each person of interest
+                Individual ego networks showing relationship patterns for each person of interest. 
+                'Ego' refers to the central person in each network graph - it shows how that specific individual is connected to others.
               </p>
             </CardHeader>
              <CardContent className="p-6">
-               <div className="overflow-x-auto">
-                 <div className="flex gap-4 pb-4 min-w-max">
+               <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                 <div className="flex gap-4 p-4">
                    {analysisData.egoImages.map((image, index) => (
                      <div 
                        key={index}
@@ -472,7 +540,7 @@ export default function CaseAnalysisResults() {
                        <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
                          <img 
                            src={image.url} 
-                           alt={image.name}
+                           alt={`Ego network for ${image.name}`}
                            className="w-full h-full object-cover"
                          />
                          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
@@ -485,7 +553,7 @@ export default function CaseAnalysisResults() {
                      </div>
                    ))}
                  </div>
-               </div>
+               </ScrollArea>
              </CardContent>
           </Card>
         )}
@@ -499,7 +567,7 @@ export default function CaseAnalysisResults() {
                 File Analysis Summary
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Comparison of uploaded files with their corresponding analysis results
+                Analysis results for each uploaded file with downloadable raw transactions and summary reports
               </p>
             </CardHeader>
             <CardContent className="p-6">
@@ -513,10 +581,10 @@ export default function CaseAnalysisResults() {
                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                        {summary.rawTransactionsFile && (
                          <div className="flex items-center justify-between gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
-                           <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                             <span className="text-muted-foreground">Raw Transactions:</span>
-                             <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded">
+                           <div className="flex items-center gap-2 flex-1 min-w-0">
+                             <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                             <span className="text-muted-foreground flex-shrink-0">Raw Transactions:</span>
+                             <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded truncate">
                                {summary.rawTransactionsFile}
                              </span>
                            </div>
@@ -524,18 +592,19 @@ export default function CaseAnalysisResults() {
                              size="sm"
                              variant="outline"
                              onClick={() => downloadIndividualFile(summary.rawTransactionsFile!)}
-                             className="flex-shrink-0"
+                             className="flex-shrink-0 ml-2"
                            >
-                             <Download className="h-3 w-3" />
+                             <Download className="h-3 w-3 mr-1" />
+                             Download
                            </Button>
                          </div>
                        )}
                        {summary.summaryFile && (
                          <div className="flex items-center justify-between gap-2 text-sm bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
-                           <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                             <span className="text-muted-foreground">Summary:</span>
-                             <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded">
+                           <div className="flex items-center gap-2 flex-1 min-w-0">
+                             <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                             <span className="text-muted-foreground flex-shrink-0">Summary:</span>
+                             <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded truncate">
                                {summary.summaryFile}
                              </span>
                            </div>
@@ -543,9 +612,10 @@ export default function CaseAnalysisResults() {
                              size="sm"
                              variant="outline"
                              onClick={() => downloadIndividualFile(summary.summaryFile!)}
-                             className="flex-shrink-0"
+                             className="flex-shrink-0 ml-2"
                            >
-                             <Download className="h-3 w-3" />
+                             <Download className="h-3 w-3 mr-1" />
+                             Download
                            </Button>
                          </div>
                        )}

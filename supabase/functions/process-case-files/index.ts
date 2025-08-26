@@ -91,9 +91,9 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        caseId,
-        zipFileUrl: zipUrl.publicUrl,
-        userEmail: user.email
+        sessionId: caseId,
+        zipUrl: zipUrl.publicUrl,
+        userId: user.id
       })
     });
 
@@ -104,13 +104,13 @@ serve(async (req) => {
     const backendResult = await backendResponse.json();
     console.log('Backend response:', backendResult);
 
-    // Update case with result zip URL
+    // Update case with result zip URL from backend response
     await supabase
       .from('cases')
       .update({ 
         status: 'Ready',
         analysis_status: 'completed',
-        result_zip_url: backendResult.resultZipUrl
+        result_zip_url: backendResult.url
       })
       .eq('id', caseId);
 
@@ -120,7 +120,7 @@ serve(async (req) => {
       .insert({
         case_id: caseId,
         type: 'analysis_ready',
-        payload: { resultZipUrl: backendResult.resultZipUrl }
+        payload: { resultZipUrl: backendResult.url }
       });
 
     return new Response(JSON.stringify({
@@ -133,6 +133,49 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Error in process-case-files:', error);
+    
+    // Get caseId for error handling
+    let caseId: string | null = null;
+    try {
+      const body = await req.clone().json();
+      caseId = body.caseId;
+    } catch (e) {
+      // Ignore JSON parsing errors
+    }
+    
+    // If we have a caseId, update the case status to indicate processing with ETA
+    if (caseId) {
+      try {
+        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        const etaTime = new Date();
+        etaTime.setHours(etaTime.getHours() + 4); // Add 4 hours
+        
+        await supabase
+          .from('cases')
+          .update({ 
+            status: 'Processing',
+            analysis_status: 'processing'
+          })
+          .eq('id', caseId);
+          
+        // Add error event with ETA
+        await supabase
+          .from('events')
+          .insert({
+            case_id: caseId,
+            type: 'analysis_submitted',
+            payload: { 
+              error: 'Backend processing failed, estimated completion in 4 hours',
+              eta: etaTime.toISOString()
+            }
+          });
+      } catch (updateError) {
+        console.error('Failed to update case status on error:', updateError);
+      }
+    }
     
     return new Response(JSON.stringify({ 
       error: error.message 

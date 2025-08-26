@@ -40,7 +40,8 @@ export default function FileUploader({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
-      'application/zip': ['.zip']
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
+      'application/vnd.ms-excel': ['.xls']
     },
     maxSize: maxFileSize,
     onDragEnter: () => setDragActive(true),
@@ -83,7 +84,7 @@ export default function FileUploader({
             or click to browse files
           </p>
           <p className="text-xs text-muted-foreground">
-            Accepts PDF and ZIP files • Max {Math.round(maxFileSize / (1024 * 1024))}MB per file
+            Accepts PDF and Excel files • Max {Math.round(maxFileSize / (1024 * 1024))}MB per file
           </p>
         </div>
       </Card>

@@ -14,6 +14,8 @@ export interface CaseRecord {
   status: CaseStatus;
   created_at: string;
   updated_at: string;
+  result_zip_url?: string;
+  analysis_status?: 'pending' | 'processing' | 'completed' | 'failed';
 }
 
 export interface CaseFileRecord {
@@ -96,7 +98,7 @@ export const addEvent = async (caseId: string, type: EventRecord["type"], payloa
   return data as EventRecord | null;
 };
 
-export const addFiles = async (caseId: string, files: { name: string }[]) => {
+export const addFiles = async (caseId: string, files: { name: string; url?: string }[]) => {
   const { data: auth } = await supabase.auth.getUser();
   const uploaded_by = auth.user?.id;
   if (!uploaded_by) throw new Error("Not authenticated");
@@ -105,7 +107,7 @@ export const addFiles = async (caseId: string, files: { name: string }[]) => {
   const toInsert = files.map((f) => ({
     case_id: caseId,
     file_name: f.name,
-    file_url: null as string | null,
+    file_url: f.url || null,
     type: "upload" as const,
     uploaded_by,
   }));

@@ -1,1 +1,4 @@
 project_id = "rwzpffsaivgjuuthvkfa"
+
+[functions.process-case-files]
+verify_jwt = true

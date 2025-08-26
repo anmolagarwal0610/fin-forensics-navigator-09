@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import FileUploader from "@/components/app/FileUploader";
 import { getCaseById, addFiles, addEvent, updateCaseStatus, type CaseRecord } from "@/api/cases";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
 
@@ -45,8 +46,38 @@ export default function CaseUpload() {
 
     setSubmitting(true);
     try {
-      // Add files to database (URLs will be null for now)
-      await addFiles(case_.id, files.map(f => ({ name: f.name })));
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Authentication required");
+      }
+
+      // Upload files to Supabase storage
+      const uploadedFiles = [];
+      for (const file of files) {
+        const filePath = `${user.id}/${case_.id}/${file.name}`;
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('case-files')
+          .upload(filePath, file.file);
+        
+        if (uploadError) {
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
+        
+        const { data: urlData } = supabase.storage
+          .from('case-files')
+          .getPublicUrl(filePath);
+        
+        uploadedFiles.push({
+          name: file.name,
+          url: urlData.publicUrl
+        });
+      }
+
+      // Add files to database with storage URLs
+      await addFiles(case_.id, uploadedFiles.map(f => ({ 
+        name: f.name, 
+        url: f.url 
+      })));
       
       // Add files_uploaded event
       await addEvent(case_.id, "files_uploaded", {
@@ -60,18 +91,36 @@ export default function CaseUpload() {
         file_count: files.length
       });
 
-      // Keep case status as "Active" as requested
-      await updateCaseStatus(case_.id, "Active");
+      // Update case status to Processing
+      await updateCaseStatus(case_.id, "Processing");
+      
+      // Call edge function to process files
+      const { data: processResult, error: processError } = await supabase.functions
+        .invoke('process-case-files', {
+          body: { caseId: case_.id }
+        });
 
-      toast({ 
-        title: "Analysis submitted", 
-        description: "Your files have been submitted. ETA ~24 hours." 
-      });
+      if (processError) {
+        console.error("Processing error:", processError);
+        toast({
+          title: "Processing started with warnings",
+          description: "Files uploaded successfully. Processing may take some time.",
+        });
+      } else {
+        toast({
+          title: "Analysis started!",
+          description: `Uploaded ${files.length} files. Analysis is now in progress.`,
+        });
+      }
       
       navigate("/app/dashboard");
     } catch (error) {
       console.error("Failed to submit analysis:", error);
-      toast({ title: "Failed to submit analysis", variant: "destructive" });
+      toast({ 
+        title: "Failed to submit analysis", 
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive" 
+      });
     } finally {
       setSubmitting(false);
     }

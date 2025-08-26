@@ -21,6 +21,7 @@ import Dashboard from "@/pages/app/Dashboard";
 import NewCase from "@/pages/app/NewCase";
 import CaseDetail from "@/pages/app/CaseDetail";
 import CaseUpload from "@/pages/app/CaseUpload";
+import CaseAnalysisResults from "@/pages/app/CaseAnalysisResults";
 import Account from "@/pages/app/Account";
 import AdminCases from "@/pages/app/AdminCases";
 
@@ -61,6 +62,7 @@ function App() {
               <Route path="/app/cases/new" element={<ProtectedRoute><NewCase /></ProtectedRoute>} />
               <Route path="/app/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
               <Route path="/app/cases/:id/upload" element={<ProtectedRoute><CaseUpload /></ProtectedRoute>} />
+              <Route path="/app/cases/:id/results" element={<ProtectedRoute><CaseAnalysisResults /></ProtectedRoute>} />
               <Route path="/app/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
               <Route path="/app/admin/cases" element={<ProtectedRoute><AdminCases /></ProtectedRoute>} />
               

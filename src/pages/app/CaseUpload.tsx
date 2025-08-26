@@ -108,7 +108,10 @@ export default function CaseUpload() {
       console.log('Invoking edge function process-case-files with caseId:', case_.id);
       const { data: processResult, error: processError } = await supabase.functions
         .invoke('process-case-files', {
-          body: { caseId: case_.id }
+          body: { 
+            caseId: case_.id,
+            fileNames: uploadedFiles.map(f => f.name)
+          }
         });
       console.log('Edge function result:', processResult, 'error:', processError);
 

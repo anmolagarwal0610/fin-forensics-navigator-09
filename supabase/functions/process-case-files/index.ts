@@ -14,38 +14,40 @@ serve(async (req) => {
   }
 
   try {
-    const { caseId } = await req.json();
+    const { caseId, fileNames } = await req.json();
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const backendApiUrl = Deno.env.get('BACKEND_API_URL')!;
     
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log('Processing case files for case:', caseId);
+    console.log('File names provided:', fileNames);
 
-    // Get case files from database with retries to avoid race condition
-    const caseFiles = await fetchCaseFilesWithRetry(supabase, caseId, 5, 400);
-    console.log('[process-case-files] Final files list:', caseFiles.length, '=>', caseFiles.map((f: any) => f.file_name));
-
-    // Get user ID from JWT token
+    // Get user ID from JWT token using anon key client
     const authHeader = req.headers.get('authorization');
     if (!authHeader) {
       throw new Error('No authorization header');
     }
 
     const token = authHeader.replace('Bearer ', '');
-    console.log('Authorization header present. Token length:', token?.length || 0);
-    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    const anonClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!);
+    const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
     
     if (userError || !user) {
       console.error('User authentication error:', userError);
       throw new Error('Invalid user token');
     }
     console.log('Authenticated user id:', user.id);
+
+    // Get files from storage directly
+    const storageFiles = await getStorageFiles(supabase, user.id, caseId, fileNames);
+    console.log('Found storage files:', storageFiles.length);
+
     // Create zip file with all uploaded files
     const zipFileName = `case_${caseId}_${Date.now()}.zip`;
-    const zipBlob = await createZipFile(supabase, caseFiles, user.id, caseId);
+    const zipBlob = await createZipFromStorage(supabase, storageFiles, user.id, caseId);
     
     // Upload zip file to storage
     const { data: zipUpload, error: zipError } = await supabase.storage
@@ -206,44 +208,35 @@ serve(async (req) => {
   }
 });
 
-// Helper to wait between retries
-async function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// Retry fetching case files to avoid race conditions where inserts aren't yet visible
-async function fetchCaseFilesWithRetry(supabase: any, caseId: string, maxAttempts = 5, baseDelayMs = 400) {
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    console.log(`[process-case-files] Fetch attempt ${attempt}/${maxAttempts} for case ${caseId}`);
-    const { data, error } = await supabase
-      .from('case_files')
-      .select('*')
-      .eq('case_id', caseId)
-      .eq('type', 'upload');
-
-    if (error) {
-      console.error('[process-case-files] Error fetching case_files:', error);
-    } else {
-      const count = data?.length || 0;
-      console.log(`[process-case-files] case_files count on attempt ${attempt}:`, count);
-      if (count > 0) return data;
-    }
-
-    if (attempt < maxAttempts) {
-      const delay = baseDelayMs * Math.pow(2, attempt - 1);
-      console.log(`[process-case-files] No files yet, retrying after ${delay}ms...`);
-      await sleep(delay);
-    }
+// Get files from storage either by provided names or by listing the folder
+async function getStorageFiles(supabase: any, userId: string, caseId: string, fileNames?: string[]): Promise<string[]> {
+  if (fileNames && fileNames.length > 0) {
+    console.log('Using provided file names:', fileNames);
+    return fileNames;
   }
-  throw new Error('No files found for this case after retries');
+
+  console.log('No file names provided, listing storage folder');
+  const folderPath = `${userId}/${caseId}`;
+  const { data: files, error } = await supabase.storage
+    .from('case-files')
+    .list(folderPath);
+
+  if (error) {
+    console.error('Error listing storage files:', error);
+    throw new Error(`Failed to list files in storage: ${error.message}`);
+  }
+
+  const fileNames = files?.map((file: any) => file.name) || [];
+  console.log('Found files in storage:', fileNames);
+  return fileNames;
 }
 
-async function createZipFile(supabase: any, files: any[], userId: string, caseId: string): Promise<Blob> {
-  console.log('Creating ZIP from files:', files.map((f: any) => f.file_name));
+async function createZipFromStorage(supabase: any, fileNames: string[], userId: string, caseId: string): Promise<Blob> {
+  console.log('Creating ZIP from storage files:', fileNames);
   const zip = new JSZip();
 
-  for (const file of files) {
-    const objectPath = `${userId}/${caseId}/${file.file_name}`;
+  for (const fileName of fileNames) {
+    const objectPath = `${userId}/${caseId}/${fileName}`;
     try {
       console.log('Downloading from storage:', objectPath);
       const { data: fileBlob, error } = await supabase.storage
@@ -257,8 +250,8 @@ async function createZipFile(supabase: any, files: any[], userId: string, caseId
 
       if (fileBlob) {
         const buffer = await fileBlob.arrayBuffer();
-        zip.file(file.file_name, buffer);
-        console.log(`Added to ZIP: ${file.file_name} (${buffer.byteLength} bytes)`);
+        zip.file(fileName, buffer);
+        console.log(`Added to ZIP: ${fileName} (${buffer.byteLength} bytes)`);
       }
     } catch (error) {
       console.error(`Failed to download file ${objectPath}:`, error);

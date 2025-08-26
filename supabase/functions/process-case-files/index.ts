@@ -18,7 +18,7 @@ serve(async (req) => {
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const backendApiUrl = Deno.env.get('BACKEND_API_URL')!;
+    //const backendApiUrl = Deno.env.get('BACKEND_API_URL')!;
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -89,8 +89,8 @@ serve(async (req) => {
       userId: user.id
     };
 
-    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[0-1])|192\.168\.)/i.test(backendApiUrl);
-    console.log('[process-case-files] BACKEND_API_URL:', backendApiUrl);
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[0-1])|192\.168\.)/i.test("https://17d1cab82b7a.ngrok-free.app/parse-statements/");
+    console.log('[process-case-files] BACKEND_API_URL:', "https://17d1cab82b7a.ngrok-free.app/parse-statements/");
     if (isLocal) {
       console.warn('[process-case-files] Warning: BACKEND_API_URL appears to be a local/private address. Edge Functions may not reach your laptop unless it is publicly accessible.');
     }
@@ -99,7 +99,7 @@ serve(async (req) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
-    const backendResponse = await fetch(backendApiUrl, {
+    const backendResponse = await fetch("https://17d1cab82b7a.ngrok-free.app/parse-statements/", {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(backendPayload),

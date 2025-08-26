@@ -133,3 +133,9 @@ export const getCaseEvents = async (caseId: string) => {
   if (error) throw error;
   return (data ?? []) as EventRecord[];
 };
+
+export const deleteCase = async (caseId: string) => {
+  const { error } = await supabase.from("cases").delete().eq("id", caseId);
+  if (error) throw error;
+  return true;
+};

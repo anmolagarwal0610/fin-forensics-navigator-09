@@ -3,11 +3,12 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { getCaseById, getCaseFiles, getCaseEvents, type CaseRecord, type CaseFileRecord, type EventRecord } from "@/api/cases";
+import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, type CaseFileRecord, type EventRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
+import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,7 @@ export default function CaseDetail() {
   const [files, setFiles] = useState<CaseFileRecord[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -63,6 +65,23 @@ export default function CaseDetail() {
     }
   };
 
+  const handleDeleteCase = async () => {
+    if (!case_) return;
+    
+    try {
+      await deleteCase(case_.id);
+      toast({ title: "Case deleted successfully" });
+      navigate("/app/dashboard");
+    } catch (error) {
+      console.error("Failed to delete case:", error);
+      toast({ 
+        title: "Failed to delete case", 
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive" 
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -102,6 +121,14 @@ export default function CaseDetail() {
             <h1 className="text-2xl font-semibold">{case_.name}</h1>
             <StatusBadge status={case_.status} />
           </div>
+          <Button 
+            variant="error" 
+            size="sm"
+            onClick={() => setShowDeleteModal(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Case
+          </Button>
         </div>
 
         {case_.description && (
@@ -226,6 +253,13 @@ export default function CaseDetail() {
           </CardContent>
         </Card>
       </div>
+      
+      <DeleteCaseModal
+        isOpen={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        onConfirm={handleDeleteCase}
+        caseName={case_.name}
+      />
     </>
   );
 }

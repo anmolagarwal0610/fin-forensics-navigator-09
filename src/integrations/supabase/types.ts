@@ -54,6 +54,7 @@ export type Database = {
       }
       cases: {
         Row: {
+          analysis_status: string | null
           color_hex: string
           created_at: string
           creator_id: string
@@ -61,11 +62,13 @@ export type Database = {
           id: string
           name: string
           org_id: string | null
+          result_zip_url: string | null
           status: Database["public"]["Enums"]["case_status"]
           tags: string[] | null
           updated_at: string
         }
         Insert: {
+          analysis_status?: string | null
           color_hex?: string
           created_at?: string
           creator_id: string
@@ -73,11 +76,13 @@ export type Database = {
           id?: string
           name: string
           org_id?: string | null
+          result_zip_url?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           tags?: string[] | null
           updated_at?: string
         }
         Update: {
+          analysis_status?: string | null
           color_hex?: string
           created_at?: string
           creator_id?: string
@@ -85,6 +90,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string | null
+          result_zip_url?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           tags?: string[] | null
           updated_at?: string

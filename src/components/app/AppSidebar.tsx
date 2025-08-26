@@ -33,9 +33,8 @@ export default function AppSidebar() {
       <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
         <SidebarContent>
           <SidebarGroup>
-            <div className="flex items-center justify-between p-2">
-              <SidebarGroupLabel>FinNavigator</SidebarGroupLabel>
-              {state !== "collapsed" && <SidebarTrigger className="text-center text-base" />}
+            <div className="flex items-center justify-center p-4">
+              <SidebarGroupLabel className="text-lg font-bold text-primary">FinNavigator</SidebarGroupLabel>
             </div>
             <SidebarGroupContent>
               <SidebarMenu>
@@ -52,10 +51,5 @@ export default function AppSidebar() {
           </SidebarGroup>
         </SidebarContent>
       </Sidebar>
-      
-      {/* Fixed trigger button that's always visible when collapsed */}
-      {state === "collapsed" && <div className="fixed top-4 left-4 z-50">
-          <SidebarTrigger />
-        </div>}
     </>;
 }

@@ -15,6 +15,7 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
     name: "",
     organization: "",
     email: "",
+    phone: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -32,7 +33,7 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
         description: "We'll contact you within 24 hours to schedule your personalized demo.",
       });
       
-      setFormData({ name: "", organization: "", email: "" });
+      setFormData({ name: "", organization: "", email: "", phone: "" });
       onClose();
     } catch (error) {
       toast({
@@ -85,6 +86,17 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
               placeholder="Enter your email address"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number</Label>
+            <Input
+              id="phone"
+              type="tel"
+              placeholder="Enter your phone number"
+              value={formData.phone}
+              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               required
             />
           </div>

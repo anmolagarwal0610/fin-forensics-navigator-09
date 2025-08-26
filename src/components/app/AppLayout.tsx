@@ -1,5 +1,5 @@
 import { PropsWithChildren } from "react";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./AppSidebar";
 import AvatarMenu from "./AvatarMenu";
 import { Toaster } from "@/components/ui/toaster";
@@ -29,6 +29,7 @@ export default function AppLayout({
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-12 flex items-center justify-between border-b bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 px-4">
             <div className="flex items-center gap-4">
+              <SidebarTrigger className="p-2 hover:bg-muted rounded-md transition-colors" />
               <div className="text-sm font-semibold">Dashboard</div>
               <div className="text-xs text-muted-foreground font-medium bg-muted/50 px-2 py-1 rounded">
                 {getOrganizationName()}

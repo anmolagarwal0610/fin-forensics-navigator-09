@@ -103,7 +103,8 @@ export default function CaseUpload() {
       await updateCaseStatus(case_.id, "Processing");
       console.log('Case status updated to Processing');
       
-      // Call edge function to process files
+      // Small delay to avoid race conditions with DB commits
+      await new Promise((res) => setTimeout(res, 1200));
       console.log('Invoking edge function process-case-files with caseId:', case_.id);
       const { data: processResult, error: processError } = await supabase.functions
         .invoke('process-case-files', {

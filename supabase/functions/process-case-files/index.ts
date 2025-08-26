@@ -24,22 +24,9 @@ serve(async (req) => {
 
     console.log('Processing case files for case:', caseId);
 
-    // Get case files from database
-    const { data: caseFiles, error: filesError } = await supabase
-      .from('case_files')
-      .select('*')
-      .eq('case_id', caseId)
-      .eq('type', 'upload');
-
-    if (filesError) {
-      throw new Error(`Failed to fetch case files: ${filesError.message}`);
-    }
-
-    if (!caseFiles || caseFiles.length === 0) {
-      throw new Error('No files found for this case');
-    }
-
-    console.log('Found files:', caseFiles.length, '=>', caseFiles.map((f: any) => f.file_name));
+    // Get case files from database with retries to avoid race condition
+    const caseFiles = await fetchCaseFilesWithRetry(supabase, caseId, 5, 400);
+    console.log('[process-case-files] Final files list:', caseFiles.length, '=>', caseFiles.map((f: any) => f.file_name));
 
     // Get user ID from JWT token
     const authHeader = req.headers.get('authorization');
@@ -99,26 +86,43 @@ serve(async (req) => {
       zipUrl: signed.signedUrl,
       userId: user.id
     };
-    console.log('Calling backend:', backendApiUrl, 'with payload:', backendPayload);
+
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[0-1])|192\.168\.)/i.test(backendApiUrl);
+    console.log('[process-case-files] BACKEND_API_URL:', backendApiUrl);
+    if (isLocal) {
+      console.warn('[process-case-files] Warning: BACKEND_API_URL appears to be a local/private address. Edge Functions may not reach your laptop unless it is publicly accessible.');
+    }
+    console.log('Calling backend with payload:', backendPayload);
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
     const backendResponse = await fetch(backendApiUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(backendPayload)
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(backendPayload),
+      signal: controller.signal
     });
+    clearTimeout(timeout);
 
     console.log('Backend response status:', backendResponse.status, backendResponse.statusText);
 
+    const rawText = await backendResponse.text();
+    console.log('Backend raw response body (truncated):', rawText?.slice(0, 1000));
+
     if (!backendResponse.ok) {
-      const errorText = await backendResponse.text();
-      console.error('Backend error response body:', errorText);
-      throw new Error(`Backend API call failed: ${backendResponse.status} ${backendResponse.statusText}`);
+      throw new Error(`Backend API call failed: ${backendResponse.status} ${backendResponse.statusText} | Body: ${rawText?.slice(0, 1000)}`);
     }
 
-    const backendResult = await backendResponse.json();
-    console.log('Backend response:', backendResult);
+    let backendResult: any;
+    try {
+      backendResult = rawText ? JSON.parse(rawText) : {};
+    } catch (e) {
+      console.error('Failed to parse backend JSON response:', e);
+      throw new Error('Backend returned non-JSON response');
+    }
+
+    console.log('Backend response parsed JSON:', backendResult);
 
     // Update case with result zip URL from backend response
     await supabase
@@ -201,6 +205,38 @@ serve(async (req) => {
     });
   }
 });
+
+// Helper to wait between retries
+async function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Retry fetching case files to avoid race conditions where inserts aren't yet visible
+async function fetchCaseFilesWithRetry(supabase: any, caseId: string, maxAttempts = 5, baseDelayMs = 400) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(`[process-case-files] Fetch attempt ${attempt}/${maxAttempts} for case ${caseId}`);
+    const { data, error } = await supabase
+      .from('case_files')
+      .select('*')
+      .eq('case_id', caseId)
+      .eq('type', 'upload');
+
+    if (error) {
+      console.error('[process-case-files] Error fetching case_files:', error);
+    } else {
+      const count = data?.length || 0;
+      console.log(`[process-case-files] case_files count on attempt ${attempt}:`, count);
+      if (count > 0) return data;
+    }
+
+    if (attempt < maxAttempts) {
+      const delay = baseDelayMs * Math.pow(2, attempt - 1);
+      console.log(`[process-case-files] No files yet, retrying after ${delay}ms...`);
+      await sleep(delay);
+    }
+  }
+  throw new Error('No files found for this case after retries');
+}
 
 async function createZipFile(supabase: any, files: any[], userId: string, caseId: string): Promise<Blob> {
   console.log('Creating ZIP from files:', files.map((f: any) => f.file_name));

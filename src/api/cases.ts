@@ -84,6 +84,21 @@ export const updateCaseStatus = async (caseId: string, status: CaseStatus) => {
   return data as CaseRecord | null;
 };
 
+export const updateCaseWithResults = async (caseId: string, resultZipUrl: string) => {
+  const { data, error } = await supabase
+    .from("cases")
+    .update({ 
+      result_zip_url: resultZipUrl, 
+      status: 'Ready' as CaseStatus,
+      analysis_status: 'completed'
+    })
+    .eq("id", caseId)
+    .select()
+    .maybeSingle();
+  if (error) throw error;
+  return data as CaseRecord | null;
+};
+
 export const addEvent = async (caseId: string, type: EventRecord["type"], payload?: Record<string, any>) => {
   const { data, error } = await supabase
     .from("events")

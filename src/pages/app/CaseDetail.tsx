@@ -240,8 +240,11 @@ export default function CaseDetail() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Results are ready for review.
                 </p>
-                <Button disabled>
-                  View Results (Coming Soon)
+                <Button 
+                  disabled={!case_.result_zip_url}
+                  onClick={() => case_.result_zip_url && navigate(`/app/cases/${case_.id}/results`)}
+                >
+                  {case_.result_zip_url ? 'View Results' : 'View Results (Coming Soon)'}
                 </Button>
               </div>
             ) : (

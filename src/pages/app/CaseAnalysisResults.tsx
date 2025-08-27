@@ -157,15 +157,15 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Process main graph (poi_flows.png)
-      const mainGraphFile = zipData.file("poi_flows.png");
+      // Process main graph (poi_flows.html)
+      const mainGraphFile = zipData.file("poi_flows.html");
       if (mainGraphFile) {
         const content = await mainGraphFile.async("blob");
         parsedData.mainGraphUrl = URL.createObjectURL(content);
       }
 
-      // Process ego images
-      const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
+      // Process ego HTML files
+      const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.html'));
       for (const fileName of egoFiles) {
         const file = zipData.file(fileName);
         if (file) {
@@ -480,7 +480,7 @@ export default function CaseAnalysisResults() {
               <div className="relative group">
                 <div className="w-full h-[600px] overflow-auto border rounded-lg shadow-sm">
                   <iframe 
-                    src={analysisData.mainGraphUrl.replace('.png', '.html')} 
+                    src={analysisData.mainGraphUrl} 
                     title="POI Flow Analysis"
                     className="w-full min-h-full border-0"
                     style={{ minWidth: '800px', minHeight: '600px' }}
@@ -490,7 +490,7 @@ export default function CaseAnalysisResults() {
                   variant="secondary"
                   size="sm"
                   className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  onClick={() => handleDownload(analysisData.mainGraphUrl!.replace('.png', '.html'), 'poi_flows.html')}
+                  onClick={() => downloadIndividualFile('poi_flows.html')}
                 >
                   <Download className="h-4 w-4" />
                 </Button>
@@ -540,26 +540,26 @@ export default function CaseAnalysisResults() {
                        className="flex-shrink-0 group relative"
                      >
                        <div className="relative w-80 h-64 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all">
-                         <div className="w-full h-full overflow-auto">
-                           <iframe 
-                             src={image.url.replace('.png', '.html')} 
-                             title={`Ego network for ${image.name}`}
-                             className="w-full border-0"
-                             style={{ minWidth: '600px', minHeight: '500px' }}
-                           />
-                         </div>
-                         <Button
-                           variant="secondary"
-                           size="sm"
-                           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                           onClick={() => handleDownload(image.url.replace('.png', '.html'), image.name.replace('.png', '.html'))}
-                         >
-                           <Download className="h-3 w-3" />
-                         </Button>
+                          <div className="w-full h-full overflow-auto">
+                            <iframe 
+                              src={image.url} 
+                              title={`Ego network for ${image.name}`}
+                              className="w-full border-0"
+                              style={{ minWidth: '600px', minHeight: '500px' }}
+                            />
+                          </div>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                            onClick={() => downloadIndividualFile(image.name)}
+                          >
+                            <Download className="h-3 w-3" />
+                          </Button>
                        </div>
-                       <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-80">
-                         {image.name.replace('ego_', '').replace('.png', '')}
-                       </p>
+                        <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-80">
+                          {image.name.replace('ego_', '').replace('.html', '')}
+                        </p>
                      </div>
                    ))}
                  </div>

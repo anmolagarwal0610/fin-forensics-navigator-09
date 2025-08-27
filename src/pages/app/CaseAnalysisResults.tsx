@@ -9,7 +9,6 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
-import FullscreenVisualizationModal from "@/components/modals/FullscreenVisualizationModal";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 
@@ -18,8 +17,7 @@ interface ParsedAnalysisData {
   beneficiaryHeaders: string[];
   totalBeneficiaryCount: number;
   mainGraphUrl: string | null;
-  mainGraphHtml: string | null;
-  egoImages: Array<{ name: string; url: string; htmlContent?: string }>;
+  egoImages: Array<{ name: string; url: string }>;
   poiFileCount: number;
   fileSummaries: Array<{
     originalFile: string;
@@ -38,14 +36,6 @@ export default function CaseAnalysisResults() {
   const [analysisData, setAnalysisData] = useState<ParsedAnalysisData | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [fullscreenModalOpen, setFullscreenModalOpen] = useState(false);
-  const [fullscreenContent, setFullscreenContent] = useState<{
-    title: string;
-    htmlContent?: string;
-    blobUrl?: string;
-    downloadFileName?: string;
-  } | null>(null);
-  const [htmlBlobs, setHtmlBlobs] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     if (!id) return;
@@ -82,8 +72,6 @@ export default function CaseAnalysisResults() {
 
   const loadAnalysisFiles = async (zipUrl: string, originalFiles: CaseFileRecord[]) => {
     try {
-      console.log("🔍 Starting to load analysis files from:", zipUrl);
-      
       const response = await fetch(zipUrl);
       if (!response.ok) throw new Error('Failed to fetch ZIP file');
       
@@ -91,14 +79,11 @@ export default function CaseAnalysisResults() {
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
       
-      console.log("📁 ZIP contents:", Object.keys(zipData.files));
-      
       const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
         beneficiaryHeaders: [],
         totalBeneficiaryCount: 0,
         mainGraphUrl: null,
-        mainGraphHtml: null,
         egoImages: [],
         poiFileCount: 0,
         fileSummaries: []
@@ -172,79 +157,25 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Process main graph (poi_flows.html)
-      console.log("🔍 Looking for poi_flows.html...");
-      const mainGraphFile = zipData.file("poi_flows.html");
+      // Process main graph (poi_flows.png)
+      const mainGraphFile = zipData.file("poi_flows.png");
       if (mainGraphFile) {
-        console.log("✅ Found poi_flows.html, storing HTML content...");
-        const content = await mainGraphFile.async("text");
-        console.log("📄 HTML content length:", content.length);
-        console.log("📄 HTML preview:", content.substring(0, 200));
-        
-        // Store both HTML content and blob URL
-        parsedData.mainGraphHtml = content;
-        const htmlBlob = new Blob([content], { type: 'text/html' });
-        parsedData.mainGraphUrl = URL.createObjectURL(htmlBlob);
-        console.log("✅ Main graph HTML stored and blob URL created");
-      } else {
-        console.log("❌ poi_flows.html not found");
-        // Try looking for PNG fallback
-        const pngFile = zipData.file("poi_flows.png");
-        if (pngFile) {
-          console.log("📸 Found PNG fallback, using that instead");
-          const content = await pngFile.async("blob");
-          parsedData.mainGraphUrl = URL.createObjectURL(content);
-        }
+        const content = await mainGraphFile.async("blob");
+        parsedData.mainGraphUrl = URL.createObjectURL(content);
       }
 
-      // Process ego HTML files
-      console.log("🔍 Looking for ego HTML files...");
-      const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.html'));
-      console.log("📄 Found ego HTML files:", egoFiles);
-      
+      // Process ego images
+      const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
       for (const fileName of egoFiles) {
         const file = zipData.file(fileName);
         if (file) {
-          console.log("✅ Processing ego file:", fileName);
-          const content = await file.async("text");
-          console.log("📄 Ego HTML content length:", content.length);
-          
-          // Store both HTML content and blob URL for ego files
-          const htmlBlob = new Blob([content], { type: 'text/html' });
-          const url = URL.createObjectURL(htmlBlob);
-          console.log("✅ Ego graph URL created:", url);
-          
+          const content = await file.async("blob");
           parsedData.egoImages.push({
             name: fileName,
-            url: url,
-            htmlContent: content
+            url: URL.createObjectURL(content)
           });
         }
       }
-      
-      // If no HTML files found, try PNG fallback
-      if (egoFiles.length === 0) {
-        console.log("🔍 No HTML ego files found, trying PNG fallback...");
-        const egoPngFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
-        console.log("📸 Found ego PNG files:", egoPngFiles);
-        
-        for (const fileName of egoPngFiles) {
-          const file = zipData.file(fileName);
-          if (file) {
-            const content = await file.async("blob");
-            parsedData.egoImages.push({
-              name: fileName,
-              url: URL.createObjectURL(content)
-            });
-          }
-        }
-      }
-      
-      console.log("📊 Final analysis data:", {
-        mainGraphUrl: parsedData.mainGraphUrl,
-        egoImagesCount: parsedData.egoImages.length,
-        beneficiariesCount: parsedData.beneficiaries.length
-      });
 
       // Count POI files
       parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
@@ -327,33 +258,6 @@ export default function CaseAnalysisResults() {
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
     setLightboxOpen(true);
-  };
-
-  const openFullscreenVisualization = (title: string, htmlContent?: string, blobUrl?: string, downloadFileName?: string) => {
-    setFullscreenContent({
-      title,
-      htmlContent,
-      blobUrl,
-      downloadFileName
-    });
-    setFullscreenModalOpen(true);
-  };
-
-  const closeFullscreenModal = () => {
-    setFullscreenModalOpen(false);
-    setFullscreenContent(null);
-  };
-
-  const handleMainGraphDownload = () => {
-    if (analysisData?.zipData) {
-      downloadIndividualFile("poi_flows.html");
-    }
-  };
-
-  const handleEgoFileDownload = (fileName: string) => {
-    if (analysisData?.zipData) {
-      downloadIndividualFile(fileName);
-    }
   };
 
   if (loading) {
@@ -560,54 +464,30 @@ export default function CaseAnalysisResults() {
           </Card>
         )}
 
-        {/* POI Flow Main Graph */}
+        {/* Main Flow Graph */}
         {analysisData.mainGraphUrl && (
           <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/50 dark:to-cyan-950/50 rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                POI Flow Analysis
+                Transaction Flow Analysis
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Interactive network visualization showing person of interest flows and connections
+                Visual representation of person of interest relationships and transaction flows
               </p>
             </CardHeader>
-             <CardContent className="p-6">
-               <div className="relative group cursor-pointer" onClick={() => openFullscreenVisualization('POI Flow Analysis', undefined, analysisData.mainGraphUrl, 'poi_flows.html')}>
-                 <div className="w-full h-[600px] overflow-hidden border rounded-lg shadow-sm bg-muted/20 relative">
-                   <iframe 
-                     src={analysisData.mainGraphUrl} 
-                     title="POI Flow Analysis"
-                     className="w-full h-full border-0 pointer-events-none"
-                     sandbox="allow-scripts allow-same-origin"
-                     onLoad={() => console.log('✅ Main POI graph iframe loaded successfully')}
-                     onError={() => console.error('❌ Main POI graph iframe failed to load')}
-                   />
-                  <div className="absolute inset-0 bg-black/0 hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
-                    <div className="bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
-                      <span className="text-sm font-medium">Click to view fullscreen</span>
-                    </div>
-                  </div>
-                </div>
-                 <Button
-                   variant="secondary"
-                   size="sm"
-                   className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
-                   onClick={(e) => {
-                     e.stopPropagation();
-                     openFullscreenVisualization('POI Flow Analysis', undefined, analysisData.mainGraphUrl, 'poi_flows.html');
-                   }}
-                 >
-                  <Eye className="h-4 w-4" />
-                </Button>
+            <CardContent className="p-6">
+              <div className="relative group">
+                <img 
+                  src={analysisData.mainGraphUrl} 
+                  alt="POI Flow Analysis" 
+                  className="w-full h-auto rounded-lg border shadow-sm"
+                />
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="absolute top-4 right-16 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    downloadIndividualFile('poi_flows.html');
-                  }}
+                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                  onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
                 >
                   <Download className="h-4 w-4" />
                 </Button>
@@ -635,7 +515,7 @@ export default function CaseAnalysisResults() {
           </CardContent>
         </Card>
 
-        {/* Ego Network Visualizations */}
+        {/* Ego Network Images */}
         {analysisData.egoImages.length > 0 && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-t-lg">
@@ -644,86 +524,37 @@ export default function CaseAnalysisResults() {
                 Network Analysis Visualizations
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Interactive individual ego networks showing relationship patterns for each person of interest. 
-                Click on any visualization to view it in fullscreen.
+                Individual ego networks showing relationship patterns for each person of interest. 
+                'Ego' refers to the central person in each network graph - it shows how that specific individual is connected to others.
               </p>
             </CardHeader>
              <CardContent className="p-6">
-                <ScrollArea className="w-full">
-                  <div className="flex gap-6 pb-4">
-                    {analysisData.egoImages.map((image, index) => (
-                      <div 
-                        key={index}
-                        className="group relative cursor-pointer flex-none"
-                        onClick={() => openFullscreenVisualization(
-                          `Ego Network: ${image.name.replace('ego_', '').replace('.html', '')}`,
-                          undefined,
-                          image.url,
-                          image.name
-                        )}
-                      >
-                        <div className="relative w-80 h-64 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-xl transition-all transform hover:scale-[1.02]">
-                        <div className="w-full h-full overflow-hidden relative">
-                          {image.htmlContent ? (
-                            <iframe 
-                              srcDoc={image.htmlContent}
-                              title={`Ego network for ${image.name}`}
-                              className="w-full h-full border-0 pointer-events-none scale-75 origin-top-left"
-                              style={{ width: '133.33%', height: '133.33%' }}
-                              sandbox="allow-scripts allow-same-origin"
-                            />
-                          ) : (
-                            <iframe 
-                              src={image.url} 
-                              title={`Ego network for ${image.name}`}
-                              className="w-full h-full border-0 pointer-events-none scale-75 origin-top-left"
-                              style={{ width: '133.33%', height: '133.33%' }}
-                              sandbox="allow-scripts allow-same-origin"
-                            />
-                          )}
-                          <div className="absolute inset-0 bg-black/0 hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
-                            <div className="bg-background/90 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg">
-                              <Eye className="h-4 w-4 mx-auto mb-1" />
-                              <span className="text-xs font-medium">View Fullscreen</span>
-                            </div>
-                          </div>
-                        </div>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openFullscreenVisualization(
-                              `Ego Network: ${image.name.replace('ego_', '').replace('.html', '')}`,
-                              image.htmlContent,
-                              image.url,
-                              image.name
-                            );
-                          }}
-                        >
-                          <Eye className="h-3 w-3" />
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          className="absolute top-2 right-12 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            downloadIndividualFile(image.name);
-                          }}
-                        >
-                          <Download className="h-3 w-3" />
-                        </Button>
+               <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                 <div className="flex gap-4 p-4">
+                   {analysisData.egoImages.map((image, index) => (
+                     <div 
+                       key={index}
+                       className="flex-shrink-0 cursor-pointer group relative"
+                       onClick={() => openLightbox(index)}
+                     >
+                       <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
+                         <img 
+                           src={image.url} 
+                           alt={`Ego network for ${image.name}`}
+                           className="w-full h-full object-cover"
+                         />
+                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                           <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                         </div>
+                       </div>
+                       <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-48">
+                         {image.name.replace('ego_', '').replace('.png', '')}
+                       </p>
                      </div>
-                      <p className="text-sm text-muted-foreground mt-3 text-center font-medium">
-                        {image.name.replace('ego_', '').replace('.html', '')}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-                </ScrollArea>
-              </CardContent>
+                   ))}
+                 </div>
+               </ScrollArea>
+             </CardContent>
           </Card>
         )}
 
@@ -803,17 +634,6 @@ export default function CaseAnalysisResults() {
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
         initialIndex={lightboxIndex}
-      />
-
-      {/* Fullscreen Visualization Modal */}
-      <FullscreenVisualizationModal
-        isOpen={fullscreenModalOpen}
-        onClose={closeFullscreenModal}
-        title={fullscreenContent?.title || ''}
-        htmlContent={fullscreenContent?.htmlContent}
-        blobUrl={fullscreenContent?.blobUrl}
-        downloadFileName={fullscreenContent?.downloadFileName}
-        onDownload={fullscreenContent?.downloadFileName ? () => handleEgoFileDownload(fullscreenContent.downloadFileName!) : undefined}
       />
     </>
   );

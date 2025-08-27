@@ -72,12 +72,16 @@ export default function CaseAnalysisResults() {
 
   const loadAnalysisFiles = async (zipUrl: string, originalFiles: CaseFileRecord[]) => {
     try {
+      console.log("🔍 Starting to load analysis files from:", zipUrl);
+      
       const response = await fetch(zipUrl);
       if (!response.ok) throw new Error('Failed to fetch ZIP file');
       
       const arrayBuffer = await response.arrayBuffer();
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
+      
+      console.log("📁 ZIP contents:", Object.keys(zipData.files));
       
       const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
@@ -158,24 +162,76 @@ export default function CaseAnalysisResults() {
       }
 
       // Process main graph (poi_flows.html)
+      console.log("🔍 Looking for poi_flows.html...");
       const mainGraphFile = zipData.file("poi_flows.html");
       if (mainGraphFile) {
-        const content = await mainGraphFile.async("blob");
-        parsedData.mainGraphUrl = URL.createObjectURL(content);
+        console.log("✅ Found poi_flows.html, creating blob...");
+        const content = await mainGraphFile.async("text");
+        console.log("📄 HTML content length:", content.length);
+        console.log("📄 HTML preview:", content.substring(0, 200));
+        
+        // Create blob with proper MIME type for HTML
+        const htmlBlob = new Blob([content], { type: 'text/html' });
+        parsedData.mainGraphUrl = URL.createObjectURL(htmlBlob);
+        console.log("✅ Main graph URL created:", parsedData.mainGraphUrl);
+      } else {
+        console.log("❌ poi_flows.html not found");
+        // Try looking for PNG fallback
+        const pngFile = zipData.file("poi_flows.png");
+        if (pngFile) {
+          console.log("📸 Found PNG fallback, using that instead");
+          const content = await pngFile.async("blob");
+          parsedData.mainGraphUrl = URL.createObjectURL(content);
+        }
       }
 
       // Process ego HTML files
+      console.log("🔍 Looking for ego HTML files...");
       const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.html'));
+      console.log("📄 Found ego HTML files:", egoFiles);
+      
       for (const fileName of egoFiles) {
         const file = zipData.file(fileName);
         if (file) {
-          const content = await file.async("blob");
+          console.log("✅ Processing ego file:", fileName);
+          const content = await file.async("text");
+          console.log("📄 Ego HTML content length:", content.length);
+          
+          // Create blob with proper MIME type for HTML
+          const htmlBlob = new Blob([content], { type: 'text/html' });
+          const url = URL.createObjectURL(htmlBlob);
+          console.log("✅ Ego graph URL created:", url);
+          
           parsedData.egoImages.push({
             name: fileName,
-            url: URL.createObjectURL(content)
+            url: url
           });
         }
       }
+      
+      // If no HTML files found, try PNG fallback
+      if (egoFiles.length === 0) {
+        console.log("🔍 No HTML ego files found, trying PNG fallback...");
+        const egoPngFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
+        console.log("📸 Found ego PNG files:", egoPngFiles);
+        
+        for (const fileName of egoPngFiles) {
+          const file = zipData.file(fileName);
+          if (file) {
+            const content = await file.async("blob");
+            parsedData.egoImages.push({
+              name: fileName,
+              url: URL.createObjectURL(content)
+            });
+          }
+        }
+      }
+      
+      console.log("📊 Final analysis data:", {
+        mainGraphUrl: parsedData.mainGraphUrl,
+        egoImagesCount: parsedData.egoImages.length,
+        beneficiariesCount: parsedData.beneficiaries.length
+      });
 
       // Count POI files
       parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 

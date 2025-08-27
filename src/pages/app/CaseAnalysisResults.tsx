@@ -464,30 +464,33 @@ export default function CaseAnalysisResults() {
           </Card>
         )}
 
-        {/* Main Flow Graph */}
+        {/* POI Flow Main Graph */}
         {analysisData.mainGraphUrl && (
           <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
+            <CardHeader className="bg-gradient-to-r from-blue-50 to-cyan-50 dark:from-blue-950/50 dark:to-cyan-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Transaction Flow Analysis
+                POI Flow Analysis
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Visual representation of person of interest relationships and transaction flows
+                Interactive network visualization showing person of interest flows and connections
               </p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="relative group">
-                <img 
-                  src={analysisData.mainGraphUrl} 
-                  alt="POI Flow Analysis" 
-                  className="w-full h-auto rounded-lg border shadow-sm"
-                />
+                <div className="w-full h-[600px] overflow-auto border rounded-lg shadow-sm">
+                  <iframe 
+                    src={analysisData.mainGraphUrl.replace('.png', '.html')} 
+                    title="POI Flow Analysis"
+                    className="w-full min-h-full border-0"
+                    style={{ minWidth: '800px', minHeight: '600px' }}
+                  />
+                </div>
                 <Button
                   variant="secondary"
                   size="sm"
                   className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
+                  onClick={() => handleDownload(analysisData.mainGraphUrl!.replace('.png', '.html'), 'poi_flows.html')}
                 >
                   <Download className="h-4 w-4" />
                 </Button>
@@ -515,7 +518,7 @@ export default function CaseAnalysisResults() {
           </CardContent>
         </Card>
 
-        {/* Ego Network Images */}
+        {/* Ego Network Visualizations */}
         {analysisData.egoImages.length > 0 && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-t-lg">
@@ -524,7 +527,7 @@ export default function CaseAnalysisResults() {
                 Network Analysis Visualizations
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Individual ego networks showing relationship patterns for each person of interest. 
+                Interactive individual ego networks showing relationship patterns for each person of interest. 
                 'Ego' refers to the central person in each network graph - it shows how that specific individual is connected to others.
               </p>
             </CardHeader>
@@ -534,20 +537,27 @@ export default function CaseAnalysisResults() {
                    {analysisData.egoImages.map((image, index) => (
                      <div 
                        key={index}
-                       className="flex-shrink-0 cursor-pointer group relative"
-                       onClick={() => openLightbox(index)}
+                       className="flex-shrink-0 group relative"
                      >
-                       <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
-                         <img 
-                           src={image.url} 
-                           alt={`Ego network for ${image.name}`}
-                           className="w-full h-full object-cover"
-                         />
-                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                           <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                       <div className="relative w-80 h-64 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all">
+                         <div className="w-full h-full overflow-auto">
+                           <iframe 
+                             src={image.url.replace('.png', '.html')} 
+                             title={`Ego network for ${image.name}`}
+                             className="w-full border-0"
+                             style={{ minWidth: '600px', minHeight: '500px' }}
+                           />
                          </div>
+                         <Button
+                           variant="secondary"
+                           size="sm"
+                           className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                           onClick={() => handleDownload(image.url.replace('.png', '.html'), image.name.replace('.png', '.html'))}
+                         >
+                           <Download className="h-3 w-3" />
+                         </Button>
                        </div>
-                       <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-48">
+                       <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-80">
                          {image.name.replace('ego_', '').replace('.png', '')}
                        </p>
                      </div>

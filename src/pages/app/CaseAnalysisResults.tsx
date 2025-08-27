@@ -45,6 +45,7 @@ export default function CaseAnalysisResults() {
     blobUrl?: string;
     downloadFileName?: string;
   } | null>(null);
+  const [htmlBlobs, setHtmlBlobs] = useState<{[key: string]: string}>({});
 
   useEffect(() => {
     if (!id) return;
@@ -571,39 +572,32 @@ export default function CaseAnalysisResults() {
                 Interactive network visualization showing person of interest flows and connections
               </p>
             </CardHeader>
-            <CardContent className="p-6">
-              <div className="relative group cursor-pointer" onClick={() => openFullscreenVisualization('POI Flow Analysis', analysisData.mainGraphHtml, analysisData.mainGraphUrl, 'poi_flows.html')}>
-                <div className="w-full h-[600px] overflow-hidden border rounded-lg shadow-sm bg-muted/20 relative">
-                  {analysisData.mainGraphHtml ? (
-                    <iframe 
-                      srcDoc={analysisData.mainGraphHtml}
-                      title="POI Flow Analysis"
-                      className="w-full h-full border-0 pointer-events-none"
-                      sandbox="allow-scripts allow-same-origin"
-                    />
-                  ) : (
-                    <iframe 
-                      src={analysisData.mainGraphUrl} 
-                      title="POI Flow Analysis"
-                      className="w-full h-full border-0 pointer-events-none"
-                      sandbox="allow-scripts allow-same-origin"
-                    />
-                  )}
+             <CardContent className="p-6">
+               <div className="relative group cursor-pointer" onClick={() => openFullscreenVisualization('POI Flow Analysis', undefined, analysisData.mainGraphUrl, 'poi_flows.html')}>
+                 <div className="w-full h-[600px] overflow-hidden border rounded-lg shadow-sm bg-muted/20 relative">
+                   <iframe 
+                     src={analysisData.mainGraphUrl} 
+                     title="POI Flow Analysis"
+                     className="w-full h-full border-0 pointer-events-none"
+                     sandbox="allow-scripts allow-same-origin"
+                     onLoad={() => console.log('✅ Main POI graph iframe loaded successfully')}
+                     onError={() => console.error('❌ Main POI graph iframe failed to load')}
+                   />
                   <div className="absolute inset-0 bg-black/0 hover:bg-black/5 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
                     <div className="bg-background/90 backdrop-blur-sm rounded-lg px-4 py-2 shadow-lg">
                       <span className="text-sm font-medium">Click to view fullscreen</span>
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openFullscreenVisualization('POI Flow Analysis', analysisData.mainGraphHtml, analysisData.mainGraphUrl, 'poi_flows.html');
-                  }}
-                >
+                 <Button
+                   variant="secondary"
+                   size="sm"
+                   className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
+                   onClick={(e) => {
+                     e.stopPropagation();
+                     openFullscreenVisualization('POI Flow Analysis', undefined, analysisData.mainGraphUrl, 'poi_flows.html');
+                   }}
+                 >
                   <Eye className="h-4 w-4" />
                 </Button>
                 <Button
@@ -655,19 +649,20 @@ export default function CaseAnalysisResults() {
               </p>
             </CardHeader>
              <CardContent className="p-6">
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                 {analysisData.egoImages.map((image, index) => (
-                   <div 
-                     key={index}
-                     className="group relative cursor-pointer"
-                     onClick={() => openFullscreenVisualization(
-                       `Ego Network: ${image.name.replace('ego_', '').replace('.html', '')}`,
-                       image.htmlContent,
-                       image.url,
-                       image.name
-                     )}
-                   >
-                     <div className="relative w-full h-64 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-xl transition-all transform hover:scale-[1.02]">
+                <ScrollArea className="w-full">
+                  <div className="flex gap-6 pb-4">
+                    {analysisData.egoImages.map((image, index) => (
+                      <div 
+                        key={index}
+                        className="group relative cursor-pointer flex-none"
+                        onClick={() => openFullscreenVisualization(
+                          `Ego Network: ${image.name.replace('ego_', '').replace('.html', '')}`,
+                          undefined,
+                          image.url,
+                          image.name
+                        )}
+                      >
+                        <div className="relative w-80 h-64 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-xl transition-all transform hover:scale-[1.02]">
                         <div className="w-full h-full overflow-hidden relative">
                           {image.htmlContent ? (
                             <iframe 
@@ -724,10 +719,11 @@ export default function CaseAnalysisResults() {
                       <p className="text-sm text-muted-foreground mt-3 text-center font-medium">
                         {image.name.replace('ego_', '').replace('.html', '')}
                       </p>
-                   </div>
-                 ))}
-               </div>
-             </CardContent>
+                    </div>
+                  ))}
+                </div>
+                </ScrollArea>
+              </CardContent>
           </Card>
         )}
 

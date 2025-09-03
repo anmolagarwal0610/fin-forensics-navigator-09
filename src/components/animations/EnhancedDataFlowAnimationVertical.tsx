@@ -237,7 +237,7 @@ const EnhancedDataFlowAnimationVertical: React.FC = () => {
               <div className="absolute left-[25%] top-1/2 -translate-y-1/2 text-xs font-semibold text-white/95">ML</div>
               <div className="absolute right-[25%] top-1/2 -translate-y-1/2 text-xs font-semibold text-white/95">AI</div>
               <div className="absolute left-1/2 -translate-x-1/2" style={{ bottom: `${sizes.zapBottom}px` }}>
-                <Zap className="w-4 h-4 text-white" />
+                <Zap className="w-4 h-4 text-foreground" />
               </div>
             </div>
 

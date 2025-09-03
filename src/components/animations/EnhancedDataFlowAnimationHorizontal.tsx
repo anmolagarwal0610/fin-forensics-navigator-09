@@ -344,7 +344,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
         className="absolute left-1/2 -translate-x-1/2"
         style={{ top: "calc(50% + min(9.5rem,18vw) * 0.70)" }}
       >
-        <Zap className="w-4 h-4 text-white" />
+        <Zap className="w-4 h-4 text-foreground" />
       </div>
     </div>
   );

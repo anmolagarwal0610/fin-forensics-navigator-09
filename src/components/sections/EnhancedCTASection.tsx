@@ -152,7 +152,7 @@ const EnhancedCTASection = () => {
             }} whileTap={{
               scale: 0.95
             }}>
-                <Button size="lg" variant="outline" className="min-w-[200px] h-14 text-lg font-semibold border-white/50 text-white hover:bg-white/10 hover:border-white/70 shadow-lg">
+                <Button size="lg" variant="outline" className="min-w-[200px] h-14 text-lg font-semibold border-foreground/50 text-foreground hover:bg-foreground/10 hover:border-foreground/70 shadow-lg">
                   Contact Sales
                 </Button>
               </motion.div>

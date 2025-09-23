@@ -18,12 +18,16 @@ serve(async (req) => {
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    //const backendApiUrl = Deno.env.get('BACKEND_API_URL')!;
+    const backendApiUrl = Deno.env.get('BACKEND_API_URL')!;
+    
+    if (!backendApiUrl) {
+      throw new Error('BACKEND_API_URL environment variable is not configured');
+    }
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     console.log('Processing case files for case:', caseId);
-    console.log('File names provided:', fileNames);
+    console.log('File count:', fileNames?.length || 'all files in folder');
 
     // Get user ID from JWT token using anon key client
     const authHeader = req.headers.get('authorization');
@@ -36,14 +40,14 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await anonClient.auth.getUser(token);
     
     if (userError || !user) {
-      console.error('User authentication error:', userError);
+      console.error('User authentication error');
       throw new Error('Invalid user token');
     }
-    console.log('Authenticated user id:', user.id);
+    console.log('Processing files for authenticated user');
 
     // Get files from storage directly
     const storageFiles = await getStorageFiles(supabase, user.id, caseId, fileNames);
-    console.log('Found storage files:', storageFiles.length);
+    console.log('Found files for processing:', storageFiles.length);
 
     // Create zip file with all uploaded files
     const zipFileName = `case_${caseId}_${Date.now()}.zip`;
@@ -60,7 +64,7 @@ serve(async (req) => {
       throw new Error(`Failed to upload zip: ${zipError.message}`);
     }
 
-    console.log('ZIP uploaded to storage:', JSON.stringify(zipUpload));
+    console.log('ZIP file created and uploaded successfully');
 
     // Create signed URL for the zip file (valid for 8 hours)
     const { data: signed, error: signedError } = await supabase.storage
@@ -71,7 +75,7 @@ serve(async (req) => {
       throw new Error(`Failed to create signed URL: ${signedError?.message}`);
     }
 
-    console.log('Zip file uploaded. Signed URL:', signed.signedUrl);
+    console.log('Zip file ready for backend processing');
 
     // Update case status to processing
     await supabase
@@ -89,17 +93,17 @@ serve(async (req) => {
       userId: user.id
     };
 
-    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[0-1])|192\.168\.)/i.test("https://acb8aef0bbd7.ngrok-free.app/parse-statements/");
-    console.log('[process-case-files] BACKEND_API_URL:', "https://17d1cab82b7a.ngrok-free.app/parse-statements/");
+    const isLocal = /^https?:\/\/(localhost|127\.0\.0\.1|10\.|172\.(1[6-9]|2\d|3[0-1])|192\.168\.)/i.test(backendApiUrl);
+    console.log('Backend API URL configured:', isLocal ? 'local environment' : 'production environment');
     if (isLocal) {
-      console.warn('[process-case-files] Warning: BACKEND_API_URL appears to be a local/private address. Edge Functions may not reach your laptop unless it is publicly accessible.');
+      console.warn('Warning: Backend API appears to be local. Ensure it is publicly accessible.');
     }
-    console.log('Calling backend with payload:', backendPayload);
+    console.log('Initiating backend analysis');
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-    const backendResponse = await fetch("https://acb8aef0bbd7.ngrok-free.app/parse-statements/", {
+    const backendResponse = await fetch(backendApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(backendPayload),
@@ -107,24 +111,26 @@ serve(async (req) => {
     });
     clearTimeout(timeout);
 
-    console.log('Backend response status:', backendResponse.status, backendResponse.statusText);
+    console.log('Backend response status:', backendResponse.status);
 
     const rawText = await backendResponse.text();
-    console.log('Backend raw response body (truncated):', rawText?.slice(0, 1000));
+    if (!backendResponse.ok) {
+      console.error('Backend error response:', rawText?.slice(0, 500));
+    }
 
     if (!backendResponse.ok) {
-      throw new Error(`Backend API call failed: ${backendResponse.status} ${backendResponse.statusText} | Body: ${rawText?.slice(0, 1000)}`);
+      throw new Error(`Backend API call failed: ${backendResponse.status} ${backendResponse.statusText}`);
     }
 
     let backendResult: any;
     try {
       backendResult = rawText ? JSON.parse(rawText) : {};
     } catch (e) {
-      console.error('Failed to parse backend JSON response:', e);
+      console.error('Failed to parse backend JSON response');
       throw new Error('Backend returned non-JSON response');
     }
 
-    console.log('Backend response parsed JSON:', backendResult);
+    console.log('Backend analysis completed successfully');
 
     // Update case with result zip URL from backend response
     await supabase
@@ -217,54 +223,53 @@ serve(async (req) => {
 // Get files from storage either by provided names or by listing the folder
 async function getStorageFiles(supabase: any, userId: string, caseId: string, fileNames?: string[]): Promise<string[]> {
   if (fileNames && fileNames.length > 0) {
-    console.log('Using provided file names:', fileNames);
+    console.log('Using provided file names');
     return fileNames;
   }
 
-  console.log('No file names provided, listing storage folder');
+  console.log('Listing all files in case folder');
   const folderPath = `${userId}/${caseId}`;
   const { data: files, error } = await supabase.storage
     .from('case-files')
     .list(folderPath);
 
   if (error) {
-    console.error('Error listing storage files:', error);
+    console.error('Error listing storage files');
     throw new Error(`Failed to list files in storage: ${error.message}`);
   }
 
   const storageFileNames = files?.map((file: any) => file.name) || [];
-  console.log('Found files in storage:', storageFileNames);
+  console.log('Found files in storage:', storageFileNames.length);
   return storageFileNames;
 }
 
 async function createZipFromStorage(supabase: any, fileNames: string[], userId: string, caseId: string): Promise<Blob> {
-  console.log('Creating ZIP from storage files:', fileNames);
+  console.log('Creating ZIP from files:', fileNames.length);
   const zip = new JSZip();
 
   for (const fileName of fileNames) {
     const objectPath = `${userId}/${caseId}/${fileName}`;
     try {
-      console.log('Downloading from storage:', objectPath);
       const { data: fileBlob, error } = await supabase.storage
         .from('case-files')
         .download(objectPath);
 
       if (error) {
-        console.error(`Download error for ${objectPath}:`, error);
+        console.error(`Download error for file: ${fileName}`);
         continue;
       }
 
       if (fileBlob) {
         const buffer = await fileBlob.arrayBuffer();
         zip.file(fileName, buffer);
-        console.log(`Added to ZIP: ${fileName} (${buffer.byteLength} bytes)`);
+        console.log(`Added file to ZIP: ${fileName}`);
       }
     } catch (error) {
-      console.error(`Failed to download file ${objectPath}:`, error);
+      console.error(`Failed to download file: ${fileName}`);
     }
   }
 
   const zipContent = await zip.generateAsync({ type: 'uint8array' });
-  console.log('ZIP generated. Size (bytes):', zipContent.byteLength);
+  console.log('ZIP generated successfully, size:', Math.round(zipContent.byteLength / 1024), 'KB');
   return new Blob([zipContent], { type: 'application/zip' });
 }

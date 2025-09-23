@@ -11,7 +11,7 @@ type Props = {
   name: string;
   color_hex: string;
   tags: string[];
-  status: 'Active' | 'Processing' | 'Ready' | 'Archived';
+  status: import("@/api/cases").CaseStatus;
   updated_at: string;
   index: number;
 };

@@ -129,6 +129,36 @@ export type Database = {
           },
         ]
       }
+      profiles: {
+        Row: {
+          created_at: string
+          full_name: string
+          id: string
+          organization_name: string
+          phone_number: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          full_name: string
+          id?: string
+          organization_name: string
+          phone_number?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          full_name?: string
+          id?: string
+          organization_name?: string
+          phone_number?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -137,7 +167,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      case_status: "Active" | "Processing" | "Ready" | "Archived"
+      case_status:
+        | "Active"
+        | "Processing"
+        | "Ready"
+        | "Archived"
+        | "Failed"
+        | "Timeout"
       event_type:
         | "created"
         | "files_uploaded"
@@ -272,7 +308,14 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      case_status: ["Active", "Processing", "Ready", "Archived"],
+      case_status: [
+        "Active",
+        "Processing",
+        "Ready",
+        "Archived",
+        "Failed",
+        "Timeout",
+      ],
       event_type: [
         "created",
         "files_uploaded",

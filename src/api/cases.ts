@@ -1,7 +1,7 @@
 
 import { supabase } from "@/lib/supabase";
 
-export type CaseStatus = 'Active' | 'Processing' | 'Ready' | 'Archived';
+export type CaseStatus = 'Active' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout';
 
 export interface CaseRecord {
   id: string;

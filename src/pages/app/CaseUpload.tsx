@@ -103,32 +103,30 @@ export default function CaseUpload() {
       await updateCaseStatus(case_.id, "Processing");
       console.log('Case status updated to Processing');
       
-      // Small delay to avoid race conditions with DB commits
-      await new Promise((res) => setTimeout(res, 1200));
-      console.log('Invoking edge function process-case-files with caseId:', case_.id);
-      const { data: processResult, error: processError } = await supabase.functions
-        .invoke('process-case-files', {
-          body: { 
-            caseId: case_.id,
-            fileNames: uploadedFiles.map(f => f.name)
-          }
-        });
-      console.log('Edge function result:', processResult, 'error:', processError);
-
-      if (processError) {
-        console.error("Processing error:", processError);
-        toast({
-          title: "Processing started with warnings",
-          description: "Files uploaded successfully. Processing may take some time.",
-        });
-      } else {
-        toast({
-          title: "Analysis started!",
-          description: `Uploaded ${files.length} files. Analysis is now in progress.`,
-        });
-      }
+      // Navigate immediately to Dashboard with success message
+      toast({
+        title: "Analysis started!",
+        description: `Uploaded ${files.length} files. You'll be notified when ready.`,
+      });
       
       navigate("/app/dashboard");
+      
+      // Start async background processing (fire and forget)
+      // Small delay to avoid race conditions with DB commits
+      setTimeout(async () => {
+        try {
+          console.log('Invoking edge function process-case-files with caseId:', case_.id);
+          await supabase.functions.invoke('process-case-files', {
+            body: { 
+              caseId: case_.id,
+              fileNames: uploadedFiles.map(f => f.name)
+            }
+          });
+        } catch (processError) {
+          console.error("Background processing error:", processError);
+        }
+      }, 1000);
+      
     } catch (error) {
       console.error("Failed to submit analysis:", error);
       toast({ 

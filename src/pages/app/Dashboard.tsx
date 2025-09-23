@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // Components
 import KPICards from "@/components/app/KPICards";
@@ -24,6 +25,8 @@ export default function Dashboard() {
     return localStorage.getItem("dashboard-view") as "grid" | "list" || "grid";
   });
   const navigate = useNavigate();
+  
+  // Load cases
   useEffect(() => {
     setLoading(true);
     getCases().then(data => setCases(data)).catch(e => {
@@ -32,6 +35,58 @@ export default function Dashboard() {
         title: "Failed to load cases"
       });
     }).finally(() => setLoading(false));
+  }, []);
+
+  // Set up real-time subscriptions for case status updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('case-status-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'cases'
+        },
+        (payload) => {
+          console.log('Case updated:', payload);
+          const updatedCase = payload.new as CaseRecord;
+          
+          // Update the case in our local state
+          setCases(prevCases => 
+            prevCases.map(c => 
+              c.id === updatedCase.id ? updatedCase : c
+            )
+          );
+          
+          // Show notification for status changes
+          if (payload.old && (payload.old as any).status !== updatedCase.status) {
+            if (updatedCase.status === 'Ready') {
+              toast({
+                title: "Analysis Complete!",
+                description: `Case "${updatedCase.name}" is ready for review.`,
+              });
+            } else if (updatedCase.status === 'Failed') {
+              toast({
+                title: "Analysis Failed",
+                description: `Case "${updatedCase.name}" encountered an error.`,
+                variant: "destructive",
+              });
+            } else if (updatedCase.status === 'Timeout') {
+              toast({
+                title: "Analysis Timeout",
+                description: `Case "${updatedCase.name}" timed out. Consider reducing file count.`,
+                variant: "destructive",
+              });
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    }
   }, []);
   useEffect(() => {
     localStorage.setItem("dashboard-view", viewMode);

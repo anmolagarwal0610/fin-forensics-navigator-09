@@ -97,7 +97,7 @@ serve(async (req) => {
     console.log('Calling backend with payload:', backendPayload);
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000); // 30s timeout
+    const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
     const backendResponse = await fetch("https://acb8aef0bbd7.ngrok-free.app/parse-statements/", {
       method: 'POST',
@@ -165,33 +165,39 @@ serve(async (req) => {
       // Ignore JSON parsing errors
     }
     
-    // If we have a caseId, update the case status to indicate processing with ETA
+    // If we have a caseId, update the case status based on error type
     if (caseId) {
       try {
         const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-        const supabase = createClient(supabaseUrl, supabaseKey);
+        const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
         
-        const etaTime = new Date();
-        etaTime.setHours(etaTime.getHours() + 4); // Add 4 hours
+        let status = 'Failed';
+        let errorMessage = error.message;
+        
+        // Check if it's a timeout error
+        if (error.name === 'AbortError' || errorMessage.includes('timeout')) {
+          status = 'Timeout';
+          errorMessage = 'Analysis timed out. Consider reducing the number of files.';
+        }
         
         await supabase
           .from('cases')
           .update({ 
-            status: 'Processing',
-            analysis_status: 'processing'
+            status: status as any,
+            analysis_status: 'failed'
           })
           .eq('id', caseId);
           
-        // Add error event with ETA
+        // Add error event
         await supabase
           .from('events')
           .insert({
             case_id: caseId,
             type: 'analysis_submitted',
             payload: { 
-              error: 'Backend processing failed, estimated completion in 4 hours',
-              eta: etaTime.toISOString()
+              error: errorMessage,
+              timestamp: new Date().toISOString()
             }
           });
       } catch (updateError) {

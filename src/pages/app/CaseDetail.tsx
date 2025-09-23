@@ -9,6 +9,7 @@ import StatusBadge from "@/components/app/StatusBadge";
 import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
+import CaseStatusMessage from "@/components/app/CaseStatusMessage";
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -227,6 +228,15 @@ export default function CaseDetail() {
           </Card>
         </div>
 
+        {/* Status-specific Messages */}
+        {(case_.status === 'Failed' || case_.status === 'Timeout') && (
+          <CaseStatusMessage 
+            status={case_.status}
+            onRetry={() => navigate(`/app/cases/${case_.id}/upload`)}
+            onContactSupport={() => window.open('mailto:support@finnavigator.com?subject=Case Analysis Issue&body=Case ID: ' + case_.id, '_blank')}
+          />
+        )}
+
         {/* Results Placeholder */}
         <Card>
           <CardHeader>
@@ -246,6 +256,10 @@ export default function CaseDetail() {
                 >
                   {case_.result_zip_url ? 'View Results' : 'View Results (Coming Soon)'}
                 </Button>
+              </div>
+            ) : case_.status === 'Failed' || case_.status === 'Timeout' ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <p>Analysis encountered an issue. See the message above for details.</p>
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">

@@ -27,7 +27,7 @@ interface DashboardToolbarProps {
   onViewModeChange: (mode: "grid" | "list") => void;
 }
 
-const STATUS_OPTIONS: Array<CaseRecord["status"]> = ["Active", "Processing", "Ready", "Archived"];
+const STATUS_OPTIONS: Array<CaseRecord["status"]> = ["Active", "Processing", "Ready", "Archived", "Failed", "Timeout"];
 
 export default function DashboardToolbar({
   statusFilter,

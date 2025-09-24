@@ -523,10 +523,10 @@ export default function CaseAnalysisResults() {
                   onDownload={() => downloadIndividualFile('poi_flows.html')}
                   className="min-h-[500px]"
                 />
-              ) : (
+              ) : analysisData.mainGraphUrl ? (
                 <div className="relative group">
                   <img 
-                    src={analysisData.mainGraphUrl!} 
+                    src={analysisData.mainGraphUrl} 
                     alt="POI Flow Analysis" 
                     className="w-full h-auto rounded-lg border shadow-sm"
                   />
@@ -539,7 +539,7 @@ export default function CaseAnalysisResults() {
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>
-              )}
+              ) : null}
             </CardContent>
           </Card>
         )}

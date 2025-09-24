@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
+import HTMLViewer from "@/components/app/HTMLViewer";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 
@@ -17,7 +18,9 @@ interface ParsedAnalysisData {
   beneficiaryHeaders: string[];
   totalBeneficiaryCount: number;
   mainGraphUrl: string | null;
+  mainGraphHtml: string | null;
   egoImages: Array<{ name: string; url: string }>;
+  poiHtmlFiles: Array<{ name: string; htmlContent: string; title: string }>;
   poiFileCount: number;
   fileSummaries: Array<{
     originalFile: string;
@@ -84,7 +87,9 @@ export default function CaseAnalysisResults() {
         beneficiaryHeaders: [],
         totalBeneficiaryCount: 0,
         mainGraphUrl: null,
+        mainGraphHtml: null,
         egoImages: [],
+        poiHtmlFiles: [],
         poiFileCount: 0,
         fileSummaries: []
       };
@@ -157,23 +162,47 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Process main graph (poi_flows.png)
-      const mainGraphFile = zipData.file("poi_flows.png");
-      if (mainGraphFile) {
-        const content = await mainGraphFile.async("blob");
-        parsedData.mainGraphUrl = URL.createObjectURL(content);
+      // Process main graph - prioritize HTML over PNG
+      const mainGraphHtmlFile = zipData.file("poi_flows.html");
+      if (mainGraphHtmlFile) {
+        parsedData.mainGraphHtml = await mainGraphHtmlFile.async("text");
+      } else {
+        // Fallback to PNG if HTML not available
+        const mainGraphFile = zipData.file("poi_flows.png");
+        if (mainGraphFile) {
+          const content = await mainGraphFile.async("blob");
+          parsedData.mainGraphUrl = URL.createObjectURL(content);
+        }
       }
 
-      // Process ego images
-      const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
-      for (const fileName of egoFiles) {
+      // Process POI HTML files (name_*.html format)
+      const poiHtmlFiles = Object.keys(zipData.files).filter(name => name.startsWith('name_') && name.endsWith('.html'));
+      for (const fileName of poiHtmlFiles) {
         const file = zipData.file(fileName);
         if (file) {
-          const content = await file.async("blob");
-          parsedData.egoImages.push({
+          const htmlContent = await file.async("text");
+          // Extract POI name from filename (remove 'name_' prefix and '.html' suffix)
+          const poiName = fileName.replace('name_', '').replace('.html', '').replace(/_/g, ' ');
+          parsedData.poiHtmlFiles.push({
             name: fileName,
-            url: URL.createObjectURL(content)
+            htmlContent,
+            title: `POI Analysis - ${poiName}`
           });
+        }
+      }
+
+      // Fallback: Process ego images if no HTML files found
+      if (parsedData.poiHtmlFiles.length === 0) {
+        const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
+        for (const fileName of egoFiles) {
+          const file = zipData.file(fileName);
+          if (file) {
+            const content = await file.async("blob");
+            parsedData.egoImages.push({
+              name: fileName,
+              url: URL.createObjectURL(content)
+            });
+          }
         }
       }
 
@@ -236,7 +265,14 @@ export default function CaseAnalysisResults() {
     
     const file = analysisData.zipData.file(fileName);
     if (file) {
-      const content = await file.async("blob");
+      let content: Blob;
+      if (fileName.endsWith('.html')) {
+        // For HTML files, create proper blob with correct MIME type
+        const htmlContent = await file.async("text");
+        content = new Blob([htmlContent], { type: 'text/html' });
+      } else {
+        content = await file.async("blob");
+      }
       const url = URL.createObjectURL(content);
       handleDownload(url, fileName);
       toast({ title: `Downloading ${fileName}` });
@@ -465,7 +501,7 @@ export default function CaseAnalysisResults() {
         )}
 
         {/* Main Flow Graph */}
-        {analysisData.mainGraphUrl && (
+        {(analysisData.mainGraphHtml || analysisData.mainGraphUrl) && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
@@ -473,25 +509,37 @@ export default function CaseAnalysisResults() {
                 Transaction Flow Analysis
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Visual representation of person of interest relationships and transaction flows
+                {analysisData.mainGraphHtml 
+                  ? "Interactive visualization of person of interest relationships and transaction flows"
+                  : "Visual representation of person of interest relationships and transaction flows"
+                }
               </p>
             </CardHeader>
             <CardContent className="p-6">
-              <div className="relative group">
-                <img 
-                  src={analysisData.mainGraphUrl} 
-                  alt="POI Flow Analysis" 
-                  className="w-full h-auto rounded-lg border shadow-sm"
+              {analysisData.mainGraphHtml ? (
+                <HTMLViewer
+                  htmlContent={analysisData.mainGraphHtml}
+                  title="Transaction Flow Analysis"
+                  onDownload={() => downloadIndividualFile('poi_flows.html')}
+                  className="min-h-[500px]"
                 />
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              </div>
+              ) : (
+                <div className="relative group">
+                  <img 
+                    src={analysisData.mainGraphUrl!} 
+                    alt="POI Flow Analysis" 
+                    className="w-full h-auto rounded-lg border shadow-sm"
+                  />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                    onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
+                  >
+                    <Download className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -515,8 +563,34 @@ export default function CaseAnalysisResults() {
           </CardContent>
         </Card>
 
-        {/* Ego Network Images */}
-        {analysisData.egoImages.length > 0 && (
+        {/* POI Interactive Visualizations */}
+        {analysisData.poiHtmlFiles.length > 0 && (
+          <Card className="shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 rounded-t-lg">
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Eye className="h-5 w-5" />
+                Interactive POI Analysis
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Individual interactive network analysis for each person of interest. Each visualization shows detailed relationships and transaction patterns.
+              </p>
+            </CardHeader>
+            <CardContent className="p-6 space-y-6">
+              {analysisData.poiHtmlFiles.map((poiFile, index) => (
+                <HTMLViewer
+                  key={index}
+                  htmlContent={poiFile.htmlContent}
+                  title={poiFile.title}
+                  onDownload={() => downloadIndividualFile(poiFile.name)}
+                  className="min-h-[450px]"
+                />
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Ego Network Images (Fallback) */}
+        {analysisData.egoImages.length > 0 && analysisData.poiHtmlFiles.length === 0 && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/50 dark:to-pink-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">

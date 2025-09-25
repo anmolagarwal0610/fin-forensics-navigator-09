@@ -139,8 +139,25 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
         const response = await fetch(previewUrl);
         
         if (response.status === 200) {
+          // Check content type to avoid binary data
+          const contentType = response.headers.get('content-type');
+          console.log('📄 Response content-type:', contentType);
+          
+          if (contentType && !contentType.includes('application/json') && !contentType.includes('text/')) {
+            console.error('❌ Invalid content type, expected JSON but got:', contentType);
+            setPreviewData(null);
+            return;
+          }
+          
           const responseText = await response.text();
           console.log('📄 Raw response text length:', responseText.length);
+          
+          // Check if response starts with binary markers
+          if (responseText.startsWith('PK') || responseText.includes('\x00')) {
+            console.error('❌ Binary content detected, skipping JSON parsing');
+            setPreviewData(null);
+            return;
+          }
           
           try {
             const preview = JSON.parse(responseText);
@@ -157,7 +174,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
             }
           } catch (parseError) {
             console.error('❌ JSON parsing failed:', parseError);
-            console.error('📄 Raw response text:', responseText.substring(0, 500));
+            console.error('📄 Raw response text:', responseText.substring(0, 200));
             setPreviewData(null);
           }
         } else {
@@ -202,6 +219,9 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
     // Check if we're in dark mode
     const isDarkMode = document.documentElement.classList.contains('dark');
     
+    // Set smart default text color based on theme
+    style.color = isDarkMode ? '#ffffff' : '#000000';
+    
     // Helper function to calculate luminance for contrast
     const getLuminance = (hex: string) => {
       if (!hex || hex === 'transparent') return 0.5;
@@ -223,7 +243,6 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
         if (rowIndex >= range.startRow && rowIndex <= range.endRow && 
             colIndex >= range.startCol && colIndex <= range.endCol) {
           backgroundColor = band.bg;
-          console.log(`🎨 Applying header band background for ${cellAddress}: ${band.bg} (${band.label || 'no label'})`);
           break;
         }
       }
@@ -234,7 +253,6 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       const previewBg = previewData.cell_bg[cellAddress];
       if (previewBg) {
         backgroundColor = previewBg;
-        console.log(`🎨 Applying preview cell background for ${cellAddress}: ${previewBg}`);
       }
     }
 
@@ -244,30 +262,24 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       
       // Calculate contrast and set appropriate text color
       const luminance = getLuminance(backgroundColor);
-      const contrastColor = luminance > 0.5 ? '#000000' : '#ffffff';
       
-      // In dark mode, be more aggressive about using white text on colored backgrounds
-      if (isDarkMode && luminance < 0.7) {
-        style.color = '#ffffff';
+      // In dark mode, prefer white text on colored backgrounds
+      if (isDarkMode) {
+        style.color = luminance > 0.8 ? '#000000' : '#ffffff';
       } else {
-        style.color = contrastColor;
+        style.color = luminance > 0.5 ? '#000000' : '#ffffff';
       }
-      
-      console.log(`📊 Cell ${cellAddress}: bg=${backgroundColor}, luminance=${luminance.toFixed(3)}, darkMode=${isDarkMode}, text=${style.color}`);
     }
     
-    // Excel font color logic - be smarter about when to override
+    // Excel font color logic - override black colors in dark mode
     if (cell.style?.fontColor) {
       const excelFontColor = cell.style.fontColor;
       
-      // Don't use black text on colored backgrounds in dark mode
-      const shouldOverride = backgroundColor && excelFontColor === '#000000' && isDarkMode;
-      
-      if (!shouldOverride) {
+      // Always override black Excel font color in dark mode
+      if (isDarkMode && excelFontColor === '#000000') {
+        style.color = '#ffffff';
+      } else if (!isDarkMode || excelFontColor !== '#000000') {
         style.color = excelFontColor;
-        console.log(`🎨 Using Excel font color for ${cellAddress}: ${excelFontColor}`);
-      } else {
-        console.log(`🚫 Skipping Excel black font color for ${cellAddress} in dark mode with background: ${backgroundColor}`);
       }
     }
     

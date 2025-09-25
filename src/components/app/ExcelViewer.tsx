@@ -63,6 +63,9 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
     
     if (cell.style?.fontColor) {
       style.color = cell.style.fontColor;
+    } else {
+      // Ensure text is visible in both light and dark modes
+      style.color = 'hsl(var(--foreground))';
     }
     
     if (cell.style?.fontWeight) {
@@ -102,9 +105,12 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
         </CardTitle>
       </CardHeader>
       <CardContent>
+        <p className="text-xs text-muted-foreground mb-4">
+          Credit and Debit amounts are with respect to bank statements
+        </p>
         <ScrollArea className="h-[600px] w-full">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto min-w-full">
+            <table className="w-full border-collapse min-w-max">
               <tbody>
                 {displayData.map((row, rowIndex) => (
                   <tr key={rowIndex}>
@@ -123,7 +129,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
                           key={colIndex}
                           {...span}
                           style={style}
-                          className="p-2 text-sm border border-border align-top whitespace-nowrap"
+                          className="p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px]"
                         >
                           {cell.value || ''}
                         </td>
@@ -138,7 +144,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
         </ScrollArea>
         {data.length > maxRows && (
           <p className="mt-4 text-sm text-muted-foreground">
-            Showing top {maxRows} rows of {data.length} total rows
+            Showing top {maxRows} rows of {Math.max(0, data.length - 3)} total rows
           </p>
         )}
       </CardContent>

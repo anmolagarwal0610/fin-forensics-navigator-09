@@ -133,12 +133,21 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
           cellValue = cell.result;
         }
 
+        // Enhanced color extraction
+        let backgroundColor = parseExcelColor((cell.fill as any)?.fgColor);
+        if (!backgroundColor && (cell.fill as any)?.bgColor) {
+          backgroundColor = parseExcelColor((cell.fill as any)?.bgColor);
+        }
+        if (!backgroundColor && (cell.fill as any)?.pattern?.fgColor) {
+          backgroundColor = parseExcelColor((cell.fill as any)?.pattern?.fgColor);
+        }
+
         const cellData: CellData = {
           value: cellValue,
           isHidden,
           merged,
           style: {
-            backgroundColor: parseExcelColor((cell.fill as any)?.fgColor || (cell.fill as any)?.bgColor),
+            backgroundColor,
             fontColor: parseExcelColor(cell.font?.color),
             fontWeight: cell.font?.bold ? 'bold' : 'normal',
             border: !!(cell.border?.top || cell.border?.bottom || cell.border?.left || cell.border?.right),

@@ -133,17 +133,6 @@ export default function CaseListView({ cases }: CaseListViewProps) {
                     size="sm"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/app/cases/${caseItem.id}/upload`);
-                    }}
-                    className="h-8 w-8 p-0"
-                  >
-                    <Upload className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
                       navigate(`/app/cases/${caseItem.id}`);
                     }}
                     className="h-8 w-8 p-0"

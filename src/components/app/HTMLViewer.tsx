@@ -1,16 +1,17 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Maximize2, Download } from "lucide-react";
+import { RotateCcw, Maximize2, Download, Image } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface HTMLViewerProps {
   htmlContent: string;
   title?: string;
   onDownload?: () => void;
+  onDownloadPng?: () => void;
   className?: string;
 }
 
-export default function HTMLViewer({ htmlContent, title, onDownload, className = "" }: HTMLViewerProps) {
+export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadPng, className = "" }: HTMLViewerProps) {
   const [key, setKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -98,6 +99,17 @@ export default function HTMLViewer({ htmlContent, title, onDownload, className =
               title="Download HTML"
             >
               <Download className="h-4 w-4" />
+            </Button>
+          )}
+          {onDownloadPng && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDownloadPng}
+              className="h-8 w-8 p-0"
+              title="Download PNG"
+            >
+              <Image className="h-4 w-4" />
             </Button>
           )}
         </div>

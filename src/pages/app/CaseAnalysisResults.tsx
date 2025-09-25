@@ -10,6 +10,7 @@ import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign } fro
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
+import POIModal from "@/components/app/POIModal";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 
@@ -20,7 +21,7 @@ interface ParsedAnalysisData {
   mainGraphUrl: string | null;
   mainGraphHtml: string | null;
   egoImages: Array<{ name: string; url: string }>;
-  poiHtmlFiles: Array<{ name: string; htmlContent: string; title: string }>;
+  poiHtmlFiles: Array<{ name: string; htmlContent: string; title: string; pngUrl?: string }>;
   poiFileCount: number;
   fileSummaries: Array<{
     originalFile: string;
@@ -39,6 +40,8 @@ export default function CaseAnalysisResults() {
   const [analysisData, setAnalysisData] = useState<ParsedAnalysisData | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  const [selectedPOI, setSelectedPOI] = useState<typeof analysisData.poiHtmlFiles[0] | null>(null);
+  const [poiModalOpen, setPOIModalOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -183,10 +186,21 @@ export default function CaseAnalysisResults() {
           const htmlContent = await file.async("text");
           // Extract POI name from filename (remove 'name_' prefix and '.html' suffix)
           const poiName = fileName.replace('name_', '').replace('.html', '').replace(/_/g, ' ');
+          
+          // Look for corresponding PNG file
+          const pngFileName = fileName.replace('.html', '.png');
+          const pngFile = zipData.file(pngFileName);
+          let pngUrl;
+          if (pngFile) {
+            const pngContent = await pngFile.async("blob");
+            pngUrl = URL.createObjectURL(pngContent);
+          }
+          
           parsedData.poiHtmlFiles.push({
             name: fileName,
             htmlContent,
-            title: `POI Analysis - ${poiName}`
+            title: `POI Analysis - ${poiName}`,
+            pngUrl
           });
         }
       }
@@ -294,6 +308,18 @@ export default function CaseAnalysisResults() {
   const openLightbox = (index: number) => {
     setLightboxIndex(index);
     setLightboxOpen(true);
+  };
+
+  const openPOIModal = (poi: typeof analysisData.poiHtmlFiles[0]) => {
+    setSelectedPOI(poi);
+    setPOIModalOpen(true);
+  };
+
+  const downloadPOIPng = () => {
+    if (selectedPOI?.pngUrl) {
+      handleDownload(selectedPOI.pngUrl, selectedPOI.name.replace('.html', '.png'));
+      toast({ title: `Downloading ${selectedPOI.name.replace('.html', '.png')}` });
+    }
   };
 
   if (loading) {
@@ -572,19 +598,41 @@ export default function CaseAnalysisResults() {
                 Interactive POI Analysis
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Individual interactive network analysis for each person of interest. Each visualization shows detailed relationships and transaction patterns.
+                Individual interactive network analysis for each person of interest. Click any visualization to view full-screen with interactive features.
               </p>
             </CardHeader>
-            <CardContent className="p-6 space-y-6">
-              {analysisData.poiHtmlFiles.map((poiFile, index) => (
-                <HTMLViewer
-                  key={index}
-                  htmlContent={poiFile.htmlContent}
-                  title={poiFile.title}
-                  onDownload={() => downloadIndividualFile(poiFile.name)}
-                  className="min-h-[450px]"
-                />
-              ))}
+            <CardContent className="p-6">
+              <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                <div className="flex gap-4 p-4">
+                  {analysisData.poiHtmlFiles.map((poiFile, index) => (
+                    <div 
+                      key={index}
+                      className="flex-shrink-0 cursor-pointer group relative"
+                      onClick={() => openPOIModal(poiFile)}
+                    >
+                      <div className="relative w-64 h-40 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
+                        <div className="p-4 h-full flex flex-col justify-center items-center bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50">
+                          <Eye className="h-8 w-8 text-violet-600 dark:text-violet-400 mb-2" />
+                          <h4 className="text-sm font-medium text-center text-violet-800 dark:text-violet-200">
+                            {poiFile.title}
+                          </h4>
+                          <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+                            Click to view interactive graph
+                          </p>
+                        </div>
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/90 dark:bg-black/90 rounded-full p-2">
+                            <Eye className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-64">
+                        {poiFile.name.replace('name_', '').replace('.html', '').replace(/_/g, ' ')}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
         )}
@@ -708,6 +756,15 @@ export default function CaseAnalysisResults() {
         isOpen={lightboxOpen}
         onClose={() => setLightboxOpen(false)}
         initialIndex={lightboxIndex}
+      />
+
+      {/* POI Modal */}
+      <POIModal
+        isOpen={poiModalOpen}
+        onClose={() => setPOIModalOpen(false)}
+        poi={selectedPOI}
+        onDownloadHtml={() => selectedPOI && downloadIndividualFile(selectedPOI.name)}
+        onDownloadPng={downloadPOIPng}
       />
     </>
   );

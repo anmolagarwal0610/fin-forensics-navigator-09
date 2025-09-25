@@ -59,13 +59,16 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
     
     if (cell.style?.backgroundColor) {
       style.backgroundColor = cell.style.backgroundColor;
+      // Use black text on light backgrounds, white text on dark backgrounds
+      const bg = cell.style.backgroundColor;
+      if (bg && bg !== 'transparent') {
+        // Simple contrast logic - you could make this more sophisticated
+        style.color = '#000000';
+      }
     }
     
     if (cell.style?.fontColor) {
       style.color = cell.style.fontColor;
-    } else {
-      // Ensure text is visible in both light and dark modes
-      style.color = 'hsl(var(--foreground))';
     }
     
     if (cell.style?.fontWeight) {
@@ -106,11 +109,11 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
       </CardHeader>
       <CardContent>
         <p className="text-xs text-muted-foreground mb-4">
-          Credit and Debit amounts are with respect to bank statements
+          Credit and Debit amounts are with respect to bank statements. Any amount appearing under Total Credit means that the bank account owner received that amount from the beneficiary. Any amount under Total Debit means the bank account owner paid that amount to the beneficiary.
         </p>
-        <ScrollArea className="h-[600px] w-full">
-          <div className="overflow-x-auto min-w-full">
-            <table className="w-full border-collapse min-w-max">
+        <ScrollArea className="h-[600px] w-full overflow-auto">
+          <div className="min-w-max">
+            <table className="border-collapse">
               <tbody>
                 {displayData.map((row, rowIndex) => (
                   <tr key={rowIndex}>
@@ -129,7 +132,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
                           key={colIndex}
                           {...span}
                           style={style}
-                          className="p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px]"
+                          className={`p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px] ${!cell.style?.backgroundColor && !cell.style?.fontColor ? 'text-foreground' : ''}`}
                         >
                           {cell.value || ''}
                         </td>

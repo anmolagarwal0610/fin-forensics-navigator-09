@@ -133,13 +133,31 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
           cellValue = cell.result;
         }
 
-        // Enhanced color extraction
-        let backgroundColor = parseExcelColor((cell.fill as any)?.fgColor);
-        if (!backgroundColor && (cell.fill as any)?.bgColor) {
-          backgroundColor = parseExcelColor((cell.fill as any)?.bgColor);
-        }
-        if (!backgroundColor && (cell.fill as any)?.pattern?.fgColor) {
-          backgroundColor = parseExcelColor((cell.fill as any)?.pattern?.fgColor);
+        // Enhanced color extraction - check multiple fill types
+        let backgroundColor: string | undefined;
+        
+        if (cell.fill) {
+          const fill = cell.fill as any;
+          
+          // Solid fill
+          if (fill.type === 'pattern' && fill.pattern === 'solid') {
+            backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor);
+          }
+          
+          // Pattern fill
+          else if (fill.type === 'pattern') {
+            backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor);
+          }
+          
+          // Gradient fill
+          else if (fill.type === 'gradient') {
+            backgroundColor = parseExcelColor(fill.stops?.[0]?.color);
+          }
+          
+          // Fallback to any color property
+          if (!backgroundColor) {
+            backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor || fill.color);
+          }
         }
 
         const cellData: CellData = {

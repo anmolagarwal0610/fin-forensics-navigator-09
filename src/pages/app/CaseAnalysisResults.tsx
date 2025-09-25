@@ -46,7 +46,6 @@ export default function CaseAnalysisResults() {
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedPOI, setSelectedPOI] = useState<typeof analysisData.poiHtmlFiles[0] | null>(null);
-  const [selectedPOIIndex, setSelectedPOIIndex] = useState<number>(0);
   const [poiModalOpen, setPOIModalOpen] = useState(false);
 
   useEffect(() => {
@@ -338,26 +337,9 @@ export default function CaseAnalysisResults() {
     setLightboxOpen(true);
   };
 
-  const openPOIModal = (poi: typeof analysisData.poiHtmlFiles[0], index?: number) => {
+  const openPOIModal = (poi: typeof analysisData.poiHtmlFiles[0]) => {
     setSelectedPOI(poi);
-    setSelectedPOIIndex(index ?? 0);
     setPOIModalOpen(true);
-  };
-
-  const handleNextPOI = () => {
-    if (analysisData?.poiHtmlFiles && selectedPOIIndex < analysisData.poiHtmlFiles.length - 1) {
-      const nextIndex = selectedPOIIndex + 1;
-      setSelectedPOIIndex(nextIndex);
-      setSelectedPOI(analysisData.poiHtmlFiles[nextIndex]);
-    }
-  };
-
-  const handlePreviousPOI = () => {
-    if (selectedPOIIndex > 0) {
-      const prevIndex = selectedPOIIndex - 1;
-      setSelectedPOIIndex(prevIndex);
-      setSelectedPOI(analysisData?.poiHtmlFiles?.[prevIndex] || null);
-    }
   };
 
   const downloadPOIPng = () => {
@@ -475,45 +457,36 @@ export default function CaseAnalysisResults() {
 
         {/* Key Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300">
+          <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total Beneficiaries</CardTitle>
-              <Users className="h-4 w-4 text-primary animate-pulse" />
+              <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-primary">{analysisData.totalBeneficiaryCount}</div>
-              <p className="text-xs text-muted-foreground">
-                <TrendingUp className="inline h-3 w-3 mr-1" />
-                Unique individuals identified
-              </p>
+              <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
+              <p className="text-xs text-muted-foreground">Identified in analysis</p>
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300">
+          <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Person of Interest (POI)</CardTitle>
-              <Eye className="h-4 w-4 text-orange-500 animate-pulse" />
+              <FileText className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-500">{analysisData.poiFileCount}</div>
-              <p className="text-xs text-muted-foreground">
-                <Users className="inline h-3 w-3 mr-1" />
-                Beneficiaries Present in more than one file
-              </p>
+              <div className="text-2xl font-bold">{analysisData.poiFileCount}</div>
+              <p className="text-xs text-muted-foreground">Beneficiaries Present in more than one file</p>
             </CardContent>
           </Card>
           
-          <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300">
+          <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Analysis Files</CardTitle>
-              <FileText className="h-4 w-4 text-green-500 animate-pulse" />
+              <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-500">{analysisData.fileSummaries.length}</div>
-              <p className="text-xs text-muted-foreground">
-                <DollarSign className="inline h-3 w-3 mr-1" />
-                Transaction files processed
-              </p>
+              <div className="text-2xl font-bold">{analysisData.fileSummaries.length}</div>
+              <p className="text-xs text-muted-foreground">Original files processed</p>
             </CardContent>
           </Card>
         </div>
@@ -609,50 +582,50 @@ export default function CaseAnalysisResults() {
               <div className="relative">
                 <ScrollArea className="w-full whitespace-nowrap rounded-md border">
                   <div className="flex gap-4 p-4">
-                     {analysisData.poiHtmlFiles.map((poiFile, index) => (
-                       <div 
-                         key={index}
-                         className="flex-shrink-0 cursor-pointer group relative"
-                         onClick={() => openPOIModal(poiFile, index)}
-                       >
-                         <div className="relative w-64 h-40 rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
-                           {poiFile.pngUrl ? (
-                             <div className="relative h-full">
-                               <img 
-                                 src={poiFile.pngUrl} 
-                                 alt={poiFile.title}
-                                 className="w-full h-full object-cover"
-                               />
-                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                               <div className="absolute bottom-0 left-0 right-0 p-3">
-                                 <p className="text-sm font-medium text-white truncate">
-                                   {poiFile.title}
-                                 </p>
-                                 <p className="text-xs text-white/80 mt-1">
-                                   Click to view interactive graph
-                                 </p>
-                               </div>
-                               <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                                 <Eye className="h-8 w-8 text-white drop-shadow-lg" />
-                               </div>
-                             </div>
-                           ) : (
-                             <div className="h-full bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 p-4 flex flex-col justify-center items-center">
-                               <Eye className="h-8 w-8 text-violet-600 dark:text-violet-400 mb-2" />
-                               <h4 className="text-sm font-medium text-center text-violet-800 dark:text-violet-200">
-                                 {poiFile.title}
-                               </h4>
-                               <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-                                 Click to view interactive graph
-                               </p>
-                             </div>
-                           )}
-                         </div>
-                         <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-64">
-                           {poiFile.name.replace('name_', '').replace('.html', '').replace(/_/g, ' ')}
-                         </p>
-                       </div>
-                     ))}
+                    {analysisData.poiHtmlFiles.map((poiFile, index) => (
+                      <div 
+                        key={index}
+                        className="flex-shrink-0 cursor-pointer group relative"
+                        onClick={() => openPOIModal(poiFile)}
+                      >
+                        <div className="relative w-64 h-40 rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
+                          {poiFile.pngUrl ? (
+                            <div className="relative h-full">
+                              <img 
+                                src={poiFile.pngUrl} 
+                                alt={poiFile.title}
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                              <div className="absolute bottom-0 left-0 right-0 p-3">
+                                <p className="text-sm font-medium text-white truncate">
+                                  {poiFile.title}
+                                </p>
+                                <p className="text-xs text-white/80 mt-1">
+                                  Click to view interactive graph
+                                </p>
+                              </div>
+                              <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                <Eye className="h-8 w-8 text-white drop-shadow-lg" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="h-full bg-gradient-to-br from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 p-4 flex flex-col justify-center items-center">
+                              <Eye className="h-8 w-8 text-violet-600 dark:text-violet-400 mb-2" />
+                              <h4 className="text-sm font-medium text-center text-violet-800 dark:text-violet-200">
+                                {poiFile.title}
+                              </h4>
+                              <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+                                Click to view interactive graph
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-64">
+                          {poiFile.name.replace('name_', '').replace('.html', '').replace(/_/g, ' ')}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                   <ScrollBar orientation="horizontal" />
                 </ScrollArea>
@@ -789,10 +762,6 @@ export default function CaseAnalysisResults() {
         poi={selectedPOI}
         onDownloadHtml={() => selectedPOI && downloadIndividualFile(selectedPOI.name)}
         onDownloadPng={downloadPOIPng}
-        onNext={handleNextPOI}
-        onPrevious={handlePreviousPOI}
-        currentIndex={selectedPOIIndex}
-        totalCount={analysisData?.poiHtmlFiles?.length || 0}
       />
     </>
   );

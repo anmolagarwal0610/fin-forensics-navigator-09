@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -24,6 +24,8 @@ interface CellData {
 }
 
 interface PreviewData {
+  schema?: string;
+  sheet?: string;
   cell_bg?: Record<string, string>;
   header_bands?: Array<{
     range: string;
@@ -45,16 +47,16 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [processedData, setProcessedData] = useState<CellData[][]>([]);
 
-  // Helper function to convert 0-based row/col to A1 notation
+  // Helper function to convert 0-based array indices to 1-based A1 notation
   const toA1 = (col: number, row: number): string => {
-    let columnName = '';
-    let tempCol = col;
-    while (tempCol >= 0) {
-      columnName = String.fromCharCode(65 + (tempCol % 26)) + columnName;
-      tempCol = Math.floor(tempCol / 26) - 1;
-      if (tempCol < 0) break;
+    let s = "";
+    let adjustedCol = col + 1; // Convert to 1-based
+    while (adjustedCol > 0) {
+      const m = (adjustedCol - 1) % 26;
+      s = String.fromCharCode(65 + m) + s;
+      adjustedCol = Math.floor((adjustedCol - 1) / 26);
     }
-    return columnName + (row + 1);
+    return s + String(row + 1); // Convert to 1-based row
   };
 
   // Parse Excel range to get cell coordinates
@@ -124,20 +126,37 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
     const loadPreview = async () => {
       try {
-        const previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
+        let previewUrl: string;
+        
+        // For test files, use static path
+        if (fileUrl.includes('test-files')) {
+          previewUrl = '/test-files/beneficiaries_by_file.preview.json';
+        } else {
+          previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
+        }
+        
         console.log('Attempting to fetch preview JSON from:', previewUrl);
         const response = await fetch(previewUrl);
         
         if (response.status === 200) {
           const preview = await response.json();
-          setPreviewData(preview);
-          console.log('Successfully loaded preview data:', preview);
+          console.log('Raw preview data loaded:', preview);
+          
+          // Validate schema
+          if (preview.schema === "ffn.preview.v1") {
+            console.log('✅ Preview schema validation passed');
+            setPreviewData(preview);
+            console.log('✅ Successfully loaded and validated preview data:', preview);
+          } else {
+            console.warn('❌ Invalid preview schema:', preview.schema, 'Expected: ffn.preview.v1');
+            setPreviewData(null);
+          }
         } else {
           console.log(`Preview JSON not found (${response.status}), using Excel data only`);
           setPreviewData(null);
         }
       } catch (error) {
-        console.log('Failed to load preview JSON:', error);
+        console.error('❌ Failed to load preview JSON:', error);
         setPreviewData(null);
       }
     };
@@ -169,6 +188,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
   const getCellStyle = (cell: CellData, rowIndex: number, colIndex: number) => {
     const style: React.CSSProperties = {};
+    const cellAddress = toA1(colIndex, rowIndex);
     
     // Helper function to calculate luminance for contrast
     const getLuminance = (hex: string) => {
@@ -183,13 +203,25 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
     let backgroundColor = cell.style?.backgroundColor;
     
-    // Check preview JSON for background color - this takes priority
+    // 1. Check for header bands first (highest priority for header rows)
+    if (previewData?.header_bands && rowIndex <= 1) {
+      for (const band of previewData.header_bands) {
+        const range = parseRange(band.range);
+        if (rowIndex >= range.startRow && rowIndex <= range.endRow && 
+            colIndex >= range.startCol && colIndex <= range.endCol) {
+          backgroundColor = band.bg;
+          console.log(`🎨 Applying header band background for ${cellAddress}: ${band.bg} (${band.label || 'no label'})`);
+          break;
+        }
+      }
+    }
+    
+    // 2. Check preview JSON cell_bg (overrides header bands if both apply)
     if (previewData?.cell_bg) {
-      const cellAddress = toA1(colIndex, rowIndex);
       const previewBg = previewData.cell_bg[cellAddress];
       if (previewBg) {
         backgroundColor = previewBg;
-        console.log(`Applying preview background for ${cellAddress}: ${previewBg}`);
+        console.log(`🎨 Applying preview cell background for ${cellAddress}: ${previewBg}`);
       }
     }
 
@@ -200,12 +232,13 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       // Calculate contrast and set appropriate text color
       const luminance = getLuminance(backgroundColor);
       style.color = luminance > 0.5 ? '#000000' : '#ffffff';
-      console.log(`Cell ${toA1(colIndex, rowIndex)}: bg=${backgroundColor}, luminance=${luminance.toFixed(3)}, text=${style.color}`);
+      console.log(`📊 Cell ${cellAddress}: bg=${backgroundColor}, luminance=${luminance.toFixed(3)}, text=${style.color}`);
     }
     
     // Font color from Excel overrides calculated contrast (unless it's black with a colored background)
     if (cell.style?.fontColor && !(backgroundColor && cell.style.fontColor === '#000000')) {
       style.color = cell.style.fontColor;
+      console.log(`🎨 Using Excel font color for ${cellAddress}: ${cell.style.fontColor}`);
     }
     
     if (cell.style?.fontWeight) {
@@ -250,6 +283,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
         </p>
         <div className="relative">
           <ScrollArea className="h-[600px] w-full">
+            <ScrollBar orientation="horizontal" />
             <div className="overflow-x-auto">
               <table className="border-collapse min-w-full">
                 <tbody>
@@ -264,14 +298,14 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
                         const span = getCellSpan(cell);
                         const style = getCellStyle(cell, rowIndex, colIndex);
-                        const hasCustomStyle = style.backgroundColor || style.color;
+                        const hasInlineColor = style.color !== undefined;
 
                         return (
                           <td
                             key={colIndex}
                             {...span}
                             style={style}
-                            className={`p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px] ${!hasCustomStyle ? 'text-foreground' : ''}`}
+                            className={`p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px] ${!hasInlineColor ? 'text-foreground' : ''}`}
                           >
                             {cell.value || ''}
                           </td>

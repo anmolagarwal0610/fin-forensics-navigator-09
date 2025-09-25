@@ -10,103 +10,99 @@ import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2 } from "lucide-
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
-
 export default function CaseDetail() {
-  const { id } = useParams<{ id: string }>();
+  const {
+    id
+  } = useParams<{
+    id: string;
+  }>();
   const navigate = useNavigate();
   const [case_, setCase] = useState<CaseRecord | null>(null);
   const [files, setFiles] = useState<CaseFileRecord[]>([]);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-
   useEffect(() => {
     if (!id) return;
-    
-    Promise.all([
-      getCaseById(id),
-      getCaseFiles(id),
-      getCaseEvents(id)
-    ])
-      .then(([caseData, filesData, eventsData]) => {
-        if (!caseData) {
-          navigate("/app/dashboard");
-          return;
-        }
-        setCase(caseData);
-        setFiles(filesData);
-        setEvents(eventsData);
-      })
-      .catch((error) => {
-        console.error("Failed to load case:", error);
-        toast({ title: "Failed to load case", variant: "destructive" });
+    Promise.all([getCaseById(id), getCaseFiles(id), getCaseEvents(id)]).then(([caseData, filesData, eventsData]) => {
+      if (!caseData) {
         navigate("/app/dashboard");
-      })
-      .finally(() => setLoading(false));
+        return;
+      }
+      setCase(caseData);
+      setFiles(filesData);
+      setEvents(eventsData);
+    }).catch(error => {
+      console.error("Failed to load case:", error);
+      toast({
+        title: "Failed to load case",
+        variant: "destructive"
+      });
+      navigate("/app/dashboard");
+    }).finally(() => setLoading(false));
   }, [id, navigate]);
-
   const getEventIcon = (type: EventRecord['type']) => {
     switch (type) {
-      case 'created': return <CheckCircle className="h-4 w-4" />;
-      case 'files_uploaded': return <Upload className="h-4 w-4" />;
-      case 'analysis_submitted': return <Clock className="h-4 w-4" />;
-      case 'analysis_ready': return <CheckCircle className="h-4 w-4" />;
-      default: return <Clock className="h-4 w-4" />;
+      case 'created':
+        return <CheckCircle className="h-4 w-4" />;
+      case 'files_uploaded':
+        return <Upload className="h-4 w-4" />;
+      case 'analysis_submitted':
+        return <Clock className="h-4 w-4" />;
+      case 'analysis_ready':
+        return <CheckCircle className="h-4 w-4" />;
+      default:
+        return <Clock className="h-4 w-4" />;
     }
   };
-
   const getEventTitle = (type: EventRecord['type']) => {
     switch (type) {
-      case 'created': return 'Case Created';
-      case 'files_uploaded': return 'Files Uploaded';
-      case 'analysis_submitted': return 'Analysis Submitted';
-      case 'analysis_ready': return 'Results Ready';
-      case 'note_added': return 'Note Added';
-      default: return type;
+      case 'created':
+        return 'Case Created';
+      case 'files_uploaded':
+        return 'Files Uploaded';
+      case 'analysis_submitted':
+        return 'Analysis Submitted';
+      case 'analysis_ready':
+        return 'Results Ready';
+      case 'note_added':
+        return 'Note Added';
+      default:
+        return type;
     }
   };
-
   const handleDeleteCase = async () => {
     if (!case_) return;
-    
     try {
       await deleteCase(case_.id);
-      toast({ title: "Case deleted successfully" });
+      toast({
+        title: "Case deleted successfully"
+      });
       navigate("/app/dashboard");
     } catch (error) {
       console.error("Failed to delete case:", error);
-      toast({ 
-        title: "Failed to delete case", 
+      toast({
+        title: "Failed to delete case",
         description: error instanceof Error ? error.message : "Please try again.",
-        variant: "destructive" 
+        variant: "destructive"
       });
     }
   };
-
   if (loading) {
-    return (
-      <div className="flex items-center justify-center py-12">
+    return <div className="flex items-center justify-center py-12">
         <div className="text-center">
           <div className="text-lg font-medium mb-2">Loading case...</div>
         </div>
-      </div>
-    );
+      </div>;
   }
-
   if (!case_) {
     return null;
   }
-
-  return (
-    <>
+  return <>
       <DocumentHead title={`${case_.name} - FinNavigator`} />
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate("/app/dashboard")}
-          >
+          <Button variant="outline" size="sm" onClick={() => navigate("/app/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
@@ -115,41 +111,30 @@ export default function CaseDetail() {
         {/* Case Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <span
-              className="inline-block h-4 w-4 rounded-full"
-              style={{ backgroundColor: case_.color_hex }}
-            />
+            <span className="inline-block h-4 w-4 rounded-full" style={{
+            backgroundColor: case_.color_hex
+          }} />
             <h1 className="text-2xl font-semibold">{case_.name}</h1>
             <StatusBadge status={case_.status} />
           </div>
-          <Button 
-            variant="error" 
-            size="sm"
-            onClick={() => setShowDeleteModal(true)}
-          >
+          <Button variant="error" size="sm" onClick={() => setShowDeleteModal(true)}>
             <Trash2 className="h-4 w-4 mr-2" />
             Delete Case
           </Button>
         </div>
 
-        {case_.description && (
-          <Card>
+        {case_.description && <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground">{case_.description}</p>
             </CardContent>
-          </Card>
-        )}
+          </Card>}
 
         {/* Tags */}
-        {case_.tags && case_.tags.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            {case_.tags.map((tag) => (
-              <Badge key={tag} variant="outline">
+        {case_.tags && case_.tags.length > 0 && <div className="flex flex-wrap gap-2">
+            {case_.tags.map(tag => <Badge key={tag} variant="outline">
                 {tag}
-              </Badge>
-            ))}
-          </div>
-        )}
+              </Badge>)}
+          </div>}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Files */}
@@ -161,33 +146,21 @@ export default function CaseDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {files.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+              {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p className="mb-2">No files uploaded yet.</p>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
-                  >
+                  <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}/upload`)}>
                     Upload Files
                   </Button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {files.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-2 rounded border">
+                </div> : <div className="space-y-2">
+                  {files.map(file => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
                       <div className="flex items-center gap-2">
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{file.file_name}</span>
                       </div>
-                      <Badge variant={file.type === 'result' ? 'default' : 'outline'}>
-                        {file.type}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              )}
+                      
+                    </div>)}
+                </div>}
             </CardContent>
           </Card>
 
@@ -200,15 +173,11 @@ export default function CaseDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {events.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
+              {events.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                   <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>No events yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {events.map((event) => (
-                    <div key={event.id} className="flex items-start gap-3">
+                </div> : <div className="space-y-4">
+                  {events.map(event => <div key={event.id} className="flex items-start gap-3">
                       <div className="flex-shrink-0 mt-1">
                         {getEventIcon(event.type)}
                       </div>
@@ -220,22 +189,14 @@ export default function CaseDetail() {
                           {new Date(event.created_at).toLocaleString()}
                         </p>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    </div>)}
+                </div>}
             </CardContent>
           </Card>
         </div>
 
         {/* Status-specific Messages */}
-        {(case_.status === 'Failed' || case_.status === 'Timeout') && (
-          <CaseStatusMessage 
-            status={case_.status}
-            onRetry={() => navigate(`/app/cases/${case_.id}/upload`)}
-            onContactSupport={() => window.open('mailto:support@finnavigator.com?subject=Case Analysis Issue&body=Case ID: ' + case_.id, '_blank')}
-          />
-        )}
+        {(case_.status === 'Failed' || case_.status === 'Timeout') && <CaseStatusMessage status={case_.status} onRetry={() => navigate(`/app/cases/${case_.id}/upload`)} onContactSupport={() => window.open('mailto:support@finnavigator.com?subject=Case Analysis Issue&body=Case ID: ' + case_.id, '_blank')} />}
 
         {/* Results Placeholder */}
         <Card>
@@ -243,40 +204,25 @@ export default function CaseDetail() {
             <CardTitle>Analysis Results</CardTitle>
           </CardHeader>
           <CardContent>
-            {case_.status === 'Ready' ? (
-              <div className="text-center py-8">
+            {case_.status === 'Ready' ? <div className="text-center py-8">
                 <CheckCircle className="h-12 w-12 mx-auto mb-3 text-success" />
                 <p className="font-medium mb-2">Analysis Complete</p>
                 <p className="text-sm text-muted-foreground mb-4">
                   Results are ready for review.
                 </p>
-                <Button 
-                  disabled={!case_.result_zip_url}
-                  onClick={() => case_.result_zip_url && navigate(`/app/cases/${case_.id}/results`)}
-                >
+                <Button disabled={!case_.result_zip_url} onClick={() => case_.result_zip_url && navigate(`/app/cases/${case_.id}/results`)}>
                   {case_.result_zip_url ? 'View Results' : 'View Results (Coming Soon)'}
                 </Button>
-              </div>
-            ) : case_.status === 'Failed' || case_.status === 'Timeout' ? (
-              <div className="text-center py-8 text-muted-foreground">
+              </div> : case_.status === 'Failed' || case_.status === 'Timeout' ? <div className="text-center py-8 text-muted-foreground">
                 <p>Analysis encountered an issue. See the message above for details.</p>
-              </div>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground">
+              </div> : <div className="text-center py-8 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>Results will appear here once analysis is complete.</p>
-              </div>
-            )}
+              </div>}
           </CardContent>
         </Card>
       </div>
       
-      <DeleteCaseModal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        onConfirm={handleDeleteCase}
-        caseName={case_.name}
-      />
-    </>
-  );
+      <DeleteCaseModal isOpen={showDeleteModal} onClose={() => setShowDeleteModal(false)} onConfirm={handleDeleteCase} caseName={case_.name} />
+    </>;
 }

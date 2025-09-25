@@ -67,7 +67,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
   };
 
   return (
-    <div className={`relative bg-card border rounded-lg overflow-hidden shadow-sm ${className}`}>
+    <div className={`relative bg-card border rounded-lg overflow-hidden shadow-sm flex flex-col ${className}`}>
       {/* Header with controls */}
       <div className="flex items-center justify-between p-3 bg-muted/30 border-b">
         <h3 className="text-sm font-medium text-foreground">{title || "Interactive Visualization"}</h3>
@@ -116,7 +116,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
       </div>
 
       {/* HTML Content */}
-      <div className="relative h-[400px] min-h-[400px]">
+      <div className="relative flex-1 min-h-[400px]">
         <iframe
           key={key}
           ref={iframeRef}
@@ -124,7 +124,6 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
           className="w-full h-full border-0"
           title={title || "Interactive Visualization"}
           sandbox="allow-scripts allow-same-origin"
-          style={{ minHeight: '400px' }}
         />
         
         {/* Refresh button overlay */}

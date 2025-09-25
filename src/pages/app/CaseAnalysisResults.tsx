@@ -47,6 +47,7 @@ export default function CaseAnalysisResults() {
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedPOI, setSelectedPOI] = useState<typeof analysisData.poiHtmlFiles[0] | null>(null);
   const [poiModalOpen, setPOIModalOpen] = useState(false);
+  const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
 
   useEffect(() => {
     if (!id) return;
@@ -337,9 +338,24 @@ export default function CaseAnalysisResults() {
     setLightboxOpen(true);
   };
 
-  const openPOIModal = (poi: typeof analysisData.poiHtmlFiles[0]) => {
+  const openPOIModal = (poi: typeof analysisData.poiHtmlFiles[0], index?: number) => {
     setSelectedPOI(poi);
+    setCurrentPOIIndex(index ?? analysisData?.poiHtmlFiles.findIndex(p => p.name === poi.name) ?? 0);
     setPOIModalOpen(true);
+  };
+
+  const navigateToPreviousPOI = () => {
+    if (!analysisData || currentPOIIndex <= 0) return;
+    const newIndex = currentPOIIndex - 1;
+    setCurrentPOIIndex(newIndex);
+    setSelectedPOI(analysisData.poiHtmlFiles[newIndex]);
+  };
+
+  const navigateToNextPOI = () => {
+    if (!analysisData || currentPOIIndex >= analysisData.poiHtmlFiles.length - 1) return;
+    const newIndex = currentPOIIndex + 1;
+    setCurrentPOIIndex(newIndex);
+    setSelectedPOI(analysisData.poiHtmlFiles[newIndex]);
   };
 
   const downloadPOIPng = () => {
@@ -586,7 +602,7 @@ export default function CaseAnalysisResults() {
                       <div 
                         key={index}
                         className="flex-shrink-0 cursor-pointer group relative"
-                        onClick={() => openPOIModal(poiFile)}
+                        onClick={() => openPOIModal(poiFile, index)}
                       >
                         <div className="relative w-64 h-40 rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
                           {poiFile.pngUrl ? (
@@ -762,6 +778,10 @@ export default function CaseAnalysisResults() {
         poi={selectedPOI}
         onDownloadHtml={() => selectedPOI && downloadIndividualFile(selectedPOI.name)}
         onDownloadPng={downloadPOIPng}
+        onNext={navigateToNextPOI}
+        onPrevious={navigateToPreviousPOI}
+        currentIndex={currentPOIIndex}
+        totalCount={analysisData?.poiHtmlFiles.length || 0}
       />
     </>
   );

@@ -54,7 +54,7 @@ export default function POIModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-7xl max-h-[95vh] p-0 flex flex-col">
+      <DialogContent className="max-w-7xl h-[90vh] p-0 flex flex-col">
         <DialogHeader className="flex-shrink-0 p-6 pb-3">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-semibold flex-1">{poi.title}</DialogTitle>
@@ -87,7 +87,7 @@ export default function POIModal({
             )}
           </div>
         </DialogHeader>
-        <div className="flex-1 px-6 pb-6 min-h-0">
+        <div className="flex-1 px-6 pb-6 min-h-0 min-h-[600px]">
           <HTMLViewer
             htmlContent={poi.htmlContent}
             title={poi.title}

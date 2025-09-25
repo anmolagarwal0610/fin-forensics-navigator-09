@@ -535,13 +535,13 @@ export default function CaseAnalysisResults() {
             </CardHeader>
             <CardContent className="p-6">
                {analysisData.mainGraphHtml ? (
-                <HTMLViewer
-                  htmlContent={analysisData.mainGraphHtml}
-                  title="Transaction Flow Analysis"
-                  onDownload={() => downloadIndividualFile('poi_flows.html')}
-                  onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
-                  className="min-h-[500px]"
-                />
+                 <HTMLViewer
+                   htmlContent={analysisData.mainGraphHtml}
+                   title="Transaction Flow Analysis"
+                   onDownload={() => downloadIndividualFile('poi_flows.html')}
+                   onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                   className="h-[70vh]"
+                 />
                ) : analysisData.mainGraphUrl ? (
                 <div className="relative group">
                   <img 

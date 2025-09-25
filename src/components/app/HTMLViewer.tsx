@@ -116,7 +116,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
       </div>
 
       {/* HTML Content */}
-      <div className="relative flex-1 min-h-[400px]">
+      <div className="relative flex-1">
         <iframe
           key={key}
           ref={iframeRef}

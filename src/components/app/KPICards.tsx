@@ -22,9 +22,9 @@ export default function KPICards({
     queryFn: async () => {
       if (cases.length === 0) return 0;
       const {
-        data,
+        count,
         error
-      } = await supabase.from('case_files').select('id', {
+      } = await supabase.from('case_files').select('*', {
         count: 'exact',
         head: true
       }).in('case_id', cases.map(c => c.id));
@@ -32,11 +32,17 @@ export default function KPICards({
         console.error('Error fetching file count:', error);
         return 0;
       }
-      return data?.length || 0;
+      return count || 0;
     },
     enabled: cases.length > 0
   });
   const kpis = [{
+    icon: CheckCircle,
+    value: readyCount,
+    label: "Ready",
+    trend: "+8%",
+    color: "text-green-600 dark:text-green-400"
+  }, {
     icon: Activity,
     value: activeCount,
     label: "Active",
@@ -48,12 +54,6 @@ export default function KPICards({
     label: "Processing",
     trend: "+5%",
     color: "text-orange-600 dark:text-orange-400"
-  }, {
-    icon: CheckCircle,
-    value: readyCount,
-    label: "Ready",
-    trend: "+8%",
-    color: "text-green-600 dark:text-green-400"
   }, {
     icon: FileText,
     value: fileCount,

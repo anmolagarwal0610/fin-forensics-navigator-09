@@ -5,9 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, type CaseFileRecord, type EventRecord } from "@/api/cases";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
@@ -84,6 +85,47 @@ export default function CaseDetail() {
       console.error("Failed to delete case:", error);
       toast({
         title: "Failed to delete case",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDownloadFile = async (file: CaseFileRecord) => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Authentication required");
+      }
+
+      // Extract the storage path from the file URL or use a constructed path
+      const filePath = `${user.id}/${case_?.id}/${file.file_name}`;
+      
+      const { data, error } = await supabase.storage
+        .from('case-files')
+        .download(filePath);
+      
+      if (error) {
+        throw new Error(`Failed to download file: ${error.message}`);
+      }
+
+      // Create a download link
+      const url = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = file.file_name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "File downloaded successfully"
+      });
+    } catch (error) {
+      console.error("Failed to download file:", error);
+      toast({
+        title: "Failed to download file",
         description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive"
       });
@@ -172,7 +214,15 @@ export default function CaseDetail() {
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{file.file_name}</span>
                       </div>
-                      
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownloadFile(file)}
+                        className="h-8 px-3"
+                      >
+                        <Download className="h-3 w-3 mr-1" />
+                        Download
+                      </Button>
                     </div>)}
                 </div>}
             </CardContent>

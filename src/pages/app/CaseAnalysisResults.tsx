@@ -470,12 +470,12 @@ export default function CaseAnalysisResults() {
           
           <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">POI Files</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">Person of Interest (POI)</CardTitle>
               <FileText className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.poiFileCount}</div>
-              <p className="text-xs text-muted-foreground">Person of Interest reports</p>
+              <p className="text-xs text-muted-foreground">Beneficiaries Present in more than one file</p>
             </CardContent>
           </Card>
           

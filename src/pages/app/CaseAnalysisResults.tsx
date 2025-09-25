@@ -121,25 +121,9 @@ export default function CaseAnalysisResults() {
           const previewContent = await previewJsonFile.async("text");
           const previewBlob = new Blob([previewContent], { type: 'application/json' });
           parsedData.beneficiariesPreviewUrl = URL.createObjectURL(previewBlob);
-          console.log('✅ Preview JSON extracted from ZIP and blob URL created');
+          console.log('✅ Preview JSON extracted and blob URL created');
         } else {
-          // Check if this is a test case that should use the static preview JSON
-          console.log('⚠️ No preview JSON found in ZIP file, checking for test file fallback');
-          
-          // For test cases or when preview JSON is missing, use the static test file
-          try {
-            const testPreviewResponse = await fetch('/test-files/beneficiaries_by_file.preview.json');
-            if (testPreviewResponse.ok) {
-              const testPreviewContent = await testPreviewResponse.text();
-              const testPreviewBlob = new Blob([testPreviewContent], { type: 'application/json' });
-              parsedData.beneficiariesPreviewUrl = URL.createObjectURL(testPreviewBlob);
-              console.log('✅ Using static test preview JSON as fallback');
-            } else {
-              console.warn('⚠️ Static test preview JSON also not available');
-            }
-          } catch (error) {
-            console.warn('⚠️ Failed to fetch static test preview JSON:', error);
-          }
+          console.warn('⚠️ No preview JSON found in ZIP file');
         }
         
         try {
@@ -543,11 +527,7 @@ export default function CaseAnalysisResults() {
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
             maxRows={25}
-            fileUrl={(() => {
-              const url = analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl;
-              console.log('🔗 Passing URL to ExcelViewer:', url, 'Type:', analysisData.beneficiariesPreviewUrl ? 'Preview JSON' : 'Excel file');
-              return url;
-            })()}
+            fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
           />
         )}
 

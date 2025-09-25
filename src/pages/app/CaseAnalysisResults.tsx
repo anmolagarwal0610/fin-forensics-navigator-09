@@ -19,6 +19,7 @@ import * as XLSX from "xlsx";
 interface ParsedAnalysisData {
   beneficiaries: Array<{ [key: string]: any }>;
   beneficiariesExcelData?: any[][];
+  beneficiariesFileUrl?: string;
   beneficiaryHeaders: string[];
   totalBeneficiaryCount: number;
   mainGraphUrl: string | null;
@@ -106,6 +107,10 @@ export default function CaseAnalysisResults() {
       const beneficiariesFile = zipData.file("beneficiaries_by_file.xlsx");
       if (beneficiariesFile) {
         const content = await beneficiariesFile.async("arraybuffer");
+        
+        // Create blob URL for the beneficiaries file
+        const beneficiariesBlob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        parsedData.beneficiariesFileUrl = URL.createObjectURL(beneficiariesBlob);
         
         try {
           // Try enhanced parsing with exceljs for better formatting
@@ -491,6 +496,7 @@ export default function CaseAnalysisResults() {
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
             maxRows={25}
+            fileUrl={analysisData.beneficiariesFileUrl}
           />
         )}
 

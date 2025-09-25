@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Download } from 'lucide-react';
@@ -23,14 +23,62 @@ interface CellData {
   isHidden?: boolean;
 }
 
+interface PreviewData {
+  cell_bg?: Record<string, string>;
+  header_bands?: Array<{
+    range: string;
+    backgroundColor: string;
+  }>;
+}
+
 interface ExcelViewerProps {
   title: string;
   data: CellData[][];
   onDownload?: () => void;
   maxRows?: number;
+  fileUrl?: string;
 }
 
-export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: ExcelViewerProps) {
+export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fileUrl }: ExcelViewerProps) {
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+
+  // Helper function to convert 0-based row/col to A1 notation
+  const toA1 = (col: number, row: number): string => {
+    let columnName = '';
+    let tempCol = col;
+    while (tempCol >= 0) {
+      columnName = String.fromCharCode(65 + (tempCol % 26)) + columnName;
+      tempCol = Math.floor(tempCol / 26) - 1;
+      if (tempCol < 0) break;
+    }
+    return columnName + (row + 1);
+  };
+
+  // Load preview JSON if fileUrl is provided
+  useEffect(() => {
+    if (!fileUrl) return;
+
+    const loadPreview = async () => {
+      try {
+        const previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
+        const response = await fetch(previewUrl);
+        
+        if (response.status === 200) {
+          const preview = await response.json();
+          setPreviewData(preview);
+          console.log('Loaded preview data:', preview);
+        } else {
+          console.log('No preview JSON found, using Excel data only');
+          setPreviewData(null);
+        }
+      } catch (error) {
+        console.log('Failed to load preview JSON:', error);
+        setPreviewData(null);
+      }
+    };
+
+    loadPreview();
+  }, [fileUrl]);
   if (!data || data.length === 0) {
     return (
       <Card>
@@ -54,31 +102,44 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
 
   const displayData = data.slice(0, maxRows);
 
-  const getCellStyle = (cell: CellData) => {
+  const getCellStyle = (cell: CellData, rowIndex: number, colIndex: number) => {
     const style: React.CSSProperties = {};
     
     // Helper function to calculate luminance for contrast
     const getLuminance = (hex: string) => {
-      const rgb = parseInt(hex.slice(1), 16);
+      if (!hex || hex === 'transparent') return 0.5;
+      const cleanHex = hex.replace('#', '');
+      const rgb = parseInt(cleanHex, 16);
       const r = (rgb >> 16) & 0xff;
       const g = (rgb >> 8) & 0xff;
       const b = (rgb >> 0) & 0xff;
       return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     };
+
+    let backgroundColor = cell.style?.backgroundColor;
     
-    if (cell.style?.backgroundColor) {
-      style.backgroundColor = cell.style.backgroundColor;
-      console.log('Cell background color:', cell.style.backgroundColor, 'for value:', cell.value);
+    // Check preview JSON for background color
+    if (previewData?.cell_bg) {
+      const cellAddress = toA1(colIndex, rowIndex);
+      const previewBg = previewData.cell_bg[cellAddress];
+      if (previewBg) {
+        backgroundColor = previewBg;
+        console.log(`Using preview background for ${cellAddress}:`, previewBg);
+      }
+    }
+
+    // Apply background color
+    if (backgroundColor) {
+      style.backgroundColor = backgroundColor;
       
       // Calculate contrast and set appropriate text color
-      const luminance = getLuminance(cell.style.backgroundColor);
+      const luminance = getLuminance(backgroundColor);
       style.color = luminance > 0.5 ? '#000000' : '#ffffff';
     }
     
-    // Font color from Excel overrides calculated contrast
-    if (cell.style?.fontColor) {
+    // Font color from Excel overrides calculated contrast (unless it's black and we have a background)
+    if (cell.style?.fontColor && !(backgroundColor && cell.style.fontColor === '#000000')) {
       style.color = cell.style.fontColor;
-      console.log('Cell font color:', cell.style.fontColor, 'for value:', cell.value);
     }
     
     if (cell.style?.fontWeight) {
@@ -135,7 +196,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
                       }
 
                       const span = getCellSpan(cell);
-                      const style = getCellStyle(cell);
+                      const style = getCellStyle(cell, rowIndex, colIndex);
 
                       return (
                         <td

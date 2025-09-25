@@ -57,7 +57,7 @@ export default function KPICards({
   }, {
     icon: FileText,
     value: fileCount,
-    label: "Files (7d)",
+    label: "Files",
     trend: "+24%",
     color: "text-purple-600 dark:text-purple-400"
   }];

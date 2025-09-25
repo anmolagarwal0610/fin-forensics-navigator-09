@@ -6,17 +6,10 @@ const items = [{
   url: "/app/dashboard",
   icon: LayoutDashboard
 }, {
-  title: "Cases",
-  url: "/app/dashboard",
-  icon: FolderGit2
-},
-// future
-{
   title: "Account",
   url: "/app/account",
   icon: UserCog
-} // future
-];
+}];
 export default function AppSidebar() {
   const {
     state

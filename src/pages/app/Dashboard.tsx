@@ -149,25 +149,29 @@ export default function Dashboard() {
         <KPICards cases={cases} />
 
         {/* Toolbar */}
-        <DashboardToolbar statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} tagFilter={tagFilter} onTagFilterChange={setTagFilter} viewMode={viewMode} onViewModeChange={setViewMode} />
+        <div className="mt-8">
+          <DashboardToolbar statusFilter={statusFilter} onStatusFilterChange={setStatusFilter} tagFilter={tagFilter} onTagFilterChange={setTagFilter} viewMode={viewMode} onViewModeChange={setViewMode} />
+        </div>
 
-        {/* Cases Content */}
-        {filtered.length === 0 ? cases.length === 0 ? <EmptyState /> : <motion.div initial={{
-        opacity: 0
-      }} animate={{
-        opacity: 1
-      }} className="text-center py-12">
-              <p className="text-muted-foreground mb-4">No cases match your filters.</p>
-              <Button variant="outline" onClick={() => {
-          setSearch("");
-          setStatusFilter([]);
-          setTagFilter("");
-        }}>
-                Clear Filters
-              </Button>
-            </motion.div> : viewMode === "grid" ? <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((c, index) => <ModernCaseCard key={c.id} id={c.id} name={c.name} color_hex={c.color_hex} tags={c.tags ?? []} status={c.status} updated_at={c.updated_at} index={index} />)}
-          </div> : <CaseListView cases={filtered} />}
-      </motion.div>
-    </div>;
+         {/* Cases Content */}
+         <div className="mt-8">
+           {filtered.length === 0 ? cases.length === 0 ? <EmptyState /> : <motion.div initial={{
+           opacity: 0
+         }} animate={{
+           opacity: 1
+         }} className="text-center py-12">
+                 <p className="text-muted-foreground mb-4">No cases match your filters.</p>
+                 <Button variant="outline" onClick={() => {
+             setSearch("");
+             setStatusFilter([]);
+             setTagFilter("");
+           }}>
+                   Clear Filters
+                 </Button>
+               </motion.div> : viewMode === "grid" ? <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+               {filtered.map((c, index) => <ModernCaseCard key={c.id} id={c.id} name={c.name} color_hex={c.color_hex} tags={c.tags ?? []} status={c.status} updated_at={c.updated_at} index={index} />)}
+             </div> : <CaseListView cases={filtered} />}
+         </div>
+       </motion.div>
+     </div>;
 }

@@ -18,8 +18,9 @@ import {
 import StatusBadge from "./StatusBadge";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { getCaseFiles } from "@/api/cases";
+import { getCaseFiles, updateCaseStatus } from "@/api/cases";
 import type { CaseRecord } from "@/api/cases";
+import { toast } from "@/hooks/use-toast";
 
 interface CaseListViewProps {
   cases: CaseRecord[];
@@ -151,7 +152,28 @@ export default function CaseListView({ cases }: CaseListViewProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>Archive</DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await updateCaseStatus(caseItem.id, 'Archived');
+                            toast({
+                              title: "Case archived",
+                              description: "The case has been archived successfully.",
+                            });
+                            // Trigger a page refresh to update the cases list
+                            window.location.reload();
+                          } catch (error) {
+                            toast({
+                              title: "Error",
+                              description: "Failed to archive the case.",
+                              variant: "destructive",
+                            });
+                          }
+                        }}
+                      >
+                        Archive
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>

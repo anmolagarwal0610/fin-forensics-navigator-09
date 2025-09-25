@@ -104,19 +104,8 @@ export default function DashboardToolbar({
             )}
           </div>
 
-          {/* Right side - Sort and View */}
+          {/* Right side - View only */}
           <div className="flex items-center gap-3">
-            <Select defaultValue="updated">
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="updated">Updated</SelectItem>
-                <SelectItem value="name">Name</SelectItem>
-                <SelectItem value="status">Status</SelectItem>
-              </SelectContent>
-            </Select>
-
             {/* View Toggle */}
             <div className="flex items-center border rounded-lg p-1">
               <Button

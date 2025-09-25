@@ -79,7 +79,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
             className="h-8 w-8 p-0"
             title="Refresh graph"
           >
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4 text-foreground" />
           </Button>
           <Button
             variant="ghost"
@@ -135,7 +135,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
           className="absolute bottom-2 right-2 h-8 w-8 p-0 bg-background/80 backdrop-blur-sm border shadow-sm hover:bg-background/90"
           title="Refresh visualization"
         >
-          <RotateCcw className="h-3 w-3" />
+          <RotateCcw className="h-3 w-3 text-foreground" />
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RotateCcw, Maximize2, Download, Image } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -81,15 +82,24 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
           >
             <RotateCcw className="h-4 w-4 text-foreground" />
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleFullscreen}
-            className="h-8 w-8 p-0"
-            title="View fullscreen"
-          >
-            <Maximize2 className="h-4 w-4" />
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleFullscreen}
+                  className="h-8 w-8 p-0"
+                  title="View fullscreen"
+                >
+                  <Maximize2 className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Use Esc to exit full-screen</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {onDownload && (
             <Button
               variant="ghost"

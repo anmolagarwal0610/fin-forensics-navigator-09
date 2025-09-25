@@ -135,28 +135,37 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
           previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
         }
         
-        console.log('Attempting to fetch preview JSON from:', previewUrl);
+        console.log('🔍 Attempting to fetch preview JSON from:', previewUrl);
         const response = await fetch(previewUrl);
         
         if (response.status === 200) {
-          const preview = await response.json();
-          console.log('Raw preview data loaded:', preview);
+          const responseText = await response.text();
+          console.log('📄 Raw response text length:', responseText.length);
           
-          // Validate schema
-          if (preview.schema === "ffn.preview.v1") {
-            console.log('✅ Preview schema validation passed');
-            setPreviewData(preview);
-            console.log('✅ Successfully loaded and validated preview data:', preview);
-          } else {
-            console.warn('❌ Invalid preview schema:', preview.schema, 'Expected: ffn.preview.v1');
+          try {
+            const preview = JSON.parse(responseText);
+            console.log('📋 Parsed preview data:', preview);
+            
+            // Validate schema
+            if (preview.schema === "ffn.preview.v1") {
+              console.log('✅ Preview schema validation passed');
+              setPreviewData(preview);
+              console.log('✅ Successfully loaded preview data with', Object.keys(preview.cell_bg || {}).length, 'cell background colors');
+            } else {
+              console.warn('❌ Invalid preview schema:', preview.schema, 'Expected: ffn.preview.v1');
+              setPreviewData(null);
+            }
+          } catch (parseError) {
+            console.error('❌ JSON parsing failed:', parseError);
+            console.error('📄 Raw response text:', responseText.substring(0, 500));
             setPreviewData(null);
           }
         } else {
-          console.log(`Preview JSON not found (${response.status}), using Excel data only`);
+          console.log(`⚠️ Preview JSON not found (${response.status}), using Excel data only`);
           setPreviewData(null);
         }
       } catch (error) {
-        console.error('❌ Failed to load preview JSON:', error);
+        console.error('❌ Network error loading preview JSON:', error);
         setPreviewData(null);
       }
     };
@@ -190,10 +199,14 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
     const style: React.CSSProperties = {};
     const cellAddress = toA1(colIndex, rowIndex);
     
+    // Check if we're in dark mode
+    const isDarkMode = document.documentElement.classList.contains('dark');
+    
     // Helper function to calculate luminance for contrast
     const getLuminance = (hex: string) => {
       if (!hex || hex === 'transparent') return 0.5;
       const cleanHex = hex.replace('#', '');
+      if (cleanHex.length !== 6) return 0.5;
       const rgb = parseInt(cleanHex, 16);
       const r = (rgb >> 16) & 0xff;
       const g = (rgb >> 8) & 0xff;
@@ -231,14 +244,31 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       
       // Calculate contrast and set appropriate text color
       const luminance = getLuminance(backgroundColor);
-      style.color = luminance > 0.5 ? '#000000' : '#ffffff';
-      console.log(`📊 Cell ${cellAddress}: bg=${backgroundColor}, luminance=${luminance.toFixed(3)}, text=${style.color}`);
+      const contrastColor = luminance > 0.5 ? '#000000' : '#ffffff';
+      
+      // In dark mode, be more aggressive about using white text on colored backgrounds
+      if (isDarkMode && luminance < 0.7) {
+        style.color = '#ffffff';
+      } else {
+        style.color = contrastColor;
+      }
+      
+      console.log(`📊 Cell ${cellAddress}: bg=${backgroundColor}, luminance=${luminance.toFixed(3)}, darkMode=${isDarkMode}, text=${style.color}`);
     }
     
-    // Font color from Excel overrides calculated contrast (unless it's black with a colored background)
-    if (cell.style?.fontColor && !(backgroundColor && cell.style.fontColor === '#000000')) {
-      style.color = cell.style.fontColor;
-      console.log(`🎨 Using Excel font color for ${cellAddress}: ${cell.style.fontColor}`);
+    // Excel font color logic - be smarter about when to override
+    if (cell.style?.fontColor) {
+      const excelFontColor = cell.style.fontColor;
+      
+      // Don't use black text on colored backgrounds in dark mode
+      const shouldOverride = backgroundColor && excelFontColor === '#000000' && isDarkMode;
+      
+      if (!shouldOverride) {
+        style.color = excelFontColor;
+        console.log(`🎨 Using Excel font color for ${cellAddress}: ${excelFontColor}`);
+      } else {
+        console.log(`🚫 Skipping Excel black font color for ${cellAddress} in dark mode with background: ${backgroundColor}`);
+      }
     }
     
     if (cell.style?.fontWeight) {
@@ -298,14 +328,13 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
                         const span = getCellSpan(cell);
                         const style = getCellStyle(cell, rowIndex, colIndex);
-                        const hasInlineColor = style.color !== undefined;
 
                         return (
                           <td
                             key={colIndex}
                             {...span}
                             style={style}
-                            className={`p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px] ${!hasInlineColor ? 'text-foreground' : ''}`}
+                            className="p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px]"
                           >
                             {cell.value || ''}
                           </td>

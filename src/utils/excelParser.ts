@@ -136,33 +136,51 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
         // Enhanced color extraction - check multiple fill types
         let backgroundColor: string | undefined;
         
-        console.log(`Cell ${rowNum},${colNum} fill:`, JSON.stringify(cell.fill), 'value:', cellValue);
-        
         if (cell.fill) {
           const fill = cell.fill as any;
+          console.log(`🔍 Cell ${rowNum},${colNum} fill analysis:`, {
+            type: fill.type,
+            pattern: fill.pattern,
+            fgColor: fill.fgColor,
+            bgColor: fill.bgColor,
+            value: cellValue
+          });
           
           // Solid fill
           if (fill.type === 'pattern' && fill.pattern === 'solid') {
             backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor);
-            console.log(`Solid fill color for ${rowNum},${colNum}:`, backgroundColor);
+            if (backgroundColor) {
+              console.log(`✅ Solid fill color for ${rowNum},${colNum}: ${backgroundColor}`);
+            }
           }
           
-          // Pattern fill
-          else if (fill.type === 'pattern') {
+          // Pattern fill (but not "none" pattern)
+          else if (fill.type === 'pattern' && fill.pattern && fill.pattern !== 'none') {
             backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor);
-            console.log(`Pattern fill color for ${rowNum},${colNum}:`, backgroundColor);
+            if (backgroundColor) {
+              console.log(`✅ Pattern fill color for ${rowNum},${colNum}: ${backgroundColor} (pattern: ${fill.pattern})`);
+            }
           }
           
           // Gradient fill
           else if (fill.type === 'gradient') {
             backgroundColor = parseExcelColor(fill.stops?.[0]?.color);
-            console.log(`Gradient fill color for ${rowNum},${colNum}:`, backgroundColor);
+            if (backgroundColor) {
+              console.log(`✅ Gradient fill color for ${rowNum},${colNum}: ${backgroundColor}`);
+            }
           }
           
-          // Fallback to any color property
-          if (!backgroundColor) {
+          // If we still don't have a color and it's not a "none" pattern, try fallback
+          if (!backgroundColor && fill.pattern !== 'none') {
             backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor || fill.color);
-            console.log(`Fallback fill color for ${rowNum},${colNum}:`, backgroundColor);
+            if (backgroundColor) {
+              console.log(`✅ Fallback fill color for ${rowNum},${colNum}: ${backgroundColor}`);
+            }
+          }
+          
+          // Log when we can't extract color
+          if (!backgroundColor) {
+            console.log(`⚠️ No background color extracted for ${rowNum},${colNum} (pattern: ${fill.pattern})`);
           }
         }
         
@@ -170,7 +188,11 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
         let fontColor: string | undefined;
         if (cell.font && cell.font.color) {
           fontColor = parseExcelColor(cell.font.color);
-          console.log(`Font color for ${rowNum},${colNum}:`, fontColor);
+          if (fontColor) {
+            console.log(`✅ Font color for ${rowNum},${colNum}: ${fontColor}`);
+          } else {
+            console.log(`⚠️ Could not parse font color for ${rowNum},${colNum}:`, cell.font.color);
+          }
         }
 
         const cellData: CellData = {

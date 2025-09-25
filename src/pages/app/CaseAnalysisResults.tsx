@@ -20,6 +20,7 @@ interface ParsedAnalysisData {
   beneficiaries: Array<{ [key: string]: any }>;
   beneficiariesExcelData?: any[][];
   beneficiariesFileUrl?: string;
+  beneficiariesPreviewUrl?: string;
   beneficiaryHeaders: string[];
   totalBeneficiaryCount: number;
   mainGraphUrl: string | null;
@@ -95,6 +96,7 @@ export default function CaseAnalysisResults() {
         beneficiaries: [],
         beneficiaryHeaders: [],
         totalBeneficiaryCount: 0,
+        beneficiariesPreviewUrl: undefined,
         mainGraphUrl: null,
         mainGraphHtml: null,
         mainGraphPngUrl: null,
@@ -112,6 +114,17 @@ export default function CaseAnalysisResults() {
         // Create blob URL for the beneficiaries file
         const beneficiariesBlob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
         parsedData.beneficiariesFileUrl = URL.createObjectURL(beneficiariesBlob);
+        
+        // Extract preview JSON for styling
+        const previewJsonFile = zipData.file("beneficiaries_by_file.preview.json");
+        if (previewJsonFile) {
+          const previewContent = await previewJsonFile.async("text");
+          const previewBlob = new Blob([previewContent], { type: 'application/json' });
+          parsedData.beneficiariesPreviewUrl = URL.createObjectURL(previewBlob);
+          console.log('✅ Preview JSON extracted and blob URL created');
+        } else {
+          console.warn('⚠️ No preview JSON found in ZIP file');
+        }
         
         try {
           // Try enhanced parsing with exceljs for better formatting
@@ -514,7 +527,7 @@ export default function CaseAnalysisResults() {
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
             maxRows={25}
-            fileUrl={analysisData.beneficiariesFileUrl}
+            fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
           />
         )}
 

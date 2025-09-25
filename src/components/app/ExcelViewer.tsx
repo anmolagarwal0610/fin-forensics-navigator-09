@@ -128,10 +128,23 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       try {
         let previewUrl: string;
         
+        // Check if fileUrl is already a JSON blob URL (from ZIP extraction)
+        if (fileUrl.includes('blob:') && fileUrl.includes('application/json')) {
+          previewUrl = fileUrl;
+          console.log('🔍 Using extracted JSON blob URL directly');
+        } 
         // For test files, use static path
-        if (fileUrl.includes('test-files')) {
+        else if (fileUrl.includes('test-files')) {
           previewUrl = '/test-files/beneficiaries_by_file.preview.json';
-        } else {
+        } 
+        // For blob URLs of Excel files, we can't construct preview URL
+        else if (fileUrl.includes('blob:')) {
+          console.warn('⚠️ Cannot fetch preview JSON from Excel blob URL, colors will not be applied');
+          setPreviewData(null);
+          return;
+        } 
+        // For regular file URLs, try to construct preview URL
+        else {
           previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
         }
         

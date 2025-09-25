@@ -66,25 +66,41 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
 
     const result: CellData[][] = [];
     const mergedCells = new Set<string>();
+    const mergedRangeMap = new Map<string, any>();
     
-    // Get merged ranges
-    const mergedRanges = worksheet.mergeCells || {};
+    // Get merged ranges - correct API usage
+    const mergedRanges = [];
+    if (worksheet.mergeCells) {
+      // Extract merged ranges from worksheet
+      for (const range in worksheet.mergeCells) {
+        mergedRanges.push(range);
+      }
+    }
     
-    // Process merged ranges to mark hidden cells
-    Object.keys(mergedRanges).forEach(range => {
-      const mergedRange = worksheet.getCell(range);
-      const address = mergedRange.address;
-      
+    // Process merged ranges to mark hidden cells and store range info
+    mergedRanges.forEach((range: string) => {
       // Parse the range (e.g., "A1:C3")
       const match = range.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
       if (match) {
         const [, startCol, startRow, endCol, endRow] = match;
         const startColNum = getColumnNumber(startCol);
         const endColNum = getColumnNumber(endCol);
+        const startRowNum = parseInt(startRow);
+        const endRowNum = parseInt(endRow);
         
-        for (let row = parseInt(startRow); row <= parseInt(endRow); row++) {
+        // Store the range info for the master cell
+        const masterKey = `${startRowNum}-${startColNum}`;
+        mergedRangeMap.set(masterKey, {
+          startRow: startRowNum,
+          endRow: endRowNum,
+          startCol: startColNum,
+          endCol: endColNum,
+        });
+        
+        // Mark all cells except the master as hidden
+        for (let row = startRowNum; row <= endRowNum; row++) {
           for (let col = startColNum; col <= endColNum; col++) {
-            if (row !== parseInt(startRow) || col !== startColNum) {
+            if (row !== startRowNum || col !== startColNum) {
               mergedCells.add(`${row}-${col}`);
             }
           }
@@ -101,41 +117,28 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
       
       for (let colNum = 1; colNum <= colCount; colNum++) {
         const cell = worksheet.getCell(rowNum, colNum);
-        const isHidden = mergedCells.has(`${rowNum}-${colNum}`);
+        const cellKey = `${rowNum}-${colNum}`;
+        const isHidden = mergedCells.has(cellKey);
         
         let merged: CellData['merged'] | undefined;
         
-        // Check if this cell is the top-left of a merged range
-        if (cell.isMerged && !isHidden) {
-          const masterCell = cell.master || cell;
-          if (masterCell.address === cell.address) {
-            // This is the master cell of a merged range
-            const range = Object.keys(mergedRanges).find(r => {
-              const rangeCell = worksheet.getCell(r);
-              return rangeCell.address === cell.address;
-            });
-            
-            if (range) {
-              const match = range.match(/([A-Z]+)(\d+):([A-Z]+)(\d+)/);
-              if (match) {
-                const [, startCol, startRow, endCol, endRow] = match;
-                merged = {
-                  startRow: parseInt(startRow),
-                  endRow: parseInt(endRow),
-                  startCol: getColumnNumber(startCol),
-                  endCol: getColumnNumber(endCol),
-                };
-              }
-            }
-          }
+        // Check if this cell is the master of a merged range
+        if (mergedRangeMap.has(cellKey)) {
+          merged = mergedRangeMap.get(cellKey);
+        }
+
+        // Get cell value, handling formula results
+        let cellValue = cell.value;
+        if (cell.type === ExcelJS.ValueType.Formula && cell.result !== undefined) {
+          cellValue = cell.result;
         }
 
         const cellData: CellData = {
-          value: cell.value,
+          value: cellValue,
           isHidden,
           merged,
           style: {
-            backgroundColor: parseExcelColor((cell.fill as any)?.fgColor),
+            backgroundColor: parseExcelColor((cell.fill as any)?.fgColor || (cell.fill as any)?.bgColor),
             fontColor: parseExcelColor(cell.font?.color),
             fontWeight: cell.font?.bold ? 'bold' : 'normal',
             border: !!(cell.border?.top || cell.border?.bottom || cell.border?.left || cell.border?.right),

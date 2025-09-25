@@ -79,9 +79,12 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
   const getCellSpan = (cell: CellData) => {
     if (!cell.merged) return {};
     
+    const colSpan = cell.merged.endCol - cell.merged.startCol + 1;
+    const rowSpan = cell.merged.endRow - cell.merged.startRow + 1;
+    
     return {
-      colSpan: cell.merged.endCol - cell.merged.startCol + 1,
-      rowSpan: cell.merged.endRow - cell.merged.startRow + 1,
+      colSpan: colSpan > 1 ? colSpan : undefined,
+      rowSpan: rowSpan > 1 ? rowSpan : undefined,
     };
   };
 
@@ -105,7 +108,8 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
               <tbody>
                 {displayData.map((row, rowIndex) => (
                   <tr key={rowIndex}>
-                    {row.map((cell, colIndex) => {
+                  {row
+                    .map((cell, colIndex) => {
                       // Skip rendering cells that are part of a merged range but not the top-left cell
                       if (cell.isHidden) {
                         return null;
@@ -119,12 +123,13 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
                           key={colIndex}
                           {...span}
                           style={style}
-                          className="p-2 text-sm border border-border align-top"
+                          className="p-2 text-sm border border-border align-top whitespace-nowrap"
                         >
-                          {cell.value}
+                          {cell.value || ''}
                         </td>
                       );
-                    })}
+                    })
+                    .filter(Boolean)}
                   </tr>
                 ))}
               </tbody>

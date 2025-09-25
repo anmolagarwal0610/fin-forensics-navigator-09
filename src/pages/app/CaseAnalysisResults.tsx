@@ -11,11 +11,14 @@ import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
 import POIModal from "@/components/app/POIModal";
+import ExcelViewer from "@/components/app/ExcelViewer";
+import { parseExcelFile } from "@/utils/excelParser";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 
 interface ParsedAnalysisData {
   beneficiaries: Array<{ [key: string]: any }>;
+  beneficiariesExcelData?: any[][];
   beneficiaryHeaders: string[];
   totalBeneficiaryCount: number;
   mainGraphUrl: string | null;
@@ -99,10 +102,20 @@ export default function CaseAnalysisResults() {
         fileSummaries: []
       };
 
-      // Process beneficiaries_by_file.xlsx
+      // Process beneficiaries_by_file.xlsx with enhanced formatting
       const beneficiariesFile = zipData.file("beneficiaries_by_file.xlsx");
       if (beneficiariesFile) {
         const content = await beneficiariesFile.async("arraybuffer");
+        
+        try {
+          // Try enhanced parsing with exceljs for better formatting
+          parsedData.beneficiariesExcelData = await parseExcelFile(content);
+          console.log('Enhanced beneficiaries parsing successful');
+        } catch (error) {
+          console.error('Enhanced parsing failed, falling back to basic parsing:', error);
+        }
+        
+        // Keep existing XLSX parsing for backward compatibility
         const workbook = XLSX.read(content, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -471,75 +484,14 @@ export default function CaseAnalysisResults() {
           </Card>
         </div>
 
-        {/* Beneficiaries Table */}
-        {analysisData.beneficiaries.length > 0 && (
-          <Card className="shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 rounded-t-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-xl flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Top 25 Beneficiaries
-                  </CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Detailed analysis of persons of interest identified in the financial data
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={downloadBeneficiariesFile}
-                  className="flex items-center gap-2"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Excel
-                </Button>
-              </div>
-            </CardHeader>
-             <CardContent className="p-0">
-                <div className="overflow-auto max-h-[500px] border border-border rounded-b-lg">
-                  <Table className="relative">
-                    <TableHeader className="sticky top-0 bg-background/95 backdrop-blur-sm z-20 shadow-sm">
-                      <TableRow className="bg-muted/50 border-b-2">
-                        {analysisData.beneficiaryHeaders.map((header, index) => (
-                          <TableHead key={index} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-foreground uppercase tracking-wider border-r last:border-r-0 min-w-[140px] bg-muted/30">
-                            {header}
-                          </TableHead>
-                        ))}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {analysisData.beneficiaries.map((beneficiary, index) => (
-                        <TableRow key={index} className="hover:bg-muted/30 transition-colors border-b">
-                          {analysisData.beneficiaryHeaders.map((header, colIndex) => {
-                            const cellData = beneficiary[header];
-                            const value = typeof cellData === 'object' ? cellData.value : cellData;
-                            const style = typeof cellData === 'object' ? cellData.style : undefined;
-                            
-                            // Ensure good contrast for styled cells
-                            const cellStyle = style ? {
-                              backgroundColor: style.backgroundColor,
-                              color: style.color || (style.backgroundColor ? '#000000' : undefined),
-                              fontWeight: style.backgroundColor ? '500' : 'normal'
-                            } : {};
-                            
-                            return (
-                              <TableCell 
-                                key={colIndex} 
-                                className="px-4 py-3 text-sm whitespace-nowrap border-r last:border-r-0 min-w-[140px]"
-                                style={cellStyle}
-                              >
-                                {value || '-'}
-                              </TableCell>
-                            );
-                          })}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                 </Table>
-               </div>
-             </CardContent>
-          </Card>
+        {/* Enhanced Beneficiaries Preview */}
+        {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
+          <ExcelViewer
+            title="Top 25 Beneficiaries"
+            data={analysisData.beneficiariesExcelData || []}
+            onDownload={downloadBeneficiariesFile}
+            maxRows={25}
+          />
         )}
 
         {/* Main Flow Graph */}

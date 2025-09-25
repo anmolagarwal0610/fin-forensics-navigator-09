@@ -136,28 +136,41 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
         // Enhanced color extraction - check multiple fill types
         let backgroundColor: string | undefined;
         
+        console.log(`Cell ${rowNum},${colNum} fill:`, JSON.stringify(cell.fill), 'value:', cellValue);
+        
         if (cell.fill) {
           const fill = cell.fill as any;
           
           // Solid fill
           if (fill.type === 'pattern' && fill.pattern === 'solid') {
             backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor);
+            console.log(`Solid fill color for ${rowNum},${colNum}:`, backgroundColor);
           }
           
           // Pattern fill
           else if (fill.type === 'pattern') {
             backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor);
+            console.log(`Pattern fill color for ${rowNum},${colNum}:`, backgroundColor);
           }
           
           // Gradient fill
           else if (fill.type === 'gradient') {
             backgroundColor = parseExcelColor(fill.stops?.[0]?.color);
+            console.log(`Gradient fill color for ${rowNum},${colNum}:`, backgroundColor);
           }
           
           // Fallback to any color property
           if (!backgroundColor) {
             backgroundColor = parseExcelColor(fill.fgColor || fill.bgColor || fill.color);
+            console.log(`Fallback fill color for ${rowNum},${colNum}:`, backgroundColor);
           }
+        }
+        
+        // Extract font color
+        let fontColor: string | undefined;
+        if (cell.font && cell.font.color) {
+          fontColor = parseExcelColor(cell.font.color);
+          console.log(`Font color for ${rowNum},${colNum}:`, fontColor);
         }
 
         const cellData: CellData = {
@@ -166,7 +179,7 @@ export const parseExcelFile = async (arrayBuffer: ArrayBuffer): Promise<CellData
           merged,
           style: {
             backgroundColor,
-            fontColor: parseExcelColor(cell.font?.color),
+            fontColor,
             fontWeight: cell.font?.bold ? 'bold' : 'normal',
             border: !!(cell.border?.top || cell.border?.bottom || cell.border?.left || cell.border?.right),
           }

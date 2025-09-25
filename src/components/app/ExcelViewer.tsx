@@ -57,18 +57,28 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25 }: E
   const getCellStyle = (cell: CellData) => {
     const style: React.CSSProperties = {};
     
+    // Helper function to calculate luminance for contrast
+    const getLuminance = (hex: string) => {
+      const rgb = parseInt(hex.slice(1), 16);
+      const r = (rgb >> 16) & 0xff;
+      const g = (rgb >> 8) & 0xff;
+      const b = (rgb >> 0) & 0xff;
+      return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    };
+    
     if (cell.style?.backgroundColor) {
       style.backgroundColor = cell.style.backgroundColor;
-      // Use black text on light backgrounds, white text on dark backgrounds
-      const bg = cell.style.backgroundColor;
-      if (bg && bg !== 'transparent') {
-        // Simple contrast logic - you could make this more sophisticated
-        style.color = '#000000';
-      }
+      console.log('Cell background color:', cell.style.backgroundColor, 'for value:', cell.value);
+      
+      // Calculate contrast and set appropriate text color
+      const luminance = getLuminance(cell.style.backgroundColor);
+      style.color = luminance > 0.5 ? '#000000' : '#ffffff';
     }
     
+    // Font color from Excel overrides calculated contrast
     if (cell.style?.fontColor) {
       style.color = cell.style.fontColor;
+      console.log('Cell font color:', cell.style.fontColor, 'for value:', cell.value);
     }
     
     if (cell.style?.fontWeight) {

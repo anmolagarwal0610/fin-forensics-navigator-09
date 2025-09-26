@@ -276,9 +276,15 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       // Calculate contrast and set appropriate text color
       const luminance = getLuminance(backgroundColor);
       
-      // In dark mode, prefer white text on colored backgrounds
+      // In dark mode, be more aggressive about using black text for visibility
       if (isDarkMode) {
-        style.color = luminance > 0.8 ? '#000000' : '#ffffff';
+        // Lower threshold from 0.8 to 0.6 and add special handling for near-white colors
+        if (luminance > 0.6 || backgroundColor.toLowerCase().includes('#f') || 
+            backgroundColor.toLowerCase().includes('white') || backgroundColor.toLowerCase().includes('fff')) {
+          style.color = '#000000';
+        } else {
+          style.color = '#ffffff';
+        }
       } else {
         style.color = luminance > 0.5 ? '#000000' : '#ffffff';
       }

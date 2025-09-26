@@ -247,6 +247,14 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     };
 
+    // Helper function to check contrast between two colors
+    const hasGoodContrast = (textColor: string, bgColor: string) => {
+      const textLum = getLuminance(textColor);
+      const bgLum = getLuminance(bgColor);
+      const contrast = (Math.max(textLum, bgLum) + 0.05) / (Math.min(textLum, bgLum) + 0.05);
+      return contrast >= 4.5; // WCAG AA standard
+    };
+
     let backgroundColor = cell.style?.backgroundColor;
     
     // 1. Check for header bands first (highest priority for header rows)
@@ -269,7 +277,9 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       }
     }
 
-    // Apply background color and calculate contrast
+    // Calculate optimal contrast-based text color first
+    let optimalTextColor = isDarkMode ? '#ffffff' : '#000000';
+    
     if (backgroundColor) {
       style.backgroundColor = backgroundColor;
       
@@ -278,28 +288,33 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       
       // In dark mode, be more aggressive about using black text for visibility
       if (isDarkMode) {
-        // Lower threshold from 0.8 to 0.6 and add special handling for near-white colors
-        if (luminance > 0.6 || backgroundColor.toLowerCase().includes('#f') || 
+        // Lower threshold and add special handling for near-white colors
+        if (luminance > 0.5 || backgroundColor.toLowerCase().includes('#f') || 
             backgroundColor.toLowerCase().includes('white') || backgroundColor.toLowerCase().includes('fff')) {
-          style.color = '#000000';
+          optimalTextColor = '#000000';
         } else {
-          style.color = '#ffffff';
+          optimalTextColor = '#ffffff';
         }
       } else {
-        style.color = luminance > 0.5 ? '#000000' : '#ffffff';
+        optimalTextColor = luminance > 0.5 ? '#000000' : '#ffffff';
       }
+      
+      // Set the optimal color first
+      style.color = optimalTextColor;
     }
     
-    // Excel font color logic - override black colors in dark mode
-    if (cell.style?.fontColor) {
+    // Only apply Excel font color if it provides good contrast
+    if (cell.style?.fontColor && backgroundColor) {
       const excelFontColor = cell.style.fontColor;
       
-      // Always override black Excel font color in dark mode
-      if (isDarkMode && excelFontColor === '#000000') {
-        style.color = '#ffffff';
-      } else if (!isDarkMode || excelFontColor !== '#000000') {
+      // Check if Excel font color provides good contrast with background
+      if (hasGoodContrast(excelFontColor, backgroundColor)) {
         style.color = excelFontColor;
       }
+      // If Excel color doesn't provide good contrast, keep the optimal color we calculated
+    } else if (cell.style?.fontColor && !backgroundColor) {
+      // If there's no background color, use Excel font color directly
+      style.color = cell.style.fontColor;
     }
     
     if (cell.style?.fontWeight) {

@@ -303,18 +303,23 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       style.color = optimalTextColor;
     }
     
-    // Only apply Excel font color if it provides good contrast
-    if (cell.style?.fontColor && backgroundColor) {
+    // Apply Excel font color with contrast validation
+    if (cell.style?.fontColor) {
       const excelFontColor = cell.style.fontColor;
       
-      // Check if Excel font color provides good contrast with background
-      if (hasGoodContrast(excelFontColor, backgroundColor)) {
+      // Determine effective background color (cell background or theme background)
+      const effectiveBackground = backgroundColor || (isDarkMode ? '#000000' : '#ffffff');
+      
+      // Check if Excel font color provides good contrast with effective background
+      if (hasGoodContrast(excelFontColor, effectiveBackground)) {
         style.color = excelFontColor;
+      } else {
+        // Excel color doesn't provide good contrast, use theme-appropriate color
+        style.color = isDarkMode ? '#ffffff' : '#000000';
       }
-      // If Excel color doesn't provide good contrast, keep the optimal color we calculated
-    } else if (cell.style?.fontColor && !backgroundColor) {
-      // If there's no background color, use Excel font color directly
-      style.color = cell.style.fontColor;
+    } else if (!backgroundColor) {
+      // No Excel font color and no background - use theme default
+      style.color = isDarkMode ? '#ffffff' : '#000000';
     }
     
     if (cell.style?.fontWeight) {

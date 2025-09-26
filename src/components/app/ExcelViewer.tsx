@@ -129,19 +129,14 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
         let previewUrl: string;
         
         // Check if fileUrl is already a JSON blob URL (from ZIP extraction)
-        if (fileUrl.includes('blob:') && fileUrl.includes('application/json')) {
+        if (fileUrl.includes('blob:')) {
+          // Try to determine if this is a JSON blob by checking if we can fetch JSON from it
+          console.log('🔍 Detected blob URL, attempting to fetch content to determine type');
           previewUrl = fileUrl;
-          console.log('🔍 Using extracted JSON blob URL directly');
         } 
         // For test files, use static path
         else if (fileUrl.includes('test-files')) {
           previewUrl = '/test-files/beneficiaries_by_file.preview.json';
-        } 
-        // For blob URLs of Excel files, we can't construct preview URL
-        else if (fileUrl.includes('blob:')) {
-          console.warn('⚠️ Cannot fetch preview JSON from Excel blob URL, colors will not be applied');
-          setPreviewData(null);
-          return;
         } 
         // For regular file URLs, try to construct preview URL
         else {
@@ -156,14 +151,19 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
           const contentType = response.headers.get('content-type');
           console.log('📄 Response content-type:', contentType);
           
-          if (contentType && !contentType.includes('application/json') && !contentType.includes('text/')) {
-            console.error('❌ Invalid content type, expected JSON but got:', contentType);
+          // For blob URLs, content-type might not be set correctly, so also check the actual content
+          const responseText = await response.text();
+          console.log('📄 Response text length:', responseText.length, 'First 100 chars:', responseText.substring(0, 100));
+          
+          // Check if this looks like JSON content
+          const looksLikeJson = responseText.trim().startsWith('{') && responseText.includes('"schema"');
+          const hasValidContentType = contentType && (contentType.includes('application/json') || contentType.includes('text/'));
+          
+          if (!hasValidContentType && !looksLikeJson) {
+            console.error('❌ Content does not appear to be JSON, content-type:', contentType);
             setPreviewData(null);
             return;
           }
-          
-          const responseText = await response.text();
-          console.log('📄 Raw response text length:', responseText.length);
           
           // Check if response starts with binary markers
           if (responseText.startsWith('PK') || responseText.includes('\x00')) {
@@ -174,7 +174,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
           
           try {
             const preview = JSON.parse(responseText);
-            console.log('📋 Parsed preview data:', preview);
+            console.log('✅ Preview JSON parsed successfully:', preview);
             
             // Validate schema
             if (preview.schema === "ffn.preview.v1") {

@@ -159,7 +159,7 @@ export default function CaseAnalysisResults() {
         if (jsonData.length > 2) {
           parsedData.beneficiaryHeaders = jsonData[0] as string[];
           // Calculate total beneficiaries (all rows minus header rows)
-          const totalBeneficiaries = jsonData.length - 3; // Subtract 3 for headers
+          const totalBeneficiaries = jsonData.length - 2; // Subtract 2 for headers
           parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
           
           // Start from row 2 (index 2) since data starts from 3rd row, take up to 25 beneficiaries for display

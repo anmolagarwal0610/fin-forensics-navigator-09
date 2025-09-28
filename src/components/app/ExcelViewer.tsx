@@ -401,7 +401,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
         </div>
         {processedData.length > maxRows && (
           <p className="mt-4 text-sm text-muted-foreground">
-            Showing top {maxRows} rows of {Math.max(0, processedData.length - 3)} total rows
+            Showing top {maxRows} rows of {Math.max(0, processedData.length - 2)} total rows
           </p>
         )}
       </CardContent>

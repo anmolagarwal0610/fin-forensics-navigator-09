@@ -8,10 +8,11 @@ import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export default function CaseDetail() {
   const {
     id
@@ -178,6 +179,32 @@ export default function CaseDetail() {
             </Tooltip>
           </TooltipProvider>
         </div>
+
+        {/* Review Files Banner - Only shown when status is 'Review' */}
+        {case_.status === 'Review' && (
+          <Alert className="border-accent bg-accent/5">
+            <AlertCircle className="h-5 w-5 text-accent" />
+            <AlertTitle className="text-lg font-semibold mb-2">Review Extracted Data</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p className="text-muted-foreground">
+                CSV files have been successfully extracted from your PDFs. Please review and verify the data before proceeding with the final analysis.
+              </p>
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="hero" 
+                  onClick={() => navigate(`/app/cases/${case_.id}/review`)}
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  Go to Review Page
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {files.filter(f => f.file_name.endsWith('.csv')).length} files ready for review
+                </span>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
 
         {case_.description && <Card>
             <CardContent className="pt-6">

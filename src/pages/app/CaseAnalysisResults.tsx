@@ -286,12 +286,23 @@ export default function CaseAnalysisResults() {
       const analysisFileNames = Object.keys(zipData.files);
       originalFiles.forEach(originalFile => {
         const baseName = originalFile.file_name.replace(/\.[^/.]+$/, ""); // Remove extension
-        const rawTransactionsFile = analysisFileNames.find(name => 
-          name.startsWith(`raw_transactions_${baseName}`) && name.endsWith('.xlsx')
-        );
-        const summaryFile = analysisFileNames.find(name => 
-          name.startsWith(`summary_${baseName}`) && name.endsWith('.xlsx')
-        );
+        
+        // Try multiple patterns for HITL (Pipeline B) and direct (Pipeline A) flows
+        const rawTransactionsFile = analysisFileNames.find(name => {
+          const patterns = [
+            `raw_transactions_${baseName}.xlsx`,        // Pipeline A
+            `raw_transactions_${baseName}.csv.xlsx`,    // Pipeline B
+          ];
+          return patterns.some(pattern => name === pattern);
+        });
+        
+        const summaryFile = analysisFileNames.find(name => {
+          const patterns = [
+            `summary_${baseName}.xlsx`,        // Pipeline A
+            `summary_${baseName}.csv.xlsx`,    // Pipeline B
+          ];
+          return patterns.some(pattern => name === pattern);
+        });
 
         if (rawTransactionsFile || summaryFile) {
           parsedData.fileSummaries.push({

@@ -8,7 +8,7 @@ import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
@@ -54,13 +54,23 @@ export default function CaseDetail() {
       navigate("/app/dashboard");
     }).finally(() => setLoading(false));
   }, [id, navigate]);
-  const getEventIcon = (type: EventRecord['type']) => {
+  const getEventIcon = (event: EventRecord) => {
+    const type = event.type;
+    const payload = event.payload as any;
+    
     switch (type) {
       case 'created':
         return <CheckCircle className="h-4 w-4" />;
       case 'files_uploaded':
         return <Upload className="h-4 w-4" />;
       case 'analysis_submitted':
+        // Check if it's HITL review stage
+        if (payload?.stage === 'initial_parse') {
+          return <FileSearch className="h-4 w-4" />;
+        }
+        if (payload?.stage === 'final_analysis') {
+          return <FileCheck className="h-4 w-4" />;
+        }
         return <Clock className="h-4 w-4" />;
       case 'analysis_ready':
         return <CheckCircle className="h-4 w-4" />;
@@ -68,8 +78,10 @@ export default function CaseDetail() {
         return <Clock className="h-4 w-4" />;
     }
   };
-  const getEventTitle = (type: EventRecord['type']) => {
-    const typeStr = type as string;
+  
+  const getEventTitle = (event: EventRecord) => {
+    const type = event.type;
+    const payload = event.payload as any;
     
     switch (type) {
       case 'created':
@@ -77,18 +89,23 @@ export default function CaseDetail() {
       case 'files_uploaded':
         return 'Files Uploaded';
       case 'analysis_submitted':
+        // HITL flow stages
+        if (payload?.stage === 'initial_parse') {
+          return 'Extracted Data Received for Review';
+        }
+        if (payload?.stage === 'final_analysis') {
+          return 'Submitted for Final Analysis - No Changes Made';
+        }
+        // Check if it's HITL mode
+        if (payload?.mode === 'hitl') {
+          return 'Analysis Started - HITL Flow';
+        }
         return 'Analysis Started';
       case 'analysis_ready':
         return 'Results Ready';
       case 'note_added':
         return 'Note Added';
       default:
-        // Handle HITL-specific events that aren't in the enum yet
-        if (typeStr === 'initial_parse_started') return 'Initial PDF Parsing Started';
-        if (typeStr === 'initial_parse_completed') return 'CSV Files Extracted';
-        if (typeStr === 'review_in_progress') return 'Files Ready for Review';
-        if (typeStr === 'final_analysis_started') return 'Final Analysis In Progress';
-        if (typeStr === 'final_analysis_completed') return 'Analysis Complete';
         return type;
     }
   };
@@ -304,11 +321,11 @@ export default function CaseDetail() {
                 </div> : <div className="space-y-4">
                   {events.map(event => <div key={event.id} className="flex items-start gap-3">
                       <div className="flex-shrink-0 mt-1">
-                        {getEventIcon(event.type)}
+                        {getEventIcon(event)}
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">
-                          {getEventTitle(event.type)}
+                          {getEventTitle(event)}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(event.created_at).toLocaleString()}

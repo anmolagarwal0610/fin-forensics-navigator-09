@@ -177,7 +177,7 @@ export default function CaseReview() {
               title: "Analysis complete!",
               description: "Results are ready to view."
             });
-            navigate(`/app/cases/${case_.id}`);
+            navigate("/app/dashboard");
           } else if (updatedCase.status === 'Failed' || updatedCase.status === 'Timeout') {
             clearInterval(pollInterval);
             setProcessingStatus({

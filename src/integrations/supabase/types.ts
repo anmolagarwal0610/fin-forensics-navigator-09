@@ -14,6 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      case_csv_files: {
+        Row: {
+          case_id: string
+          corrected_csv_url: string | null
+          created_at: string | null
+          id: string
+          is_corrected: boolean | null
+          original_csv_url: string
+          pdf_file_name: string
+          updated_at: string | null
+        }
+        Insert: {
+          case_id: string
+          corrected_csv_url?: string | null
+          created_at?: string | null
+          id?: string
+          is_corrected?: boolean | null
+          original_csv_url: string
+          pdf_file_name: string
+          updated_at?: string | null
+        }
+        Update: {
+          case_id?: string
+          corrected_csv_url?: string | null
+          created_at?: string | null
+          id?: string
+          is_corrected?: boolean | null
+          original_csv_url?: string
+          pdf_file_name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_csv_files_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       case_files: {
         Row: {
           case_id: string
@@ -54,11 +95,14 @@ export type Database = {
       }
       cases: {
         Row: {
+          analysis_mode: string | null
           analysis_status: string | null
           color_hex: string
           created_at: string
           creator_id: string
+          csv_zip_url: string | null
           description: string | null
+          hitl_stage: string | null
           id: string
           name: string
           org_id: string | null
@@ -68,11 +112,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          analysis_mode?: string | null
           analysis_status?: string | null
           color_hex?: string
           created_at?: string
           creator_id: string
+          csv_zip_url?: string | null
           description?: string | null
+          hitl_stage?: string | null
           id?: string
           name: string
           org_id?: string | null
@@ -82,11 +129,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          analysis_mode?: string | null
           analysis_status?: string | null
           color_hex?: string
           created_at?: string
           creator_id?: string
+          csv_zip_url?: string | null
           description?: string | null
+          hitl_stage?: string | null
           id?: string
           name?: string
           org_id?: string | null
@@ -199,6 +249,7 @@ export type Database = {
         | "Archived"
         | "Failed"
         | "Timeout"
+        | "Review"
       event_type:
         | "created"
         | "files_uploaded"
@@ -341,6 +392,7 @@ export const Constants = {
         "Archived",
         "Failed",
         "Timeout",
+        "Review",
       ],
       event_type: [
         "created",

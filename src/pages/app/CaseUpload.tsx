@@ -2,11 +2,13 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import FileUploader from "@/components/app/FileUploader";
 import { getCaseById, addFiles, addEvent, updateCaseStatus, type CaseRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Info } from "lucide-react";
 
 interface FileItem {
   name: string;
@@ -21,6 +23,7 @@ export default function CaseUpload() {
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [useHitl, setUseHitl] = useState(true);
 
   useEffect(() => {
     if (!id) return;
@@ -92,10 +95,18 @@ export default function CaseUpload() {
       });
       console.log('Event logged: files_uploaded');
       
+      // Update case analysis_mode
+      const analysisMode = useHitl ? 'hitl' : 'direct';
+      await supabase
+        .from('cases')
+        .update({ analysis_mode: analysisMode })
+        .eq('id', case_.id);
+
       // Add analysis_submitted event
       await addEvent(case_.id, "analysis_submitted", {
         submitted_at: new Date().toISOString(),
-        file_count: files.length
+        file_count: files.length,
+        mode: analysisMode
       });
       console.log('Event logged: analysis_submitted');
 
@@ -104,10 +115,17 @@ export default function CaseUpload() {
       console.log('Case status updated to Processing');
       
       // Navigate immediately to Dashboard with success message
-      toast({
-        title: "Analysis started!",
-        description: `Uploaded ${files.length} files. You'll be notified when ready.`,
-      });
+      if (useHitl) {
+        toast({
+          title: "Initial parse started!",
+          description: `Uploaded ${files.length} files. You'll review the extracted data soon.`,
+        });
+      } else {
+        toast({
+          title: "Analysis started!",
+          description: `Uploaded ${files.length} files. You'll be notified when ready.`,
+        });
+      }
       
       navigate("/app/dashboard");
       
@@ -115,13 +133,23 @@ export default function CaseUpload() {
       // Small delay to avoid race conditions with DB commits
       setTimeout(async () => {
         try {
-          console.log('Invoking edge function process-case-files with caseId:', case_.id);
-          await supabase.functions.invoke('process-case-files', {
-            body: { 
-              caseId: case_.id,
-              fileNames: uploadedFiles.map(f => f.name)
-            }
-          });
+          if (useHitl) {
+            console.log('Invoking edge function initial-parse-files with caseId:', case_.id);
+            await supabase.functions.invoke('initial-parse-files', {
+              body: { 
+                caseId: case_.id,
+                fileNames: uploadedFiles.map(f => f.name)
+              }
+            });
+          } else {
+            console.log('Invoking edge function process-case-files with caseId:', case_.id);
+            await supabase.functions.invoke('process-case-files', {
+              body: { 
+                caseId: case_.id,
+                fileNames: uploadedFiles.map(f => f.name)
+              }
+            });
+          }
         } catch (processError) {
           console.error("Background processing error:", processError);
         }
@@ -178,6 +206,28 @@ export default function CaseUpload() {
           <CardTitle>Upload Files for Analysis</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div className="space-y-1">
+                <Label htmlFor="hitl-mode" className="text-base font-medium cursor-pointer">
+                  Human-In-The-Loop Review
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {useHitl 
+                    ? "Review and correct extracted data before final analysis" 
+                    : "Direct analysis without review step"}
+                </p>
+              </div>
+            </div>
+            <Switch
+              id="hitl-mode"
+              checked={useHitl}
+              onCheckedChange={setUseHitl}
+              disabled={submitting}
+            />
+          </div>
+
           <FileUploader
             files={files}
             onFilesChange={setFiles}
@@ -195,7 +245,11 @@ export default function CaseUpload() {
                 disabled={submitting}
                 size="lg"
               >
-                {submitting ? "Submitting..." : "Start Analysis"}
+                {submitting 
+                  ? "Submitting..." 
+                  : useHitl 
+                    ? "Start Initial Parse" 
+                    : "Start Analysis"}
               </Button>
             </div>
           )}

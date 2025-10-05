@@ -1,7 +1,9 @@
 
 import { supabase } from "@/lib/supabase";
 
-export type CaseStatus = 'Active' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout';
+export type CaseStatus = 'Active' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout' | 'Review';
+export type AnalysisMode = 'hitl' | 'direct';
+export type HitlStage = 'initial_parse' | 'review' | 'final_analysis' | null;
 
 export interface CaseRecord {
   id: string;
@@ -16,6 +18,20 @@ export interface CaseRecord {
   updated_at: string;
   result_zip_url?: string;
   analysis_status?: 'pending' | 'processing' | 'completed' | 'failed';
+  analysis_mode?: AnalysisMode;
+  hitl_stage?: HitlStage;
+  csv_zip_url?: string;
+}
+
+export interface CaseCsvFileRecord {
+  id: string;
+  case_id: string;
+  pdf_file_name: string;
+  original_csv_url: string;
+  corrected_csv_url?: string;
+  is_corrected: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface CaseFileRecord {
@@ -153,4 +169,55 @@ export const deleteCase = async (caseId: string) => {
   const { error } = await supabase.from("cases").delete().eq("id", caseId);
   if (error) throw error;
   return true;
+};
+
+// CSV file management functions
+export const getCaseCsvFiles = async (caseId: string) => {
+  const { data, error } = await supabase
+    .from('case_csv_files')
+    .select('*')
+    .eq('case_id', caseId)
+    .order('pdf_file_name', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as CaseCsvFileRecord[];
+};
+
+export const addCsvFile = async (caseId: string, pdfFileName: string, originalCsvUrl: string) => {
+  const { error } = await supabase
+    .from('case_csv_files')
+    .insert({
+      case_id: caseId,
+      pdf_file_name: pdfFileName,
+      original_csv_url: originalCsvUrl,
+      is_corrected: false
+    });
+
+  if (error) throw error;
+};
+
+export const updateCsvFile = async (csvFileId: string, correctedCsvUrl: string) => {
+  const { error } = await supabase
+    .from('case_csv_files')
+    .update({
+      corrected_csv_url: correctedCsvUrl,
+      is_corrected: true
+    })
+    .eq('id', csvFileId);
+
+  if (error) throw error;
+};
+
+export const updateCaseHitlStage = async (caseId: string, stage: HitlStage, csvZipUrl?: string) => {
+  const updateData: any = { hitl_stage: stage };
+  if (csvZipUrl !== undefined) {
+    updateData.csv_zip_url = csvZipUrl;
+  }
+
+  const { error } = await supabase
+    .from('cases')
+    .update(updateData)
+    .eq('id', caseId);
+
+  if (error) throw error;
 };

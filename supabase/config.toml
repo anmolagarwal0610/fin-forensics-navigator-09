@@ -2,3 +2,9 @@ project_id = "rwzpffsaivgjuuthvkfa"
 
 [functions.process-case-files]
 verify_jwt = true
+
+[functions.initial-parse-files]
+verify_jwt = true
+
+[functions.final-analysis-files]
+verify_jwt = true

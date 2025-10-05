@@ -26,7 +26,12 @@ export default function ModernCaseCard(props: Props) {
   });
 
   const handleClick = () => {
-    navigate(`/app/cases/${props.id}`);
+    // If status is Review, navigate to review page
+    if (props.status === 'Review') {
+      navigate(`/app/cases/${props.id}/review`);
+    } else {
+      navigate(`/app/cases/${props.id}`);
+    }
   };
 
   return (

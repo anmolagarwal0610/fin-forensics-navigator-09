@@ -66,6 +66,11 @@ export default function Dashboard() {
                 title: "Analysis Complete!",
                 description: `Case "${updatedCase.name}" is ready for review.`,
               });
+            } else if (updatedCase.status === 'Review') {
+              toast({
+                title: "Ready for Review!",
+                description: `Case "${updatedCase.name}" data has been extracted. Please review.`,
+              });
             } else if (updatedCase.status === 'Failed') {
               toast({
                 title: "Analysis Failed",

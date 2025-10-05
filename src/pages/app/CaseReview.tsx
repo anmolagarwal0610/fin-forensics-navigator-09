@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { getCaseById, getCaseCsvFiles, updateCsvFile, type CaseRecord, type CaseCsvFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, Upload, Check, FileText } from "lucide-react";
+import { ArrowLeft, Download, Upload, Check, FileText, Eye, Loader2 } from "lucide-react";
+import FilePreviewModal from "@/components/app/FilePreviewModal";
 
 export default function CaseReview() {
   const { id } = useParams<{ id: string }>();
@@ -16,6 +17,11 @@ export default function CaseReview() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
+  const [processingStatus, setProcessingStatus] = useState<{
+    active: boolean;
+    message: string;
+  }>({ active: false, message: '' });
 
   useEffect(() => {
     if (!id) return;
@@ -115,10 +121,31 @@ export default function CaseReview() {
     }
   };
 
+  const handlePreviewCsv = async (csvFile: CaseCsvFileRecord) => {
+    try {
+      const url = csvFile.is_corrected && csvFile.corrected_csv_url
+        ? csvFile.corrected_csv_url
+        : csvFile.original_csv_url;
+
+      setPreviewFile({ 
+        name: csvFile.pdf_file_name.replace('.pdf', '.csv'), 
+        url 
+      });
+    } catch (error) {
+      console.error("Preview error:", error);
+      toast({ title: "Preview failed", variant: "destructive" });
+    }
+  };
+
   const handleProceedToFinalAnalysis = async () => {
     if (!case_) return;
 
     setProcessing(true);
+    setProcessingStatus({
+      active: true,
+      message: 'Starting final analysis...'
+    });
+
     try {
       toast({ title: "Starting final analysis..." });
 
@@ -128,12 +155,63 @@ export default function CaseReview() {
 
       if (error) throw error;
 
-      toast({
-        title: "Final analysis started!",
-        description: "You'll be notified when results are ready."
+      // Show processing status and poll for completion
+      setProcessingStatus({
+        active: true,
+        message: 'Analysis in progress. This may take a few minutes...'
       });
 
-      navigate("/app/dashboard");
+      // Poll for case status updates
+      const pollInterval = setInterval(async () => {
+        try {
+          const updatedCase = await getCaseById(case_.id);
+          if (!updatedCase) return;
+
+          if (updatedCase.status === 'Ready') {
+            clearInterval(pollInterval);
+            setProcessingStatus({
+              active: false,
+              message: ''
+            });
+            toast({
+              title: "Analysis complete!",
+              description: "Results are ready to view."
+            });
+            navigate(`/app/cases/${case_.id}`);
+          } else if (updatedCase.status === 'Failed' || updatedCase.status === 'Timeout') {
+            clearInterval(pollInterval);
+            setProcessingStatus({
+              active: false,
+              message: ''
+            });
+            toast({
+              title: "Analysis failed",
+              description: "Please try again or contact support.",
+              variant: "destructive"
+            });
+            navigate("/app/dashboard");
+          }
+        } catch (error) {
+          console.error("Polling error:", error);
+        }
+      }, 3000); // Poll every 3 seconds
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        if (processingStatus.active) {
+          setProcessingStatus({
+            active: false,
+            message: ''
+          });
+          toast({
+            title: "Analysis is taking longer than expected",
+            description: "You can check the results later from the dashboard.",
+          });
+          navigate("/app/dashboard");
+        }
+      }, 300000); // 5 minutes
+
     } catch (error) {
       console.error("Failed to start final analysis:", error);
       toast({
@@ -141,14 +219,26 @@ export default function CaseReview() {
         variant: "destructive"
       });
       setProcessing(false);
+      setProcessingStatus({
+        active: false,
+        message: ''
+      });
     }
   };
 
-  if (loading) {
+  if (loading || processingStatus.active) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-center">
-          <div className="text-lg font-medium mb-2">Loading review data...</div>
+        <div className="text-center space-y-4">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-accent" />
+          <div className="text-lg font-medium">
+            {processingStatus.active ? processingStatus.message : 'Loading review data...'}
+          </div>
+          {processingStatus.active && (
+            <p className="text-sm text-muted-foreground">
+              Please wait while we process your files. Do not close this page.
+            </p>
+          )}
         </div>
       </div>
     );
@@ -229,12 +319,21 @@ export default function CaseReview() {
 
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleDownloadCsv(csvFile)}
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handlePreviewCsv(csvFile)}
+                      className="h-8 w-8"
                     >
-                      <Download className="h-4 w-4 mr-1" />
-                      Download
+                      <Eye className="h-4 w-4" />
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDownloadCsv(csvFile)}
+                      className="h-8 w-8"
+                    >
+                      <Download className="h-4 w-4" />
                     </Button>
 
                     <label>
@@ -274,6 +373,19 @@ export default function CaseReview() {
           </div>
         </CardContent>
       </Card>
+
+      {previewFile && (
+        <FilePreviewModal
+          isOpen={true}
+          onClose={() => setPreviewFile(null)}
+          fileName={previewFile.name}
+          fileUrl={previewFile.url}
+          onDownload={() => {
+            const csvFile = csvFiles.find(f => f.pdf_file_name.replace('.pdf', '.csv') === previewFile.name);
+            if (csvFile) handleDownloadCsv(csvFile);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -8,11 +8,13 @@ import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import FilePreviewModal from "@/components/app/FilePreviewModal";
+import { getCaseCsvFiles } from "@/api/cases";
 export default function CaseDetail() {
   const {
     id
@@ -25,9 +27,16 @@ export default function CaseDetail() {
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [csvFileCount, setCsvFileCount] = useState(0);
+  const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
   useEffect(() => {
     if (!id) return;
-    Promise.all([getCaseById(id), getCaseFiles(id), getCaseEvents(id)]).then(([caseData, filesData, eventsData]) => {
+    Promise.all([
+      getCaseById(id), 
+      getCaseFiles(id), 
+      getCaseEvents(id),
+      getCaseCsvFiles(id)
+    ]).then(([caseData, filesData, eventsData, csvFiles]) => {
       if (!caseData) {
         navigate("/app/dashboard");
         return;
@@ -35,6 +44,7 @@ export default function CaseDetail() {
       setCase(caseData);
       setFiles(filesData);
       setEvents(eventsData);
+      setCsvFileCount(csvFiles.length);
     }).catch(error => {
       console.error("Failed to load case:", error);
       toast({
@@ -59,6 +69,8 @@ export default function CaseDetail() {
     }
   };
   const getEventTitle = (type: EventRecord['type']) => {
+    const typeStr = type as string;
+    
     switch (type) {
       case 'created':
         return 'Case Created';
@@ -71,6 +83,12 @@ export default function CaseDetail() {
       case 'note_added':
         return 'Note Added';
       default:
+        // Handle HITL-specific events that aren't in the enum yet
+        if (typeStr === 'initial_parse_started') return 'Initial PDF Parsing Started';
+        if (typeStr === 'initial_parse_completed') return 'CSV Files Extracted';
+        if (typeStr === 'review_in_progress') return 'Files Ready for Review';
+        if (typeStr === 'final_analysis_started') return 'Final Analysis In Progress';
+        if (typeStr === 'final_analysis_completed') return 'Analysis Complete';
         return type;
     }
   };
@@ -92,6 +110,39 @@ export default function CaseDetail() {
     }
   };
 
+  const canPreview = (fileName: string): boolean => {
+    const ext = fileName.toLowerCase().split('.').pop();
+    return ['pdf', 'xlsx', 'xls', 'csv', 'jpg', 'jpeg', 'png', 'webp'].includes(ext || '');
+  };
+
+  const handlePreviewFile = async (file: CaseFileRecord) => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Authentication required");
+      }
+
+      const filePath = `${user.id}/${case_?.id}/${file.file_name}`;
+      
+      const { data: signedUrlData, error } = await supabase.storage
+        .from('case-files')
+        .createSignedUrl(filePath, 3600);
+      
+      if (error || !signedUrlData) {
+        throw new Error("Failed to generate preview URL");
+      }
+
+      setPreviewFile({ name: file.file_name, url: signedUrlData.signedUrl });
+    } catch (error) {
+      console.error("Failed to preview file:", error);
+      toast({
+        title: "Failed to preview file",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const handleDownloadFile = async (file: CaseFileRecord) => {
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -99,7 +150,6 @@ export default function CaseDetail() {
         throw new Error("Authentication required");
       }
 
-      // Extract the storage path from the file URL or use a constructed path
       const filePath = `${user.id}/${case_?.id}/${file.file_name}`;
       
       const { data, error } = await supabase.storage
@@ -110,7 +160,6 @@ export default function CaseDetail() {
         throw new Error(`Failed to download file: ${error.message}`);
       }
 
-      // Create a download link
       const url = URL.createObjectURL(data);
       const link = document.createElement('a');
       link.href = url;
@@ -180,32 +229,6 @@ export default function CaseDetail() {
           </TooltipProvider>
         </div>
 
-        {/* Review Files Banner - Only shown when status is 'Review' */}
-        {case_.status === 'Review' && (
-          <Alert className="border-accent bg-accent/5">
-            <AlertCircle className="h-5 w-5 text-accent" />
-            <AlertTitle className="text-lg font-semibold mb-2">Review Extracted Data</AlertTitle>
-            <AlertDescription className="space-y-3">
-              <p className="text-muted-foreground">
-                CSV files have been successfully extracted from your PDFs. Please review and verify the data before proceeding with the final analysis.
-              </p>
-              <div className="flex items-center gap-3">
-                <Button 
-                  variant="hero" 
-                  onClick={() => navigate(`/app/cases/${case_.id}/review`)}
-                  className="gap-2"
-                >
-                  <FileText className="h-4 w-4" />
-                  Go to Review Page
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  {files.filter(f => f.file_name.endsWith('.csv')).length} files ready for review
-                </span>
-              </div>
-            </AlertDescription>
-          </Alert>
-        )}
-
         {case_.description && <Card>
             <CardContent className="pt-6">
               <p className="text-muted-foreground">{case_.description}</p>
@@ -241,15 +264,26 @@ export default function CaseDetail() {
                         <FileText className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{file.file_name}</span>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDownloadFile(file)}
-                        className="h-8 px-3"
-                      >
-                        <Download className="h-3 w-3 mr-1" />
-                        Download
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        {canPreview(file.file_name) && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handlePreviewFile(file)}
+                            className="h-8 w-8"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDownloadFile(file)}
+                          className="h-8 w-8"
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>)}
                 </div>}
             </CardContent>
@@ -286,6 +320,32 @@ export default function CaseDetail() {
           </Card>
         </div>
 
+        {/* Review Files Banner - Only shown when status is 'Review' */}
+        {case_.status === 'Review' && (
+          <Alert className="border-accent bg-accent/5">
+            <AlertCircle className="h-5 w-5 text-accent" />
+            <AlertTitle className="text-lg font-semibold mb-2">Review Extracted Data</AlertTitle>
+            <AlertDescription className="space-y-3">
+              <p className="text-muted-foreground">
+                CSV files have been successfully extracted from your PDFs. Please review and verify the data before proceeding with the final analysis.
+              </p>
+              <div className="flex items-center gap-3">
+                <Button 
+                  variant="hero" 
+                  onClick={() => navigate(`/app/cases/${case_.id}/review`)}
+                  className="gap-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  Go to Review Page
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {csvFileCount} file{csvFileCount !== 1 ? 's' : ''} ready for review
+                </span>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Status-specific Messages */}
         {(case_.status === 'Failed' || case_.status === 'Timeout') && <CaseStatusMessage status={case_.status} onRetry={() => navigate(`/app/cases/${case_.id}/upload`)} onContactSupport={() => window.open('mailto:support@finnavigator.com?subject=Case Analysis Issue&body=Case ID: ' + case_.id, '_blank')} />}
 
@@ -314,6 +374,24 @@ export default function CaseDetail() {
         </Card>
       </div>
       
-      <DeleteCaseModal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} onConfirm={handleDeleteCase} caseName={case_.name} />
+      <DeleteCaseModal 
+        isOpen={isDeleteModalOpen} 
+        onClose={() => setIsDeleteModalOpen(false)} 
+        onConfirm={handleDeleteCase} 
+        caseName={case_.name} 
+      />
+
+      {previewFile && (
+        <FilePreviewModal
+          isOpen={true}
+          onClose={() => setPreviewFile(null)}
+          fileName={previewFile.name}
+          fileUrl={previewFile.url}
+          onDownload={() => {
+            const file = files.find(f => f.file_name === previewFile.name);
+            if (file) handleDownloadFile(file);
+          }}
+        />
+      )}
     </>;
 }

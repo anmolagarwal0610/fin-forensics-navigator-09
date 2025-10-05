@@ -23,6 +23,8 @@ serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // BACKEND_API_URL should only contain the base URL (e.g., https://your-backend.ngrok.io)
+    // This function appends the specific endpoint path: /final-analysis/
     const backendApiUrl = Deno.env.get("BACKEND_API_URL")!;
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);

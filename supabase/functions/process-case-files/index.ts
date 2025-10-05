@@ -18,6 +18,8 @@ serve(async (req) => {
     
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    // BACKEND_API_URL should only contain the base URL (e.g., https://your-backend.ngrok.io)
+    // This function appends the specific endpoint path: /parse-statements/
     const backendApiUrl = Deno.env.get('BACKEND_API_URL')!;
     
     if (!backendApiUrl) {
@@ -103,7 +105,7 @@ serve(async (req) => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
 
-    const backendResponse = await fetch(backendApiUrl, {
+    const backendResponse = await fetch(`${backendApiUrl}/parse-statements/`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(backendPayload),

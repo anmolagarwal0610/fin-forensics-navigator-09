@@ -41,7 +41,8 @@ export default function FileUploader({
     accept: {
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
-      'application/vnd.ms-excel': ['.xls']
+      'application/vnd.ms-excel': ['.xls'],
+      'text/csv': ['.csv']
     },
     maxSize: maxFileSize,
     onDragEnter: () => setDragActive(true),
@@ -84,7 +85,7 @@ export default function FileUploader({
             or click to browse files
           </p>
           <p className="text-xs text-muted-foreground">
-            Accepts PDF and Excel files • Max {Math.round(maxFileSize / (1024 * 1024))}MB per file
+            Accepts PDF, Excel, and CSV files • Max {Math.round(maxFileSize / (1024 * 1024))}MB per file
           </p>
         </div>
       </Card>

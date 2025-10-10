@@ -255,10 +255,10 @@ export default function CaseReview() {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => navigate("/app/dashboard")}
+          onClick={() => navigate(`/app/cases/${id}`)}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
+          Back
         </Button>
         <div className="flex items-center gap-2">
           <span

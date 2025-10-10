@@ -277,11 +277,20 @@ export default function CaseDetail() {
                   </Button>
                 </div> : <div className="space-y-2">
                   {files.map(file => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{file.file_name}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-sm truncate cursor-default">{file.file_name}</span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>{file.file_name}</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-shrink-0">
                         {canPreview(file.file_name) && (
                           <Button
                             variant="ghost"

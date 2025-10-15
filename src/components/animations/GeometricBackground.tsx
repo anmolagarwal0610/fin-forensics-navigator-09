@@ -52,6 +52,7 @@ const GeometricBackground = () => {
             left: `${Math.random() * 100}%`,
             top: `${Math.random() * 100}%`,
           }}
+          initial={{ opacity: 0, scale: 0 }}
           animate={{
             y: [-20, -100, -20],
             opacity: [0, 1, 0],

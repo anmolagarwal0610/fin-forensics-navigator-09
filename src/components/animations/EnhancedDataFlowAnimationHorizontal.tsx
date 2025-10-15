@@ -225,7 +225,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
           <>
             {leftPaths.map((p, i) => (
               <g key={`ldots-${i}`}>
-                <circle r="4" fill="hsl(var(--accent))" opacity="0.75">
+                <circle r="4" fill="hsl(var(--accent))">
+                  <animate 
+                    attributeName="opacity" 
+                    from="0" 
+                    to="0.75" 
+                    begin={`${(0.8 + i * 0.15).toFixed(2)}s`}
+                    dur="0.3s" 
+                    fill="freeze"
+                  />
                   <animateMotion
                     dur={`${(leftDur[i] ?? 2.8).toFixed(2)}s`}
                     repeatCount="indefinite"
@@ -234,7 +242,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
                     <mpath href={`#${p.id}`} />
                   </animateMotion>
                 </circle>
-                <circle r="4" fill="hsl(var(--accent))" opacity="0.6">
+                <circle r="4" fill="hsl(var(--accent))">
+                  <animate 
+                    attributeName="opacity" 
+                    from="0" 
+                    to="0.6" 
+                    begin={`${(1.6 + i * 0.2).toFixed(2)}s`}
+                    dur="0.3s" 
+                    fill="freeze"
+                  />
                   <animateMotion
                     dur={`${(((leftDur[i] ?? 3.3) * 1.15)).toFixed(2)}s`}
                     repeatCount="indefinite"
@@ -246,7 +262,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
               </g>
             ))}
 
-            <circle r="4" fill="hsl(var(--success))" opacity="0.85">
+            <circle r="4" fill="hsl(var(--success))">
+              <animate 
+                attributeName="opacity" 
+                from="0" 
+                to="0.85" 
+                begin="2s"
+                dur="0.3s" 
+                fill="freeze"
+              />
               <animateMotion
                 dur={`${(rightDur["rp-top"] ?? 2.4).toFixed(2)}s`}
                 repeatCount="indefinite"
@@ -255,7 +279,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
                 <mpath href="#rp-top" />
               </animateMotion>
             </circle>
-            <circle r="4" fill="hsl(var(--success))" opacity="0.6">
+            <circle r="4" fill="hsl(var(--success))">
+              <animate 
+                attributeName="opacity" 
+                from="0" 
+                to="0.6" 
+                begin="2.8s"
+                dur="0.3s" 
+                fill="freeze"
+              />
               <animateMotion
                 dur={`${(((rightDur["rp-top"] ?? 2.4) * 1.25)).toFixed(2)}s`}
                 repeatCount="indefinite"
@@ -265,7 +297,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
               </animateMotion>
             </circle>
 
-            <circle r="4" fill="hsl(var(--accent))" opacity="0.85">
+            <circle r="4" fill="hsl(var(--accent))">
+              <animate 
+                attributeName="opacity" 
+                from="0" 
+                to="0.85" 
+                begin="2.2s"
+                dur="0.3s" 
+                fill="freeze"
+              />
               <animateMotion
                 dur={`${(rightDur["rp-bottom"] ?? 2.6).toFixed(2)}s`}
                 repeatCount="indefinite"
@@ -274,7 +314,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
                 <mpath href="#rp-bottom" />
               </animateMotion>
             </circle>
-            <circle r="4" fill="hsl(var(--accent))" opacity="0.6">
+            <circle r="4" fill="hsl(var(--accent))">
+              <animate 
+                attributeName="opacity" 
+                from="0" 
+                to="0.6" 
+                begin="3s"
+                dur="0.3s" 
+                fill="freeze"
+              />
               <animateMotion
                 dur={`${(((rightDur["rp-bottom"] ?? 2.6) * 1.23)).toFixed(2)}s`}
                 repeatCount="indefinite"

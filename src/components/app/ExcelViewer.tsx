@@ -62,9 +62,10 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
   // Parse Excel range to get cell coordinates
   const parseRange = (range: string) => {
-    // Convert "C1:D1" to coordinates
+    // Convert "C1:D1" or "B1" to coordinates
     const [start, end] = range.split(':');
     const parseCell = (cellAddress: string) => {
+      if (!cellAddress) return { col: 0, row: 0 };
       const match = cellAddress.match(/^([A-Z]+)(\d+)$/);
       if (!match) return { col: 0, row: 0 };
       const [, letters, numbers] = match;
@@ -74,7 +75,8 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
     };
     
     const startCoord = parseCell(start);
-    const endCoord = parseCell(end);
+    // If no end coordinate (single cell reference like "B1"), use start as end
+    const endCoord = end ? parseCell(end) : startCoord;
     return {
       startRow: startCoord.row,
       endRow: endCoord.row,

@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 
 interface MergedRange {
   startRow: number;
@@ -345,6 +346,15 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
     };
   };
 
+  const truncateText = (text: string, maxLength: number = 200) => {
+    if (!text || text.length <= maxLength) return { text, truncated: false };
+    return {
+      text: text.substring(0, maxLength) + '...',
+      truncated: true,
+      original: text
+    };
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -363,41 +373,59 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
           Credit and Debit amounts are with respect to bank statements. Any amount appearing under Total Credit means that the bank account owner received that amount from the beneficiary. Any amount under Total Debit means the bank account owner paid that amount to the beneficiary.
         </p>
         <div className="relative">
-          <ScrollArea className="h-[600px] w-full">
-            <ScrollBar orientation="horizontal" />
-            <div className="overflow-x-auto">
-              <table className="border-collapse min-w-full">
-                <tbody>
-                  {displayData.map((row, rowIndex) => (
-                    <tr key={rowIndex}>
-                    {row
-                      .map((cell, colIndex) => {
-                        // Skip rendering cells that are part of a merged range but not the top-left cell
-                        if (cell.isHidden) {
-                          return null;
-                        }
+          <TooltipProvider>
+            <ScrollArea className="h-[600px] w-full">
+              <ScrollBar orientation="horizontal" />
+              <div className="overflow-x-auto">
+                <table className="border-collapse min-w-full">
+                  <tbody>
+                    {displayData.map((row, rowIndex) => (
+                      <tr key={rowIndex}>
+                      {row
+                        .map((cell, colIndex) => {
+                          // Skip rendering cells that are part of a merged range but not the top-left cell
+                          if (cell.isHidden) {
+                            return null;
+                          }
 
-                        const span = getCellSpan(cell);
-                        const style = getCellStyle(cell, rowIndex, colIndex);
+                          const span = getCellSpan(cell);
+                          const style = getCellStyle(cell, rowIndex, colIndex);
+                          const cellContent = truncateText(String(cell.value || ''));
 
-                        return (
-                          <td
-                            key={colIndex}
-                            {...span}
-                            style={style}
-                            className="p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px]"
-                          >
-                            {cell.value || ''}
-                          </td>
-                        );
-                      })
-                      .filter(Boolean)}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </ScrollArea>
+                          return (
+                            <td
+                              key={colIndex}
+                              {...span}
+                              style={style}
+                              className="p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px] max-w-[400px]"
+                            >
+                              {cellContent.truncated ? (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help block truncate">
+                                      {cellContent.text}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                    <p className="whitespace-pre-wrap break-words text-xs">
+                                      {cellContent.original}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              ) : (
+                                cellContent.text
+                              )}
+                            </td>
+                          );
+                        })
+                        .filter(Boolean)}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </ScrollArea>
+          </TooltipProvider>
         </div>
         {processedData.length > maxRows && (
           <p className="mt-4 text-sm text-muted-foreground">

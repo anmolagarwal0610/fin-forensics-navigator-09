@@ -131,7 +131,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const adminEmailResponse = await resend.emails.send({
-      from: "FinNavigator <onboarding@resend.dev>",
+      from: "FinNavigator <enquiry@finnavigatorai.com>",
       to: ["hello@finnavigatorai.com"],
       subject: `New Contact Form Submission - ${sanitizedName}`,
       html: adminEmailHtml,
@@ -186,7 +186,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const userEmailResponse = await resend.emails.send({
-      from: "FinNavigator <onboarding@resend.dev>",
+      from: "FinNavigator <enquiry@finnavigatorai.com>",
       to: [sanitizedEmail],
       subject: "Thank you for contacting FinNavigator",
       html: userEmailHtml,

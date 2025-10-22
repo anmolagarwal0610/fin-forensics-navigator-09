@@ -8,3 +8,6 @@ verify_jwt = true
 
 [functions.final-analysis-files]
 verify_jwt = true
+
+[functions.send-contact-email]
+verify_jwt = false

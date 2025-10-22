@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -29,27 +30,62 @@ const Contact = () => {
     e.preventDefault();
     setIsSubmitting(true);
     
-    // Simulate form submission
-    console.log("Form submitted:", formData);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Show success message
-    toast({
-      title: "Message sent successfully!",
-      description: "We'll get back to you within 24 hours.",
-    });
-    
-    // Reset form
-    setFormData({
-      name: "",
-      email: "",
-      organization: "",
-      message: ""
-    });
-    
-    setIsSubmitting(false);
+    try {
+      // Validate inputs
+      if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields.",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Call edge function to send emails
+      const { data, error } = await supabase.functions.invoke('send-contact-email', {
+        body: {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
+          organization: formData.organization.trim(),
+          message: formData.message.trim(),
+        }
+      });
+
+      if (error) {
+        console.error("Error sending contact form:", error);
+        toast({
+          title: "Error",
+          description: "Failed to send your message. Please try again or email us directly at hello@finnavigatorai.com",
+          variant: "destructive",
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Show success message
+      toast({
+        title: "Message sent successfully!",
+        description: "We've sent you a confirmation email. We'll get back to you within 24 hours.",
+      });
+      
+      // Reset form
+      setFormData({
+        name: "",
+        email: "",
+        organization: "",
+        message: ""
+      });
+    } catch (error) {
+      console.error("Error submitting contact form:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred. Please try again later.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -73,7 +73,7 @@ const handler = async (req: Request): Promise<Response> => {
     const sanitizedOrganization = organization?.trim() || "Not specified";
     const sanitizedMessage = message.trim();
     const timestamp = new Date().toLocaleString("en-US", {
-      timeZone: "UTC",
+      timeZone: "Asia/Kolkata",
       dateStyle: "full",
       timeStyle: "long",
     });

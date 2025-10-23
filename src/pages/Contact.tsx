@@ -65,8 +65,9 @@ const Contact = () => {
 
       // Show success message
       toast({
-        title: "Message sent successfully!",
-        description: "We've sent you a confirmation email. We'll get back to you within 24 hours.",
+        title: "✓ Message Received",
+        description: "Thank you for contacting us. A confirmation email has been sent to your inbox. Our team will respond within 24 hours.",
+        className: "border-l-4 border-l-primary",
       });
       
       // Reset form

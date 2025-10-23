@@ -75,8 +75,8 @@ const handler = async (req: Request): Promise<Response> => {
     const timestamp = new Date().toLocaleString("en-US", {
       timeZone: "Asia/Kolkata",
       dateStyle: "full",
-      timeStyle: "long",
-    });
+      timeStyle: "short",
+    }).replace("GMT+5:30", "IST");
 
     // Email 1: Send notification to admin
     const adminEmailHtml = `

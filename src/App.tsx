@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
 import ScrollToTop from "@/components/ScrollToTop";
 import Layout from "@/components/layout/Layout";
+import { Toaster } from "@/components/ui/toaster";
 import Landing from "@/pages/Landing";
 import Pricing from "@/pages/Pricing";
 import Security from "@/pages/Security";
@@ -71,6 +72,7 @@ function App() {
               {/* 404 route */}
               <Route path="*" element={<Layout><NotFound /></Layout>} />
             </Routes>
+            <Toaster />
           </Router>
         </AuthProvider>
       </QueryClientProvider>

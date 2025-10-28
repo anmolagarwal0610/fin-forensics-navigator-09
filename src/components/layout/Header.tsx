@@ -9,7 +9,7 @@ const Header = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-end gap-1 text-xl font-bold text-foreground hover:text-accent transition-colors group">
+            <Link to="/" className="flex items-start gap-1 text-xl font-bold text-foreground hover:text-accent transition-colors group">
               <span>FinNavigator</span>
               <img 
                 src={navArrow} 

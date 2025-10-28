@@ -87,6 +87,7 @@ const handler = async (req: Request): Promise<Response> => {
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .logo { width: 60px; height: 60px; margin-bottom: 15px; }
             .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
             .field { margin-bottom: 20px; }
             .field-label { font-weight: bold; color: #374151; margin-bottom: 5px; }
@@ -98,6 +99,7 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
+              <img src="https://rwzpffsaivgjuuthvkfa.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="FinNavigator Logo" class="logo" />
               <h1 style="margin: 0; font-size: 24px;">New Contact Form Submission</h1>
             </div>
             <div class="content">
@@ -149,6 +151,7 @@ const handler = async (req: Request): Promise<Response> => {
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .logo { width: 60px; height: 60px; margin-bottom: 15px; }
             .content { background: white; padding: 30px; border: 1px solid #e5e7eb; }
             .summary { background: #f9fafb; padding: 20px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #667eea; }
             .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
@@ -157,6 +160,7 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
+              <img src="https://rwzpffsaivgjuuthvkfa.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="FinNavigator Logo" class="logo" />
               <h1 style="margin: 0; font-size: 24px;">Thank You for Contacting FinNavigator</h1>
             </div>
             <div class="content">

@@ -9,14 +9,23 @@ const Header = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="flex items-end gap-1 text-xl font-bold text-foreground hover:text-accent transition-colors group">
-              <span>FinNavigator</span>
-              <img 
-                src={navArrow} 
-                alt="" 
-                className="h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7 mb-0.5 transition-transform group-hover:scale-110" 
-              />
-            </Link>
+            <Link
+            to="/"
+            className="inline-flex items-baseline gap-1 sm:gap-1.5 text-xl font-bold text-foreground hover:text-accent transition-colors group"
+          >
+            <span className="leading-none">FinNavigator</span>
+            <img
+              src={navArrow}
+              alt=""
+              className="
+                block
+                h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7
+                self-baseline
+                -translate-y-[1px] sm:-translate-y-[1px] lg:-translate-y-[2px]
+                transition-transform group-hover:scale-110
+              "
+            />
+          </Link>
           </div>
           
           <nav className="hidden md:flex items-center space-x-8">

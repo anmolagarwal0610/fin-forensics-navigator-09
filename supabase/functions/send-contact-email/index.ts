@@ -99,7 +99,7 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://rwzpffsaivgjuuthvkfa.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="FinNavigator Logo" class="logo" />
+              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" class="logo" />
               <h1 style="margin: 0; font-size: 24px;">New Contact Form Submission</h1>
             </div>
             <div class="content">
@@ -160,7 +160,7 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://rwzpffsaivgjuuthvkfa.supabase.co/storage/v1/object/public/email-assets/logo.png" alt="FinNavigator Logo" class="logo" />
+              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" class="logo" />
               <h1 style="margin: 0; font-size: 24px;">Thank You for Contacting FinNavigator</h1>
             </div>
             <div class="content">

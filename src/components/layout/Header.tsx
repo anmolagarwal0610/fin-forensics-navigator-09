@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import navArrow from "@/assets/nav-arrow.png";
 
 const Header = () => {
   return (
@@ -8,8 +9,14 @@ const Header = () => {
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-xl font-bold text-foreground hover:text-accent transition-colors">
-              FinNavigator
+            <Link to="/" className="flex items-center gap-0.5 text-xl font-bold text-foreground hover:text-accent transition-colors group">
+              <span>Fin</span>
+              <img 
+                src={navArrow} 
+                alt="" 
+                className="h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 transition-transform group-hover:scale-110" 
+              />
+              <span>avigator</span>
             </Link>
           </div>
           

@@ -75,8 +75,8 @@ const handler = async (req: Request): Promise<Response> => {
     const timestamp = new Date().toLocaleString("en-US", {
       timeZone: "Asia/Kolkata",
       dateStyle: "full",
-      timeStyle: "short",
-    }).replace("GMT+5:30", "IST");
+      timeStyle: "long",
+    }).replace("India Standard Time", "IST").replace("GMT+5:30", "IST");
 
     // Email 1: Send notification to admin
     const adminEmailHtml = `
@@ -99,7 +99,6 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" class="logo" />
               <h1 style="margin: 0; font-size: 24px;">New Contact Form Submission</h1>
             </div>
             <div class="content">
@@ -125,7 +124,8 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
             </div>
             <div class="footer">
-              <p style="margin: 0;">FinNavigator AI - Contact Form System</p>
+              <p style="margin: 0 0 10px 0;">FinNavigator AI - Contact Form System</p>
+              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 40px; height: 40px; margin-top: 10px;" />
             </div>
           </div>
         </body>
@@ -160,7 +160,6 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" class="logo" />
               <h1 style="margin: 0; font-size: 24px;">Thank You for Contacting FinNavigator</h1>
             </div>
             <div class="content">
@@ -179,6 +178,7 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
               <p>We appreciate your interest in FinNavigator AI and look forward to connecting with you.</p>
               <p style="margin-top: 30px;">Best regards,<br><strong>The FinNavigator Team</strong></p>
+              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 50px; height: 50px; margin-top: 15px;" />
             </div>
             <div class="footer">
               <p style="margin: 0;">FinNavigator AI - Advanced Financial Forensics Platform</p>

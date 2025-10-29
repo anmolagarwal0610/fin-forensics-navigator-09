@@ -177,8 +177,10 @@ const handler = async (req: Request): Promise<Response> => {
                 <p style="margin: 5px 0;"><strong>Submitted:</strong> ${timestamp}</p>
               </div>
               <p>We appreciate your interest in FinNavigator AI and look forward to connecting with you.</p>
-              <p style="margin-top: 30px;">Best regards,<br><strong>The FinNavigator Team</strong></p>
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 50px; height: 50px; margin-top: 10px;" />
+              <div style="margin-top: 30px; text-align: left;">
+                <p style="margin: 0;">Best regards,<br><strong>The FinNavigator Team</strong></p>
+                <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 50px; height: 50px; margin-top: 4px;" />
+              </div>
             </div>
             <div class="footer">
               <p style="margin: 0;">FinNavigator AI - Advanced Financial Forensics Platform</p>

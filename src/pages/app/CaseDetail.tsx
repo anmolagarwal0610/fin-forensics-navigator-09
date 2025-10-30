@@ -373,7 +373,7 @@ export default function CaseDetail() {
         )}
 
         {/* Status-specific Messages */}
-        {(case_.status === 'Failed' || case_.status === 'Timeout') && <CaseStatusMessage status={case_.status} onRetry={() => navigate(`/app/cases/${case_.id}/upload`)} onContactSupport={() => window.open('mailto:support@finnavigator.com?subject=Case Analysis Issue&body=Case ID: ' + case_.id, '_blank')} />}
+        {(case_.status === 'Failed' || case_.status === 'Timeout') && <CaseStatusMessage status={case_.status} onRetry={() => navigate(`/app/cases/${case_.id}/upload`)} caseId={case_.id} caseName={case_.name} />}
 
         {/* Results Placeholder */}
         <Card>

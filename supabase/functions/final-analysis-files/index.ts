@@ -151,6 +151,35 @@ serve(async (req) => {
           payload: { error: errorText, stage: 'final_analysis' }
         });
 
+      // Auto-send support ticket
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_name')
+          .eq('user_id', user.id)
+          .single();
+
+        await supabase.functions.invoke('send-support-ticket', {
+          body: {
+            ticketType: 'auto',
+            queryType: 'Backend Processing Failed',
+            subject: `Final Analysis Failed - ${caseData.name}`,
+            description: `The backend failed during the final analysis stage. Case: ${caseData.name}. User needs immediate assistance.`,
+            userEmail: user.email,
+            userId: user.id,
+            organizationName: profile?.organization_name,
+            caseId: caseId,
+            caseName: caseData.name,
+            zipUrl: finalCsvZipUrl,
+            errorDetails: errorText,
+            stage: 'final_analysis'
+          }
+        });
+        console.log('Auto-generated support ticket sent');
+      } catch (ticketError) {
+        console.error('Failed to send auto support ticket:', ticketError);
+      }
+
       throw new Error(`Backend final analysis failed: ${errorText}`);
     }
 

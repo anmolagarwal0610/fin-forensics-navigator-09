@@ -124,6 +124,35 @@ serve(async (req) => {
           payload: { error: errorText, stage: 'initial_parse' }
         });
 
+      // Auto-send support ticket
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('organization_name')
+          .eq('user_id', user.id)
+          .single();
+
+        await supabase.functions.invoke('send-support-ticket', {
+          body: {
+            ticketType: 'auto',
+            queryType: 'Backend Processing Failed',
+            subject: `Initial Parse Failed - ${caseData.name}`,
+            description: `The backend failed during the initial parse stage. Case: ${caseData.name}. User needs immediate assistance.`,
+            userEmail: user.email,
+            userId: user.id,
+            organizationName: profile?.organization_name,
+            caseId: caseId,
+            caseName: caseData.name,
+            zipUrl: pdfZipUrl,
+            errorDetails: errorText,
+            stage: 'initial_parse'
+          }
+        });
+        console.log('Auto-generated support ticket sent');
+      } catch (ticketError) {
+        console.error('Failed to send auto support ticket:', ticketError);
+      }
+
       throw new Error(`Backend initial parse failed: ${errorText}`);
     }
 

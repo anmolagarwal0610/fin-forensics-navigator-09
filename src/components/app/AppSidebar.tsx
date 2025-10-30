@@ -1,10 +1,14 @@
 import { NavLink, useLocation } from "react-router-dom";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, FolderGit2, UserCog } from "lucide-react";
+import { LayoutDashboard, FolderGit2, UserCog, Ticket } from "lucide-react";
 const items = [{
   title: "Dashboard",
   url: "/app/dashboard",
   icon: LayoutDashboard
+}, {
+  title: "Raise a Ticket",
+  url: "/app/support/raise-ticket",
+  icon: Ticket
 }, {
   title: "Account",
   url: "/app/account",

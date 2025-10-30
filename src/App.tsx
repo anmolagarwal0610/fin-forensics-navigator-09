@@ -26,6 +26,7 @@ import CaseReview from "@/pages/app/CaseReview";
 import CaseAnalysisResults from "@/pages/app/CaseAnalysisResults";
 import Account from "@/pages/app/Account";
 import AdminCases from "@/pages/app/AdminCases";
+import RaiseTicket from "@/pages/app/RaiseTicket";
 
 // Create QueryClient outside component to prevent recreation on re-renders
 const queryClient = new QueryClient({
@@ -67,6 +68,7 @@ function App() {
               <Route path="/app/cases/:id/review" element={<ProtectedRoute><CaseReview /></ProtectedRoute>} />
               <Route path="/app/cases/:id/results" element={<ProtectedRoute><CaseAnalysisResults /></ProtectedRoute>} />
               <Route path="/app/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
+              <Route path="/app/support/raise-ticket" element={<ProtectedRoute><RaiseTicket /></ProtectedRoute>} />
               <Route path="/app/admin/cases" element={<ProtectedRoute><AdminCases /></ProtectedRoute>} />
               
               {/* 404 route */}

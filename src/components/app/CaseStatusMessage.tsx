@@ -1,14 +1,17 @@
-import { AlertTriangle, Clock, FileX } from "lucide-react";
+import { AlertTriangle, Clock, Ticket } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface CaseStatusMessageProps {
   status: 'Timeout' | 'Failed';
   onRetry?: () => void;
-  onContactSupport?: () => void;
+  caseId?: string;
+  caseName?: string;
 }
 
-export default function CaseStatusMessage({ status, onRetry, onContactSupport }: CaseStatusMessageProps) {
+export default function CaseStatusMessage({ status, onRetry, caseId, caseName }: CaseStatusMessageProps) {
+  const navigate = useNavigate();
   if (status === 'Timeout') {
     return (
       <Card className="border-orange-200 bg-orange-50 dark:border-orange-800 dark:bg-orange-900/20">
@@ -53,7 +56,7 @@ export default function CaseStatusMessage({ status, onRetry, onContactSupport }:
                 Analysis Failed
               </h3>
               <p className="text-red-700 dark:text-red-200 mt-1">
-                An error occurred during the analysis process. Our team has been notified.
+                An error occurred during the analysis process. Our team has been automatically notified.
               </p>
               <div className="flex gap-2 mt-3">
                 {onRetry && (
@@ -66,17 +69,15 @@ export default function CaseStatusMessage({ status, onRetry, onContactSupport }:
                     Retry Analysis
                   </Button>
                 )}
-                {onContactSupport && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="border-red-200 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300"
-                    onClick={onContactSupport}
-                  >
-                    <FileX className="h-4 w-4 mr-2" />
-                    Report Issue
-                  </Button>
-                )}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-red-200 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300"
+                  onClick={() => navigate('/app/support/raise-ticket')}
+                >
+                  <Ticket className="h-4 w-4 mr-2" />
+                  Raise a Ticket
+                </Button>
               </div>
             </div>
           </div>

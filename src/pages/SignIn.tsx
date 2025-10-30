@@ -57,7 +57,7 @@ export default function SignIn() {
           {/* Brand + tagline above the login box */}
           <div className="text-center mb-8 animate-fade-in">
             <h1 className="text-3xl md:text-4xl font-bold tracking-tight">FinNavigator</h1>
-            <p className="mt-2 text-base md:text-lg text-muted-foreground">Your AI partner in financial forensics.</p>
+            <p className="mt-2 text-base md:text-lg text-muted-foreground font-mono">Your AI partner in financial forensics.</p>
             <div className="mt-4 flex items-center justify-center gap-6 text-muted-foreground">
               <Shield className="h-5 w-5 hover-scale" />
               <Lock className="h-5 w-5 hover-scale" />

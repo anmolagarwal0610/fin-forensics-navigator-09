@@ -22,7 +22,7 @@ const Header = () => {
                 h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7
                 self-baseline
                 -translate-y-[1px] sm:-translate-y-[1px] lg:-translate-y-[2px]
-                -ml-[2px] sm:-ml-[3px]             /* 👈 brings it closer to 'n' */
+                -ml-1 sm:-ml-1.5             /* 👈 brings it closer to 'n' */
                 transition-transform group-hover:scale-110
               "
             />

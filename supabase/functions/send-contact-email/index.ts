@@ -145,9 +145,9 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const adminEmailResponse = await resend.emails.send({
-      from: "FinNavigator <enquiry@finnavigatorai.com>",
-      to: ["hello@finnavigatorai.com"],
-      subject: `New Contact Form Submission - ${sanitizedName}`,
+      from: "FinNavigator <hello@finnavigatorai.com>",
+      to: [sanitizedEmail], // TEMPORARY: Sending to user's email until finnavigatorai.com is verified
+      subject: `[Contact Form] ${sanitizedName}`,
       html: adminEmailHtml,
       replyTo: sanitizedEmail,
     });
@@ -204,7 +204,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const userEmailResponse = await resend.emails.send({
-      from: "FinNavigator <enquiry@finnavigatorai.com>",
+      from: "FinNavigator <hello@finnavigatorai.com>",
       to: [sanitizedEmail],
       subject: "Thank you for contacting FinNavigator",
       html: userEmailHtml,

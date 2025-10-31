@@ -228,11 +228,9 @@ serve(async (req) => {
     `;
 
     // Send email via Resend
-    // TEMPORARY: Sending to user's email until finnavigatorai.com is verified at resend.com/domains
-    // TODO: Change back to ["hello@finnavigatorai.com"] after domain verification
     const emailResponse = await resend.emails.send({
       from: "FinNavigator Support <hello@finnavigatorai.com>",
-      to: [userEmail], // Temporarily sending to user's email for testing
+      to: [hello@finnavigatorai.com], 
       replyTo: userEmail,
       subject: emailSubject,
       html: emailHtml,

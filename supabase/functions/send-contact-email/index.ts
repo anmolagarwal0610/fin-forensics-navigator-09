@@ -8,6 +8,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// HTML escape function to prevent XSS attacks
+function escapeHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
 interface ContactFormData {
   name: string;
   email: string;
@@ -68,10 +80,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const sanitizedName = name.trim();
-    const sanitizedEmail = email.trim().toLowerCase();
-    const sanitizedOrganization = organization?.trim() || "Not specified";
-    const sanitizedMessage = message.trim();
+    const sanitizedName = escapeHtml(name.trim());
+    const sanitizedEmail = escapeHtml(email.trim().toLowerCase());
+    const sanitizedOrganization = escapeHtml(organization?.trim() || "Not specified");
+    const sanitizedMessage = escapeHtml(message.trim());
     const timestamp = new Date().toLocaleString("en-US", {
       timeZone: "Asia/Kolkata",
       dateStyle: "full",

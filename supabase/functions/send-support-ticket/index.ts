@@ -9,6 +9,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// HTML escape function to prevent XSS attacks
+function escapeHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;');
+}
+
 interface SupportTicketRequest {
   ticketType: 'manual' | 'auto';
   queryType: string;
@@ -58,10 +70,10 @@ serve(async (req) => {
       timeStyle: "long"
     }).replace("India Standard Time", "IST");
 
-    // Build email HTML
+    // Build email HTML with escaped user inputs
     const emailSubject = ticketType === 'auto' 
-      ? `[AUTO-ALERT] ${queryType} - ${caseName || 'Case Processing Failed'}`
-      : `[Support Ticket] ${queryType} - ${subject}`;
+      ? `[AUTO-ALERT] ${escapeHtml(queryType)} - ${escapeHtml(caseName || 'Case Processing Failed')}`
+      : `[Support Ticket] ${escapeHtml(queryType)} - ${escapeHtml(subject)}`;
 
     const emailHtml = ticketType === 'auto' ? `
       <!DOCTYPE html>
@@ -93,24 +105,24 @@ serve(async (req) => {
             <div class="content">
               <div class="section">
                 <div class="section-title">TICKET INFORMATION</div>
-                <div class="info-row"><span class="label">Ticket ID:</span> <strong>${ticketId}</strong></div>
+                <div class="info-row"><span class="label">Ticket ID:</span> <strong>${escapeHtml(ticketId)}</strong></div>
                 <div class="info-row"><span class="label">Type:</span> <strong>Automatic Alert</strong></div>
-                <div class="info-row"><span class="label">Category:</span> <strong>${queryType}</strong></div>
-                <div class="info-row"><span class="label">Stage:</span> <strong>${stage || 'Unknown'}</strong></div>
+                <div class="info-row"><span class="label">Category:</span> <strong>${escapeHtml(queryType)}</strong></div>
+                <div class="info-row"><span class="label">Stage:</span> <strong>${escapeHtml(stage || 'Unknown')}</strong></div>
               </div>
 
               <div class="section">
                 <div class="section-title">USER INFORMATION</div>
-                <div class="info-row"><span class="label">Email:</span> ${userEmail}</div>
-                ${organizationName ? `<div class="info-row"><span class="label">Organization:</span> ${organizationName}</div>` : ''}
-                <div class="info-row"><span class="label">User ID:</span> <code>${userId}</code></div>
+                <div class="info-row"><span class="label">Email:</span> ${escapeHtml(userEmail)}</div>
+                ${organizationName ? `<div class="info-row"><span class="label">Organization:</span> ${escapeHtml(organizationName)}</div>` : ''}
+                <div class="info-row"><span class="label">User ID:</span> <code>${escapeHtml(userId)}</code></div>
               </div>
 
               ${caseId ? `
               <div class="section">
                 <div class="section-title">CASE INFORMATION</div>
-                <div class="info-row"><span class="label">Case Name:</span> <strong>${caseName || 'N/A'}</strong></div>
-                <div class="info-row"><span class="label">Case ID:</span> <code>${caseId}</code></div>
+                <div class="info-row"><span class="label">Case Name:</span> <strong>${escapeHtml(caseName || 'N/A')}</strong></div>
+                <div class="info-row"><span class="label">Case ID:</span> <code>${escapeHtml(caseId)}</code></div>
               </div>
               ` : ''}
 
@@ -119,7 +131,7 @@ serve(async (req) => {
                 <div class="section-title">FILES SUBMITTED</div>
                 <div class="info-row">
                   <span class="label">ZIP Download:</span><br>
-                  <a href="${zipUrl}" style="color: #3b82f6; word-break: break-all;">${zipUrl}</a><br>
+                  <a href="${escapeHtml(zipUrl)}" style="color: #3b82f6; word-break: break-all;">${escapeHtml(zipUrl)}</a><br>
                   <small style="color: #6b7280;">Link valid for 1 hour</small>
                 </div>
               </div>
@@ -129,14 +141,14 @@ serve(async (req) => {
               <div class="section">
                 <div class="section-title">ERROR DETAILS</div>
                 <div class="error-box">
-                  <pre style="white-space: pre-wrap; margin: 0; font-size: 13px;">${errorDetails}</pre>
+                  <pre style="white-space: pre-wrap; margin: 0; font-size: 13px;">${escapeHtml(errorDetails)}</pre>
                 </div>
               </div>
               ` : ''}
 
               <div class="section">
                 <div class="section-title">DESCRIPTION</div>
-                <p style="margin: 10px 0;">${description}</p>
+                <p style="margin: 10px 0; white-space: pre-wrap;">${escapeHtml(description)}</p>
               </div>
 
               <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">
@@ -178,30 +190,30 @@ serve(async (req) => {
             <div class="content">
               <div class="section">
                 <div class="section-title">TICKET INFORMATION</div>
-                <div class="info-row"><span class="label">Ticket ID:</span> <strong>${ticketId}</strong></div>
+                <div class="info-row"><span class="label">Ticket ID:</span> <strong>${escapeHtml(ticketId)}</strong></div>
                 <div class="info-row"><span class="label">Type:</span> <strong>Manual</strong></div>
-                <div class="info-row"><span class="label">Category:</span> <strong>${queryType}</strong></div>
-                <div class="info-row"><span class="label">Subject:</span> <strong>${subject}</strong></div>
+                <div class="info-row"><span class="label">Category:</span> <strong>${escapeHtml(queryType)}</strong></div>
+                <div class="info-row"><span class="label">Subject:</span> <strong>${escapeHtml(subject)}</strong></div>
               </div>
 
               <div class="section">
                 <div class="section-title">USER INFORMATION</div>
-                <div class="info-row"><span class="label">Email:</span> ${userEmail}</div>
-                ${organizationName ? `<div class="info-row"><span class="label">Organization:</span> ${organizationName}</div>` : ''}
-                <div class="info-row"><span class="label">User ID:</span> <code>${userId}</code></div>
+                <div class="info-row"><span class="label">Email:</span> ${escapeHtml(userEmail)}</div>
+                ${organizationName ? `<div class="info-row"><span class="label">Organization:</span> ${escapeHtml(organizationName)}</div>` : ''}
+                <div class="info-row"><span class="label">User ID:</span> <code>${escapeHtml(userId)}</code></div>
               </div>
 
               ${caseId ? `
               <div class="section">
                 <div class="section-title">CASE REFERENCE</div>
-                <div class="info-row"><span class="label">Case Name:</span> <strong>${caseName || 'N/A'}</strong></div>
-                <div class="info-row"><span class="label">Case ID:</span> <code>${caseId}</code></div>
+                <div class="info-row"><span class="label">Case Name:</span> <strong>${escapeHtml(caseName || 'N/A')}</strong></div>
+                <div class="info-row"><span class="label">Case ID:</span> <code>${escapeHtml(caseId)}</code></div>
               </div>
               ` : ''}
 
               <div class="section">
                 <div class="section-title">DESCRIPTION</div>
-                <p style="margin: 10px 0; white-space: pre-wrap;">${description}</p>
+                <p style="margin: 10px 0; white-space: pre-wrap;">${escapeHtml(description)}</p>
               </div>
 
               <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">

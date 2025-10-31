@@ -235,7 +235,6 @@ export default function RaiseTicket() {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
                           {cases?.map((c) => (
                             <SelectItem key={c.id} value={c.id}>
                               {c.name}

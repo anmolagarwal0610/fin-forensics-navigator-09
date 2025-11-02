@@ -19,6 +19,7 @@ import Reset from "@/pages/Reset";
 import NotFound from "@/pages/NotFound";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Dashboard from "@/pages/app/Dashboard";
+import Cases from "@/pages/app/Cases";
 import NewCase from "@/pages/app/NewCase";
 import CaseDetail from "@/pages/app/CaseDetail";
 import CaseUpload from "@/pages/app/CaseUpload";
@@ -62,6 +63,7 @@ function App() {
               
               {/* Protected app routes */}
               <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+              <Route path="/app/cases" element={<ProtectedRoute><Cases /></ProtectedRoute>} />
               <Route path="/app/cases/new" element={<ProtectedRoute><NewCase /></ProtectedRoute>} />
               <Route path="/app/cases/:id" element={<ProtectedRoute><CaseDetail /></ProtectedRoute>} />
               <Route path="/app/cases/:id/upload" element={<ProtectedRoute><CaseUpload /></ProtectedRoute>} />

@@ -14,6 +14,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
+import FileUploader from "@/components/app/FileUploader";
+
+interface FileItem {
+  name: string;
+  size: number;
+  file: File;
+}
 
 const ticketSchema = z.object({
   queryType: z.string().min(1, "Please select a query type"),
@@ -29,6 +36,7 @@ export default function RaiseTicket() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [files, setFiles] = useState<FileItem[]>([]);
 
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
@@ -77,6 +85,40 @@ export default function RaiseTicket() {
 
     setIsSubmitting(true);
     try {
+      // Generate ticket ID
+      const ticketId = `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+
+      // Upload files if any
+      const uploadedAttachments: Array<{ name: string; url: string; size: number }> = [];
+      
+      if (files.length > 0) {
+        for (const fileItem of files) {
+          const filePath = `${user.id}/${ticketId}/${fileItem.file.name}`;
+          
+          const { error: uploadError } = await supabase.storage
+            .from('support-attachments')
+            .upload(filePath, fileItem.file);
+          
+          if (uploadError) {
+            console.error(`Failed to upload ${fileItem.file.name}:`, uploadError);
+            continue; // Skip this file but continue with others
+          }
+
+          // Generate signed URL with 7-day expiry
+          const { data: signedUrlData } = await supabase.storage
+            .from('support-attachments')
+            .createSignedUrl(filePath, 604800); // 7 days in seconds
+          
+          if (signedUrlData?.signedUrl) {
+            uploadedAttachments.push({
+              name: fileItem.file.name,
+              url: signedUrlData.signedUrl,
+              size: fileItem.size
+            });
+          }
+        }
+      }
+
       // Get case name if case ID is provided
       let caseName = "";
       if (data.caseId) {
@@ -98,6 +140,8 @@ export default function RaiseTicket() {
             organizationName: profile?.organization_name,
             caseId: data.caseId || undefined,
             caseName: caseName || undefined,
+            ticketId: ticketId,
+            attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
           },
         }
       );
@@ -240,6 +284,19 @@ export default function RaiseTicket() {
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-2">
+                <FormLabel>Attachments (Optional)</FormLabel>
+                <FileUploader
+                  files={files}
+                  onFilesChange={setFiles}
+                  maxFileSize={20 * 1024 * 1024} // 20MB
+                  acceptedTypes={['.pdf', '.png', '.jpg', '.jpeg', '.xlsx', '.xls', '.csv']}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Attach screenshots, error logs, or related documents (Max 5 files, 20MB each)
+                </p>
+              </div>
 
               <div className="flex gap-3 pt-4">
                 <Button type="submit" disabled={isSubmitting}>

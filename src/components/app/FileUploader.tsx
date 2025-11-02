@@ -33,7 +33,13 @@ export default function FileUploader({
       size: file.size,
       file
     }));
-    onFilesChange([...files, ...newFiles]);
+    const combinedFiles = [...files, ...newFiles];
+    // Limit to 5 files max
+    if (combinedFiles.length > 5) {
+      onFilesChange(combinedFiles.slice(0, 5));
+    } else {
+      onFilesChange(combinedFiles);
+    }
   }, [files, onFilesChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -42,7 +48,9 @@ export default function FileUploader({
       'application/pdf': ['.pdf'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'application/vnd.ms-excel': ['.xls'],
-      'text/csv': ['.csv']
+      'text/csv': ['.csv'],
+      'image/png': ['.png'],
+      'image/jpeg': ['.jpg', '.jpeg']
     },
     maxSize: maxFileSize,
     onDragEnter: () => setDragActive(true),
@@ -85,7 +93,7 @@ export default function FileUploader({
             or click to browse files
           </p>
           <p className="text-xs text-muted-foreground">
-            Accepts PDF, Excel, and CSV files • Max {Math.round(maxFileSize / (1024 * 1024))}MB per file
+            Accepts PDF, Images (PNG, JPG), Excel, and CSV files • Max {Math.round(maxFileSize / (1024 * 1024))}MB per file
           </p>
         </div>
       </Card>

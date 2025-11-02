@@ -21,6 +21,15 @@ function escapeHtml(text: string): string {
     .replace(/\//g, '&#x2F;');
 }
 
+// Helper function to format file size
+function formatFileSize(bytes: number): string {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
 interface SupportTicketRequest {
   ticketType: 'manual' | 'auto';
   queryType: string;
@@ -34,6 +43,12 @@ interface SupportTicketRequest {
   zipUrl?: string;
   errorDetails?: string;
   stage?: string;
+  ticketId?: string;
+  attachments?: Array<{
+    name: string;
+    url: string;
+    size: number;
+  }>;
 }
 
 serve(async (req) => {
@@ -57,11 +72,13 @@ serve(async (req) => {
       caseName,
       zipUrl,
       errorDetails,
-      stage
+      stage,
+      ticketId: providedTicketId,
+      attachments
     } = ticketData;
 
-    // Generate ticket ID
-    const ticketId = `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    // Use provided ticket ID or generate new one
+    const ticketId = providedTicketId || `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
     // Format timestamp in IST
     const timestamp = new Date().toLocaleString("en-IN", {
@@ -215,6 +232,22 @@ serve(async (req) => {
                 <div class="section-title">DESCRIPTION</div>
                 <p style="margin: 10px 0; white-space: pre-wrap;">${escapeHtml(description)}</p>
               </div>
+
+              ${attachments && attachments.length > 0 ? `
+              <div class="section">
+                <div class="section-title">📎 ATTACHMENTS (${attachments.length})</div>
+                ${attachments.map(att => `
+                  <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
+                    <div style="font-weight: 500; color: #374151; margin-bottom: 5px;">📄 ${escapeHtml(att.name)}</div>
+                    <a href="${att.url}" style="color: #3b82f6; text-decoration: underline; font-size: 14px;" target="_blank">Download File</a>
+                    <span style="color: #6b7280; font-size: 12px; margin-left: 10px;">(${formatFileSize(att.size)})</span>
+                  </div>
+                `).join('')}
+                <p style="color: #6b7280; font-size: 12px; margin-top: 15px; margin-bottom: 0;">
+                  ⏰ Download links expire in 7 days
+                </p>
+              </div>
+              ` : ''}
 
               <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">
                 <p style="margin: 5px 0;">Submitted: ${timestamp}</p>

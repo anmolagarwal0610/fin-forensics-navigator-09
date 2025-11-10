@@ -179,6 +179,48 @@ export type Database = {
           },
         ]
       }
+      jobs: {
+        Row: {
+          created_at: string | null
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          input_url: string
+          session_id: string | null
+          status: string
+          task: string
+          updated_at: string | null
+          url: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error?: string | null
+          id: string
+          idempotency_key?: string | null
+          input_url: string
+          session_id?: string | null
+          status?: string
+          task: string
+          updated_at?: string | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          input_url?: string
+          session_id?: string | null
+          status?: string
+          task?: string
+          updated_at?: string | null
+          url?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string

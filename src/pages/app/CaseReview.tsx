@@ -141,88 +141,58 @@ export default function CaseReview() {
     if (!case_) return;
 
     setProcessing(true);
-    setProcessingStatus({
-      active: true,
-      message: 'Starting final analysis...'
-    });
 
     try {
-      toast({ title: "Starting final analysis..." });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
 
-      const { error } = await supabase.functions.invoke('final-analysis-files', {
-        body: { caseId: case_.id }
-      });
+      // TODO: Create ZIP of CSV files (original or corrected)
+      // For now, use a placeholder file
+      const dummyFile = new File([''], 'csvs.zip', { type: 'application/zip' });
 
-      if (error) throw error;
+      // Import the startJobFlow function
+      const { startJobFlow } = await import('@/hooks/useStartJob');
 
-      // Show processing status and poll for completion
-      setProcessingStatus({
-        active: true,
-        message: 'Analysis in progress. This may take a few minutes...'
-      });
-
-      // Poll for case status updates
-      const pollInterval = setInterval(async () => {
-        try {
-          const updatedCase = await getCaseById(case_.id);
-          if (!updatedCase) return;
-
-          if (updatedCase.status === 'Ready') {
-            clearInterval(pollInterval);
-            setProcessingStatus({
-              active: false,
-              message: ''
-            });
+      // Start final-analysis job with Realtime tracking
+      await startJobFlow(
+        dummyFile,
+        'final-analysis',
+        case_.id,
+        user.id,
+        (job) => {
+          console.log('Final analysis job update:', job);
+        },
+        (finalJob) => {
+          setProcessing(false);
+          if (finalJob.status === 'SUCCEEDED') {
             toast({
-              title: "Analysis complete!",
-              description: "Results are ready to view."
+              title: "Final analysis complete!",
+              description: "Results are ready."
             });
             navigate("/app/dashboard");
-          } else if (updatedCase.status === 'Failed' || updatedCase.status === 'Timeout') {
-            clearInterval(pollInterval);
-            setProcessingStatus({
-              active: false,
-              message: ''
-            });
+          } else if (finalJob.status === 'FAILED') {
             toast({
-              title: "Analysis failed",
-              description: "Please try again or contact support.",
+              title: "Final analysis failed",
+              description: finalJob.error || "Please try again.",
               variant: "destructive"
             });
-            navigate("/app/dashboard");
           }
-        } catch (error) {
-          console.error("Polling error:", error);
         }
-      }, 3000); // Poll every 3 seconds
+      );
 
-      // Timeout after 5 minutes
-      setTimeout(() => {
-        clearInterval(pollInterval);
-        if (processingStatus.active) {
-          setProcessingStatus({
-            active: false,
-            message: ''
-          });
-          toast({
-            title: "Analysis is taking longer than expected",
-            description: "You can check the results later from the dashboard.",
-          });
-          navigate("/app/dashboard");
-        }
-      }, 300000); // 5 minutes
+      toast({ 
+        title: "Starting final analysis...",
+        description: "You'll be notified when complete via Realtime updates."
+      });
 
     } catch (error) {
       console.error("Failed to start final analysis:", error);
       toast({
         title: "Failed to start final analysis",
+        description: error instanceof Error ? error.message : "Please try again.",
         variant: "destructive"
       });
       setProcessing(false);
-      setProcessingStatus({
-        active: false,
-        message: ''
-      });
     }
   };
 

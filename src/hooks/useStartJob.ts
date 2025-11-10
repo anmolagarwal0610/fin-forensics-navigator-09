@@ -1,0 +1,44 @@
+import { uploadInput } from '@/lib/uploadInput';
+import { startJob } from '@/lib/startJob';
+import { subscribeJob } from '@/lib/subscribeJob';
+import type { JobTask, JobRow } from '@/types/job';
+
+/**
+ * Main controller for starting a job and listening to updates
+ */
+export async function startJobFlow(
+  file: File,
+  task: JobTask,
+  sessionId: string,
+  userId: string,
+  setJob: (j: Partial<JobRow>) => void,
+  onDone?: (row: JobRow) => void
+) {
+  // 1. Upload file and get signed URL
+  const { signedUrl } = await uploadInput(file, userId, sessionId);
+  
+  // 2. Start job via FastAPI
+  const { job_id, status } = await startJob(task, signedUrl, sessionId, userId);
+  
+  // 3. Set initial job state
+  setJob({ 
+    id: job_id, 
+    task, 
+    status, 
+    url: null, 
+    error: null,
+    session_id: sessionId 
+  } as Partial<JobRow>);
+
+  // 4. Subscribe to Realtime updates
+  const unsubscribe = subscribeJob(job_id, (row) => {
+    setJob(row);
+    
+    if (row.status === 'SUCCEEDED' || row.status === 'FAILED') {
+      unsubscribe();
+      onDone?.(row);
+    }
+  });
+
+  return { job_id, unsubscribe };
+}

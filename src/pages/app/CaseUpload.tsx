@@ -47,115 +47,70 @@ export default function CaseUpload() {
     if (!case_ || files.length === 0) return;
     setSubmitting(true);
     try {
-      const {
-        data: {
-          user
-        },
-        error: authError
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
       if (authError || !user) {
         throw new Error("Authentication required");
       }
-      console.log('User authenticated for upload:', user.id);
 
-      // Upload files to Supabase storage
-      const uploadedFiles = [];
-      for (const file of files) {
-        const filePath = `${user.id}/${case_.id}/${file.name}`;
-        console.log('Uploading to storage path:', filePath, 'size:', file.size);
-        const {
-          data: uploadData,
-          error: uploadError
-        } = await supabase.storage.from('case-files').upload(filePath, file.file);
-        if (uploadError) {
-          console.error('Upload error for', file.name, uploadError);
-          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
-        }
-        console.log('Upload success:', uploadData);
-        const {
-          data: urlData
-        } = supabase.storage.from('case-files').getPublicUrl(filePath);
-        console.log('Public URL (may require auth if bucket is private):', urlData.publicUrl);
-        uploadedFiles.push({
-          name: file.name,
-          url: urlData.publicUrl
-        });
-      }
+      // For now, upload the first file as a placeholder
+      // TODO: Create ZIP of all files locally before uploading
+      const firstFile = files[0].file;
+      
+      // Determine task type based on HITL mode
+      const task = useHitl ? 'initial-parse' : 'parse-statements';
 
-      // Add files to database with storage URLs
-      const inserted = await addFiles(case_.id, uploadedFiles.map(f => ({
-        name: f.name,
-        url: f.url
-      })));
-      console.log('Inserted case_files records:', inserted?.length);
-
-      // Add files_uploaded event
-      await addEvent(case_.id, "files_uploaded", {
-        file_count: files.length,
-        files: files.map(f => ({
-          name: f.name,
-          size: f.size
-        }))
-      });
-      console.log('Event logged: files_uploaded');
-
-      // Update case analysis_mode
-      const analysisMode = useHitl ? 'hitl' : 'direct';
-      await supabase.from('cases').update({
-        analysis_mode: analysisMode
-      }).eq('id', case_.id);
-
-      // Add analysis_submitted event
-      await addEvent(case_.id, "analysis_submitted", {
-        submitted_at: new Date().toISOString(),
-        file_count: files.length,
-        mode: analysisMode
-      });
-      console.log('Event logged: analysis_submitted');
-
-      // Update case status to Processing
-      await updateCaseStatus(case_.id, "Processing");
-      console.log('Case status updated to Processing');
-
-      // Navigate immediately to Dashboard with success message
-      if (useHitl) {
-        toast({
-          title: "Initial parse started!",
-          description: `Uploaded ${files.length} files. You'll review the extracted data soon.`
-        });
-      } else {
-        toast({
-          title: "Analysis started!",
-          description: `Uploaded ${files.length} files. You'll be notified when ready.`
-        });
-      }
-      navigate("/app/dashboard");
-
-      // Start async background processing (fire and forget)
-      // Small delay to avoid race conditions with DB commits
-      setTimeout(async () => {
-        try {
-          if (useHitl) {
-            console.log('Invoking edge function initial-parse-files with caseId:', case_.id);
-            await supabase.functions.invoke('initial-parse-files', {
-              body: {
-                caseId: case_.id,
-                fileNames: uploadedFiles.map(f => f.name)
-              }
+      // Import the startJobFlow function
+      const { startJobFlow } = await import('@/hooks/useStartJob');
+      
+      // Start job flow with Realtime tracking
+      const { job_id } = await startJobFlow(
+        firstFile,
+        task,
+        case_.id,
+        user.id,
+        (job) => {
+          console.log('Job update:', job);
+        },
+        async (finalJob) => {
+          console.log('Job completed:', finalJob);
+          if (finalJob.status === 'SUCCEEDED') {
+            toast({
+              title: "Analysis complete!",
+              description: useHitl 
+                ? "Review the extracted data." 
+                : "Results are ready."
             });
-          } else {
-            console.log('Invoking edge function process-case-files with caseId:', case_.id);
-            await supabase.functions.invoke('process-case-files', {
-              body: {
-                caseId: case_.id,
-                fileNames: uploadedFiles.map(f => f.name)
-              }
+            if (useHitl) {
+              navigate(`/app/cases/${case_.id}/review`);
+            } else {
+              navigate("/app/dashboard");
+            }
+          } else if (finalJob.status === 'FAILED') {
+            toast({
+              title: "Analysis failed",
+              description: finalJob.error || "Please try again.",
+              variant: "destructive"
             });
           }
-        } catch (processError) {
-          console.error("Background processing error:", processError);
         }
-      }, 1000);
+      );
+
+      // Add event for tracking
+      await addEvent(case_.id, "analysis_submitted", {
+        job_id,
+        mode: useHitl ? 'hitl' : 'direct',
+        task,
+        file_count: files.length
+      });
+
+      toast({
+        title: "Analysis started!",
+        description: `Job ID: ${job_id.slice(0, 8)}... Track progress via Realtime updates.`
+      });
+
+      // Navigate to dashboard immediately
+      navigate("/app/dashboard");
+
     } catch (error) {
       console.error("Failed to submit analysis:", error);
       toast({

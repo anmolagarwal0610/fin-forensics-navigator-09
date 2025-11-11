@@ -7,18 +7,18 @@ import type { JobTask, JobRow } from '@/types/job';
  * Main controller for starting a job and listening to updates
  */
 export async function startJobFlow(
-  file: File,
+  files: File[],
   task: JobTask,
   sessionId: string,
   userId: string,
   setJob: (j: Partial<JobRow>) => void,
   onDone?: (row: JobRow) => void
 ) {
-  // 1. Upload file and get signed URL
-  const { signedUrl } = await uploadInput(file, userId, sessionId);
+  // 1. Upload files, create ZIP, and get signed ZIP URL
+  const { signedUrl: zipUrl } = await uploadInput(files, userId, sessionId);
   
-  // 2. Start job via FastAPI
-  const { job_id, status } = await startJob(task, signedUrl, sessionId, userId);
+  // 2. Start job via FastAPI with ZIP URL
+  const { job_id, status } = await startJob(task, zipUrl, sessionId, userId);
   
   // 3. Set initial job state
   setJob({ 

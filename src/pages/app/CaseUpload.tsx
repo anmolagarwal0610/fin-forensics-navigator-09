@@ -52,9 +52,8 @@ export default function CaseUpload() {
         throw new Error("Authentication required");
       }
 
-      // For now, upload the first file as a placeholder
-      // TODO: Create ZIP of all files locally before uploading
-      const firstFile = files[0].file;
+      // Convert FileItem[] to File[]
+      const uploadFiles = files.map(f => f.file);
       
       // Determine task type based on HITL mode
       const task = useHitl ? 'initial-parse' : 'parse-statements';
@@ -62,9 +61,9 @@ export default function CaseUpload() {
       // Import the startJobFlow function
       const { startJobFlow } = await import('@/hooks/useStartJob');
       
-      // Start job flow with Realtime tracking
+      // Start job flow with Realtime tracking (now sends ZIP URL)
       const { job_id } = await startJobFlow(
-        firstFile,
+        uploadFiles,
         task,
         case_.id,
         user.id,

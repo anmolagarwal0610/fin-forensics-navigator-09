@@ -1,27 +1,60 @@
 import { supabase } from '@/integrations/supabase/client';
+import JSZip from 'jszip';
 
 /**
- * Upload file to Supabase Storage and return signed URL
+ * Upload files to Supabase Storage, create ZIP, and return ZIP signed URL
  */
 export async function uploadInput(
-  file: File, 
+  files: File[], 
   userId: string, 
   caseId: string
-): Promise<{ objectPath: string; signedUrl: string }> {
+): Promise<{ zipPath: string; signedUrl: string }> {
   const bucket = 'case-files';
-  const objectPath = `${userId}/${caseId}/${Date.now()}-${file.name}`;
   
-  const { error: uploadError } = await supabase.storage
+  // First, upload all individual files to storage
+  const uploadPromises = files.map(async (file) => {
+    const objectPath = `${userId}/${caseId}/${file.name}`;
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(objectPath, file, { upsert: true });
+    
+    if (error) throw new Error(`Failed to upload ${file.name}: ${error.message}`);
+    return { name: file.name, path: objectPath };
+  });
+
+  await Promise.all(uploadPromises);
+  console.log(`Uploaded ${files.length} files to storage`);
+
+  // Create ZIP file locally
+  const zip = new JSZip();
+  for (const file of files) {
+    const arrayBuffer = await file.arrayBuffer();
+    zip.file(file.name, arrayBuffer);
+  }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  console.log(`Created ZIP file, size: ${Math.round(zipBlob.size / 1024)} KB`);
+
+  // Upload ZIP to storage
+  const zipFileName = `case_${caseId}_${Date.now()}.zip`;
+  const zipPath = `${userId}/zips/${zipFileName}`;
+  
+  const { error: zipError } = await supabase.storage
     .from(bucket)
-    .upload(objectPath, file, { upsert: true });
+    .upload(zipPath, zipBlob, { 
+      contentType: 'application/zip',
+      upsert: true 
+    });
 
-  if (uploadError) throw uploadError;
+  if (zipError) throw new Error(`Failed to upload ZIP: ${zipError.message}`);
 
+  // Create signed URL for ZIP (8 hours expiry)
   const { data: signedData, error: signedError } = await supabase.storage
     .from(bucket)
-    .createSignedUrl(objectPath, 3600); // 1 hour expiry
+    .createSignedUrl(zipPath, 60 * 60 * 8);
 
-  if (signedError || !signedData) throw new Error("Failed to generate signed URL");
+  if (signedError || !signedData) throw new Error("Failed to generate signed URL for ZIP");
 
-  return { objectPath, signedUrl: signedData.signedUrl };
+  console.log('ZIP file uploaded and signed URL generated');
+  return { zipPath, signedUrl: signedData.signedUrl };
 }

@@ -146,16 +146,29 @@ export default function CaseReview() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // TODO: Create ZIP of CSV files (original or corrected)
-      // For now, use a placeholder file
-      const dummyFile = new File([''], 'csvs.zip', { type: 'application/zip' });
+      // Download CSV files (corrected or original)
+      const csvFilesToProcess: File[] = [];
+      
+      for (const csvFile of csvFiles) {
+        const url = csvFile.is_corrected && csvFile.corrected_csv_url
+          ? csvFile.corrected_csv_url
+          : csvFile.original_csv_url;
+        
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const fileName = csvFile.pdf_file_name.replace('.pdf', '.csv');
+        const file = new File([blob], fileName, { type: 'text/csv' });
+        csvFilesToProcess.push(file);
+      }
+
+      console.log(`Processing ${csvFilesToProcess.length} CSV files for final analysis`);
 
       // Import the startJobFlow function
       const { startJobFlow } = await import('@/hooks/useStartJob');
 
-      // Start final-analysis job with Realtime tracking
+      // Start final-analysis job with Realtime tracking (sends ZIP URL)
       await startJobFlow(
-        dummyFile,
+        csvFilesToProcess,
         'final-analysis',
         case_.id,
         user.id,

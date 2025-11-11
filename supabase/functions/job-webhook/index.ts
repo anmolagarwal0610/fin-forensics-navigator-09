@@ -128,8 +128,8 @@ serve(async (req) => {
       .upsert({
         id: payload.job_id,
         task: payload.task,
-        user_id: payload.user_id || null,
-        session_id: payload.session_id || null,
+        user_id: payload.user_id || payload.userId || null,
+        session_id: payload.session_id || payload.sessionId || null,
         input_url: payload.input_url || payload.zipUrl,
         status: payload.status,
         url: payload.url || null,
@@ -150,7 +150,8 @@ serve(async (req) => {
     console.log("Job upserted successfully:", JSON.stringify(data, null, 2));
 
     // Update cases table based on job status
-    if (payload.session_id) {
+    const sessionId = payload.session_id || payload.sessionId;
+    if (sessionId) {
       await updateCaseStatus(supabase, payload);
     }
 
@@ -169,7 +170,7 @@ serve(async (req) => {
 });
 
 async function updateCaseStatus(supabase: any, payload: any) {
-  const caseId = payload.session_id;
+  const caseId = payload.session_id || payload.sessionId;
   console.log(`Updating case ${caseId} status for task ${payload.task} with status ${payload.status}`);
 
   if (payload.status === "STARTED") {
@@ -195,7 +196,7 @@ async function updateCaseStatus(supabase: any, payload: any) {
       // Extract and upload individual CSV files FIRST before updating status
       try {
         console.log(`[CSV Extract] Starting extraction for case ${caseId} from ${payload.url}`);
-        await extractAndUploadCsvs(supabase, payload.url, caseId, payload.user_id);
+        await extractAndUploadCsvs(supabase, payload.url, caseId, payload.user_id || payload.userId);
         console.log(`[CSV Extract] Successfully completed extraction for case ${caseId}`);
       } catch (extractError: any) {
         console.error("[CSV Extract] Extraction failed:", extractError.message);

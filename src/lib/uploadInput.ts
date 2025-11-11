@@ -1,5 +1,6 @@
 import { supabase } from '@/integrations/supabase/client';
 import JSZip from 'jszip';
+import { addFiles } from '@/api/cases';
 
 /**
  * Sanitize filename for Supabase Storage compatibility
@@ -50,19 +51,13 @@ export async function uploadInput(
   console.log(`Uploaded ${files.length} files to storage`);
   
   // Insert file records into case_files table for traceability
-  const { addFiles } = await import('@/api/cases');
   const fileRecords = uploadedFiles.map(f => ({
     name: f.name,
     url: f.path
   }));
   
-  try {
-    await addFiles(caseId, fileRecords);
-    console.log(`Inserted ${fileRecords.length} file records into case_files table`);
-  } catch (dbError) {
-    console.error('Failed to insert file records:', dbError);
-    // Don't fail the upload, just log the error
-  }
+  await addFiles(caseId, fileRecords);
+  console.log(`Inserted ${fileRecords.length} file records into case_files table`);
 
   // Create ZIP file locally
   const zip = new JSZip();

@@ -1,10 +1,113 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+async function extractAndUploadCsvs(
+  supabase: any,
+  zipUrl: string,
+  caseId: string,
+  userId: string
+) {
+  console.log(`[CSV Extract] Downloading ZIP from: ${zipUrl}`);
+  
+  try {
+    // Download ZIP file from backend
+    const response = await fetch(zipUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download ZIP: ${response.status} ${response.statusText}`);
+    }
+    
+    const zipBlob = await response.blob();
+    const arrayBuffer = await zipBlob.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    
+    // Find all CSV files
+    const csvFiles = Object.keys(zip.files).filter(name => 
+      name.toLowerCase().endsWith('.csv') && 
+      !name.startsWith('__MACOSX') &&
+      !name.includes('/')  // Only root-level CSVs
+    );
+    
+    console.log(`[CSV Extract] Found ${csvFiles.length} CSV files in ZIP`);
+    
+    let successCount = 0;
+    
+    for (const fileName of csvFiles) {
+      try {
+        console.log(`[CSV Extract] Processing: ${fileName}`);
+        
+        // Get CSV content as blob
+        const csvContent = await zip.files[fileName].async('blob');
+        
+        // Upload to Supabase Storage
+        const storagePath = `${userId}/${caseId}/csv/original/${fileName}`;
+        const { error: uploadError } = await supabase.storage
+          .from('case-files')
+          .upload(storagePath, csvContent, { 
+            upsert: true,
+            contentType: 'text/csv'
+          });
+        
+        if (uploadError) {
+          console.error(`[CSV Extract] Upload failed for ${fileName}:`, uploadError);
+          continue;
+        }
+        
+        // Generate signed URL (24 hours)
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('case-files')
+          .createSignedUrl(storagePath, 86400);
+        
+        if (signedError || !signedData) {
+          console.error(`[CSV Extract] Signed URL failed for ${fileName}:`, signedError);
+          continue;
+        }
+        
+        // Derive PDF filename from CSV name
+        // Example: "AL_Extract.csv" -> "AL Extract.pdf"
+        const pdfFileName = fileName
+          .replace('.csv', '.pdf')
+          .replace(/_/g, ' ');
+        
+        // Insert record into case_csv_files
+        const { error: insertError } = await supabase
+          .from('case_csv_files')
+          .insert({
+            case_id: caseId,
+            pdf_file_name: pdfFileName,
+            original_csv_url: signedData.signedUrl,
+            is_corrected: false
+          });
+        
+        if (insertError) {
+          console.error(`[CSV Extract] DB insert failed for ${fileName}:`, insertError);
+          continue;
+        }
+        
+        console.log(`[CSV Extract] ✓ Successfully processed: ${fileName} -> ${pdfFileName}`);
+        successCount++;
+        
+      } catch (fileError: any) {
+        console.error(`[CSV Extract] Error processing ${fileName}:`, fileError.message);
+      }
+    }
+    
+    console.log(`[CSV Extract] Complete: ${successCount}/${csvFiles.length} CSVs processed for case ${caseId}`);
+    
+    if (successCount === 0 && csvFiles.length > 0) {
+      throw new Error('Failed to process any CSV files from the ZIP');
+    }
+    
+  } catch (error: any) {
+    console.error('[CSV Extract] Fatal error:', error.message);
+    throw error;
+  }
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -102,6 +205,21 @@ async function updateCaseStatus(supabase: any, payload: any) {
         console.error("Failed to update case to Review:", caseError);
       } else {
         console.log(`Case ${caseId} set to Review with csv_zip_url: ${payload.url}`);
+        
+        // Extract and upload individual CSV files for review
+        try {
+          await extractAndUploadCsvs(supabase, payload.url, caseId, payload.userId);
+        } catch (extractError: any) {
+          console.error("CSV extraction failed:", extractError.message);
+          // Mark case as failed since we can't proceed with review
+          await supabase
+            .from("cases")
+            .update({ 
+              status: "Failed",
+              hitl_stage: null
+            })
+            .eq("id", caseId);
+        }
       }
       
     } else if (payload.task === "final-analysis" || payload.task === "parse-statements") {

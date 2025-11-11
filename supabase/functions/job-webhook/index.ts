@@ -128,8 +128,8 @@ serve(async (req) => {
       .upsert({
         id: payload.job_id,
         task: payload.task,
-        user_id: payload.userId || null,
-        session_id: payload.sessionId || null,
+        user_id: payload.user_id || null,
+        session_id: payload.session_id || null,
         input_url: payload.input_url || payload.zipUrl,
         status: payload.status,
         url: payload.url || null,
@@ -150,7 +150,7 @@ serve(async (req) => {
     console.log("Job upserted successfully:", JSON.stringify(data, null, 2));
 
     // Update cases table based on job status
-    if (payload.sessionId) {
+    if (payload.session_id) {
       await updateCaseStatus(supabase, payload);
     }
 
@@ -169,7 +169,7 @@ serve(async (req) => {
 });
 
 async function updateCaseStatus(supabase: any, payload: any) {
-  const caseId = payload.sessionId;
+  const caseId = payload.session_id;
   console.log(`Updating case ${caseId} status for task ${payload.task} with status ${payload.status}`);
 
   if (payload.status === "STARTED") {
@@ -208,7 +208,7 @@ async function updateCaseStatus(supabase: any, payload: any) {
         
         // Extract and upload individual CSV files for review
         try {
-          await extractAndUploadCsvs(supabase, payload.url, caseId, payload.userId);
+          await extractAndUploadCsvs(supabase, payload.url, caseId, payload.user_id);
         } catch (extractError: any) {
           console.error("CSV extraction failed:", extractError.message);
           // Mark case as failed since we can't proceed with review

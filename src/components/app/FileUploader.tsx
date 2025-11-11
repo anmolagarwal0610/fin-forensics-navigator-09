@@ -35,8 +35,8 @@ export default function FileUploader({
     }));
     const combinedFiles = [...files, ...newFiles];
     // Limit to 5 files max
-    if (combinedFiles.length > 5) {
-      onFilesChange(combinedFiles.slice(0, 5));
+    if (combinedFiles.length > 25) {
+      onFilesChange(combinedFiles.slice(0, 25));
     } else {
       onFilesChange(combinedFiles);
     }

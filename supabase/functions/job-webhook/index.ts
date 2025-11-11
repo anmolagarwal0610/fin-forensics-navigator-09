@@ -13,7 +13,7 @@ serve(async (req) => {
 
   try {
     const payload = await req.json();
-    console.log("Job webhook received:", payload);
+    console.log("Job webhook received:", JSON.stringify(payload, null, 2));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -44,7 +44,7 @@ serve(async (req) => {
       throw error;
     }
 
-    console.log("Job upserted:", data);
+    console.log("Job upserted successfully:", JSON.stringify(data, null, 2));
 
     // Update cases table based on job status
     if (payload.sessionId) {
@@ -67,10 +67,11 @@ serve(async (req) => {
 
 async function updateCaseStatus(supabase: any, payload: any) {
   const caseId = payload.sessionId;
+  console.log(`Updating case ${caseId} status for task ${payload.task} with status ${payload.status}`);
 
   if (payload.status === "STARTED") {
     // Set case to Processing
-    await supabase
+    const { error: caseError } = await supabase
       .from("cases")
       .update({ 
         status: "Processing",
@@ -78,11 +79,17 @@ async function updateCaseStatus(supabase: any, payload: any) {
                    payload.task === 'final-analysis' ? 'final_analysis' : null
       })
       .eq("id", caseId);
+    
+    if (caseError) {
+      console.error("Failed to update case to Processing:", caseError);
+    } else {
+      console.log(`Case ${caseId} set to Processing`);
+    }
 
   } else if (payload.status === "SUCCEEDED") {
     // Handle success based on task type
     if (payload.task === "initial-parse") {
-      await supabase
+      const { error: caseError } = await supabase
         .from("cases")
         .update({ 
           status: "Review",
@@ -91,8 +98,14 @@ async function updateCaseStatus(supabase: any, payload: any) {
         })
         .eq("id", caseId);
       
+      if (caseError) {
+        console.error("Failed to update case to Review:", caseError);
+      } else {
+        console.log(`Case ${caseId} set to Review with csv_zip_url: ${payload.url}`);
+      }
+      
     } else if (payload.task === "final-analysis" || payload.task === "parse-statements") {
-      await supabase
+      const { error: caseError } = await supabase
         .from("cases")
         .update({ 
           status: "Ready",
@@ -100,32 +113,52 @@ async function updateCaseStatus(supabase: any, payload: any) {
           hitl_stage: null
         })
         .eq("id", caseId);
+      
+      if (caseError) {
+        console.error("Failed to update case to Ready:", caseError);
+      } else {
+        console.log(`Case ${caseId} set to Ready with result_zip_url: ${payload.url}`);
+      }
     }
 
-    await supabase
+    const { error: eventError } = await supabase
       .from("events")
       .insert({
         case_id: caseId,
         type: "analysis_ready",
         payload: { job_id: payload.job_id, result_url: payload.url }
       });
+    
+    if (eventError) {
+      console.error("Failed to insert analysis_ready event:", eventError);
+    }
 
   } else if (payload.status === "FAILED") {
     // Handle failure
-    await supabase
+    const { error: caseError } = await supabase
       .from("cases")
       .update({ 
         status: "Failed",
         hitl_stage: null
       })
       .eq("id", caseId);
+    
+    if (caseError) {
+      console.error("Failed to update case to Failed:", caseError);
+    } else {
+      console.log(`Case ${caseId} set to Failed. Error: ${payload.error}`);
+    }
 
-    await supabase
+    const { error: eventError } = await supabase
       .from("events")
       .insert({
         case_id: caseId,
         type: "analysis_submitted",
         payload: { job_id: payload.job_id, error: payload.error }
       });
+    
+    if (eventError) {
+      console.error("Failed to insert analysis_submitted event:", eventError);
+    }
   }
 }

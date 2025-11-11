@@ -379,7 +379,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
             <ScrollArea className="h-[600px] w-full">
               <ScrollBar orientation="horizontal" />
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse table-fixed">
+                <table className="border-collapse min-w-full">
                   <tbody>
                     {displayData.map((row, rowIndex) => (
                       <tr key={rowIndex}>
@@ -399,12 +399,12 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                               key={colIndex}
                               {...span}
                               style={style}
-                              className="p-2 text-sm border border-border align-top min-w-[120px] max-w-[400px]"
+                              className="p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px]"
                             >
                               {cellContent.truncated ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="cursor-help block break-words line-clamp-3">
+                                    <span className="cursor-help block truncate overflow-hidden text-ellipsis">
                                       {cellContent.text}
                                     </span>
                                   </TooltipTrigger>
@@ -415,7 +415,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                                   </TooltipContent>
                                 </Tooltip>
                               ) : (
-                                <span className="block break-words line-clamp-3">
+                                <span className="block truncate overflow-hidden text-ellipsis">
                                   {cellContent.text}
                                 </span>
                               )}

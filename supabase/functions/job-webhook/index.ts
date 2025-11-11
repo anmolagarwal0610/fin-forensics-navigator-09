@@ -192,12 +192,34 @@ async function updateCaseStatus(supabase: any, payload: any) {
   } else if (payload.status === "SUCCEEDED") {
     // Handle success based on task type
     if (payload.task === "initial-parse") {
+      // Extract and upload individual CSV files FIRST before updating status
+      try {
+        console.log(`[CSV Extract] Starting extraction for case ${caseId} from ${payload.url}`);
+        await extractAndUploadCsvs(supabase, payload.url, caseId, payload.user_id);
+        console.log(`[CSV Extract] Successfully completed extraction for case ${caseId}`);
+      } catch (extractError: any) {
+        console.error("[CSV Extract] Extraction failed:", extractError.message);
+        // Mark case as failed since we can't proceed with review
+        await supabase
+          .from("cases")
+          .update({ 
+            status: "Failed",
+            hitl_stage: null,
+            updated_at: new Date().toISOString() 
+          })
+          .eq("id", caseId);
+        
+        return; // Don't proceed with Review status if extraction failed
+      }
+      
+      // ONLY update case status to Review AFTER CSV extraction is complete
       const { error: caseError } = await supabase
         .from("cases")
         .update({ 
           status: "Review",
           hitl_stage: "review",
-          csv_zip_url: payload.url
+          csv_zip_url: payload.url,
+          updated_at: new Date().toISOString() 
         })
         .eq("id", caseId);
       
@@ -205,21 +227,6 @@ async function updateCaseStatus(supabase: any, payload: any) {
         console.error("Failed to update case to Review:", caseError);
       } else {
         console.log(`Case ${caseId} set to Review with csv_zip_url: ${payload.url}`);
-        
-        // Extract and upload individual CSV files for review
-        try {
-          await extractAndUploadCsvs(supabase, payload.url, caseId, payload.user_id);
-        } catch (extractError: any) {
-          console.error("CSV extraction failed:", extractError.message);
-          // Mark case as failed since we can't proceed with review
-          await supabase
-            .from("cases")
-            .update({ 
-              status: "Failed",
-              hitl_stage: null
-            })
-            .eq("id", caseId);
-        }
       }
       
     } else if (payload.task === "final-analysis" || payload.task === "parse-statements") {

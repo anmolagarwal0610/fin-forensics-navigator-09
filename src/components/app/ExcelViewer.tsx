@@ -399,12 +399,12 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                               key={colIndex}
                               {...span}
                               style={style}
-                              className="p-2 text-sm border border-border align-top whitespace-nowrap min-w-[120px] max-w-[400px]"
+                              className="p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px]"
                             >
                               {cellContent.truncated ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="cursor-help block truncate">
+                                    <span className="cursor-help block truncate overflow-hidden text-ellipsis">
                                       {cellContent.text}
                                     </span>
                                   </TooltipTrigger>
@@ -415,7 +415,9 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                                   </TooltipContent>
                                 </Tooltip>
                               ) : (
-                                cellContent.text
+                                <span className="block truncate overflow-hidden text-ellipsis">
+                                  {cellContent.text}
+                                </span>
                               )}
                             </td>
                           );

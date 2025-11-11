@@ -46,8 +46,23 @@ export async function uploadInput(
     return { name: file.name, path: objectPath };
   });
 
-  await Promise.all(uploadPromises);
+  const uploadedFiles = await Promise.all(uploadPromises);
   console.log(`Uploaded ${files.length} files to storage`);
+  
+  // Insert file records into case_files table for traceability
+  const { addFiles } = await import('@/api/cases');
+  const fileRecords = uploadedFiles.map(f => ({
+    name: f.name,
+    url: f.path
+  }));
+  
+  try {
+    await addFiles(caseId, fileRecords);
+    console.log(`Inserted ${fileRecords.length} file records into case_files table`);
+  } catch (dbError) {
+    console.error('Failed to insert file records:', dbError);
+    // Don't fail the upload, just log the error
+  }
 
   // Create ZIP file locally
   const zip = new JSZip();

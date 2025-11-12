@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import JSZip from "https://esm.sh/jszip@3.10.1";
+import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -273,6 +274,55 @@ async function updateCaseStatus(supabase: any, payload: any) {
       console.error("Failed to update case to Failed:", caseError);
     } else {
       console.log(`Case ${caseId} set to Failed. Error: ${payload.error}`);
+    }
+
+    // Send failure notification email
+    try {
+      const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+      
+      // Fetch case details
+      const { data: caseData } = await supabase
+        .from("cases")
+        .select("name, creator_id")
+        .eq("id", caseId)
+        .single();
+      
+      if (caseData) {
+        // Fetch user email
+        const { data: userData } = await supabase.auth.admin.getUserById(caseData.creator_id);
+        
+        const emailHtml = `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <h2 style="color: #dc2626;">⚠️ Analysis Failed</h2>
+            <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0;">
+              <p style="margin: 0;"><strong>Case:</strong> ${caseData.name}</p>
+              <p style="margin: 8px 0 0 0;"><strong>Case ID:</strong> ${caseId}</p>
+            </div>
+            <p><strong>Job ID:</strong> ${payload.job_id}</p>
+            <p><strong>Task:</strong> ${payload.task}</p>
+            <p><strong>Error:</strong></p>
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 4px; margin: 8px 0;">
+              <code style="color: #dc2626; font-size: 14px;">${payload.error || 'Unknown error'}</code>
+            </div>
+            <p><strong>User:</strong> ${userData?.user?.email || 'Unknown'}</p>
+            <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+            <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;" />
+            <p style="color: #6b7280; font-size: 12px;">This is an automated notification from FinNavigator AI.</p>
+          </div>
+        `;
+        
+        await resend.emails.send({
+          from: "FinNavigator Alerts <help@finnavigatorai.com>",
+          to: ["hello@finnavigatorai.com"],
+          subject: `[FAILURE ALERT] Case Analysis Failed - ${caseData.name}`,
+          html: emailHtml,
+        });
+        
+        console.log(`Failure notification email sent for case ${caseId}`);
+      }
+    } catch (emailError: any) {
+      console.error("Failed to send failure notification email:", emailError.message);
+      // Don't throw - email failure shouldn't block webhook
     }
 
     const { error: eventError } = await supabase

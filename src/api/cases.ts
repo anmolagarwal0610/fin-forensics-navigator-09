@@ -135,15 +135,42 @@ export const addFiles = async (caseId: string, files: { name: string; url?: stri
   if (!uploaded_by) throw new Error("Not authenticated");
 
   if (!files.length) return [];
-  const toInsert = files.map((f) => ({
+  
+  console.log(`[addFiles] Called for case ${caseId} with ${files.length} files:`, files.map(f => f.name));
+  
+  // Check for existing files to prevent duplicates
+  const { data: existingFiles } = await supabase
+    .from("case_files")
+    .select("file_name")
+    .eq("case_id", caseId)
+    .in("file_name", files.map(f => f.name));
+  
+  const existingNames = new Set(existingFiles?.map(f => f.file_name) || []);
+  const newFiles = files.filter(f => !existingNames.has(f.name));
+  
+  if (existingNames.size > 0) {
+    console.warn(`[addFiles] Found ${existingNames.size} duplicate files for case ${caseId}:`, Array.from(existingNames));
+  }
+  
+  if (!newFiles.length) {
+    console.log(`[addFiles] No new files to insert for case ${caseId} - all duplicates`);
+    return [];
+  }
+  
+  console.log(`[addFiles] Inserting ${newFiles.length} new files for case ${caseId}`);
+  
+  const toInsert = newFiles.map((f) => ({
     case_id: caseId,
     file_name: f.name,
     file_url: f.url || null,
     type: "upload" as const,
     uploaded_by,
   }));
+  
   const { data, error } = await supabase.from("case_files").insert(toInsert).select();
   if (error) throw error;
+  
+  console.log(`[addFiles] Successfully inserted ${data.length} files for case ${caseId}`);
   return (data ?? []) as CaseFileRecord[];
 };
 

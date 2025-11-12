@@ -51,11 +51,13 @@ export async function uploadInput(
   console.log(`Uploaded ${files.length} files to storage`);
   
   // Insert file records into case_files table for traceability
-  const fileRecords = uploadedFiles.map(f => ({
-    name: f.name,
+  // CRITICAL: Store SANITIZED filename to match what's in storage
+  const fileRecords = uploadedFiles.map((f, index) => ({
+    name: sanitizeFilename(files[index].name),  // Use sanitized name for storage access
     url: f.path
   }));
   
+  console.log(`[uploadInput] Storing ${fileRecords.length} file records with sanitized names:`, fileRecords);
   await addFiles(caseId, fileRecords);
   console.log(`Inserted ${fileRecords.length} file records into case_files table`);
 

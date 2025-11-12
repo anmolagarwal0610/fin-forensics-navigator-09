@@ -29,9 +29,10 @@ function sanitizeFilename(filename: string): string {
  * Upload files to Supabase Storage, create ZIP, and return ZIP signed URL
  */
 export async function uploadInput(
-  files: File[], 
-  userId: string, 
-  caseId: string
+  files: File[],
+  userId: string,
+  caseId: string,
+  skipFileInsertion: boolean = false
 ): Promise<{ zipPath: string; signedUrl: string }> {
   const bucket = 'case-files';
   
@@ -50,16 +51,18 @@ export async function uploadInput(
   const uploadedFiles = await Promise.all(uploadPromises);
   console.log(`Uploaded ${files.length} files to storage`);
   
-  // Insert file records into case_files table for traceability
-  // CRITICAL: Store SANITIZED filename to match what's in storage
-  const fileRecords = uploadedFiles.map((f, index) => ({
-    name: sanitizeFilename(files[index].name),  // Use sanitized name for storage access
-    url: f.path
-  }));
-  
-  console.log(`[uploadInput] Storing ${fileRecords.length} file records with sanitized names:`, fileRecords);
-  await addFiles(caseId, fileRecords);
-  console.log(`Inserted ${fileRecords.length} file records into case_files table`);
+  // 3. Add file records to case_files table with SANITIZED names (unless skipped)
+  if (!skipFileInsertion) {
+    const fileRecords = uploadedFiles.map((f, index) => ({
+      name: sanitizeFilename(files[index].name),  // Store SANITIZED name for storage access
+      url: f.path
+    }));
+
+    console.log(`Inserting ${fileRecords.length} file records:`, fileRecords);
+    await addFiles(caseId, fileRecords);
+  } else {
+    console.log(`Skipping file insertion for ${uploadedFiles.length} files (skipFileInsertion=true)`);
+  }
 
   // Create ZIP file locally
   const zip = new JSZip();

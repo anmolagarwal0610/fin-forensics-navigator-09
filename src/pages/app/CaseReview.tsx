@@ -190,7 +190,8 @@ export default function CaseReview() {
               variant: "destructive"
             });
           }
-        }
+        },
+        true  // Skip inserting CSV files into case_files table
       );
 
       toast({ 

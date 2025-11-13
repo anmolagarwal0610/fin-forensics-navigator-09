@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.send-support-ticket]
 verify_jwt = true
+
+[functions.runtime-config]
+verify_jwt = false

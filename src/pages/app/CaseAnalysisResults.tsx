@@ -304,13 +304,12 @@ export default function CaseAnalysisResults() {
           return patterns.some(pattern => name === pattern);
         });
 
-        if (rawTransactionsFile || summaryFile) {
-          parsedData.fileSummaries.push({
-            originalFile: originalFile.file_name,
-            rawTransactionsFile: rawTransactionsFile || null,
-            summaryFile: summaryFile || null
-          });
-        }
+        // Always add to fileSummaries, even if no matches found
+        parsedData.fileSummaries.push({
+          originalFile: originalFile.file_name,
+          rawTransactionsFile: rawTransactionsFile || null,
+          summaryFile: summaryFile || null
+        });
       });
 
       parsedData.zipData = zip;

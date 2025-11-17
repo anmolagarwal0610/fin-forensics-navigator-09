@@ -133,7 +133,12 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
       </div>
 
       {/* Left items */}
-      <div className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex flex-col gap-[clamp(0.5rem,1.5vh,1.1rem)]">
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0 }}  // or delay: 0.1
+        className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex flex-col gap-[clamp(0.5rem,1.5vh,1.1rem)]"
+      >
         {inputDocuments.map((doc, i) => (
           <motion.div
             key={i}
@@ -148,7 +153,8 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
             <span className={cls.leftItemText}>{doc.label}</span>
           </motion.div>
         ))}
-      </div>
+      </motion.div>
+
 
       {/* SVG */}
       <svg

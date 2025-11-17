@@ -277,6 +277,39 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_job_update: {
+        Args: {
+          p_error: string
+          p_id: string
+          p_idempotency_key: string
+          p_input_url: string
+          p_session_id: string
+          p_status: string
+          p_task: string
+          p_updated_at: string
+          p_url: string
+          p_user_id: string
+        }
+        Returns: {
+          created_at: string | null
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          input_url: string
+          session_id: string | null
+          status: string
+          task: string
+          updated_at: string | null
+          url: string | null
+          user_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
     }
     Enums: {

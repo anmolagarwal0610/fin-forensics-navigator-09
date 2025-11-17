@@ -113,16 +113,12 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
     container:
       "relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-muted/20 to-accent/5",
     height: "h-[clamp(18rem,40vw,26rem)]",
-    leftItemText:
-      "text-[clamp(0.8rem,0.95vw,0.95rem)] font-medium",
+    leftItemText: "text-[clamp(0.8rem,0.95vw,0.95rem)] font-medium",
     rightItemText:
       "text-[clamp(0.8rem,0.95vw,0.95rem)] font-semibold leading-tight",
-    iconBox:
-      "flex items-center justify-center rounded-lg bg-card border border-accent/40",
-    iconBoxSize:
-      "w-[clamp(2.25rem,2.8vw,2.6rem)] h-[clamp(2.25rem,2.8vw,2.6rem)]",
-    iconSize:
-      "w-[clamp(1.0rem,1.4vw,1.2rem)] h-[clamp(1.0rem,1.4vw,1.2rem)]",
+    iconBox: "flex items-center justify-center rounded-lg bg-card border border-accent/40",
+    iconBoxSize: "w-[clamp(2.25rem,2.8vw,2.6rem)] h-[clamp(2.25rem,2.8vw,2.6rem)]",
+    iconSize: "w-[clamp(1.0rem,1.4vw,1.2rem)] h-[clamp(1.0rem,1.4vw,1.2rem)]",
   };
 
   return (
@@ -132,11 +128,11 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
         <div className="absolute inset-0 bg-[linear-gradient(90deg,hsl(var(--border))_1px,transparent_1px),linear-gradient(hsl(var(--border))_1px,transparent_1px)] bg-[size:20px_20px]" />
       </div>
 
-      {/* Left items */}
-      <motion.div 
+      {/* Left items (wrapper fade-in) */}
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 0 }}  // or delay: 0.1
+        transition={{ delay: 0 }}
         className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 flex flex-col gap-[clamp(0.5rem,1.5vh,1.1rem)]"
       >
         {inputDocuments.map((doc, i) => (
@@ -154,7 +150,6 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
           </motion.div>
         ))}
       </motion.div>
-
 
       {/* SVG */}
       <svg
@@ -199,7 +194,6 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
             key={p.id}
             d={p.d}
             stroke="url(#leftTrail)"
-            // strokeWidth={3} // input line thickness
             strokeWidth={Math.max(3, 1000 / VB_W)}
             fill="none"
             strokeDasharray="8 6"
@@ -226,42 +220,43 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
           />
         ))}
 
-        {/* Animated dots */}
+        {/* Animated dots (patched: visibility controlled to prevent (0,0) flash) */}
         {!prefersReducedMotion && (
           <>
-            {leftPaths.map((p, i) => (
-              <g key={`ldots-${i}`}>
-                <circle r="4" fill="hsl(var(--accent))" opacity="0.75">
-                  <animateMotion
-                    dur={`${(leftDur[i] ?? 2.8).toFixed(2)}s`}
-                    repeatCount="indefinite"
-                    begin={`${(0.8 + i * 0.15).toFixed(2)}s`}
-                  >
-                    <mpath href={`#${p.id}`} />
-                  </animateMotion>
-                </circle>
-                <circle r="4" fill="hsl(var(--accent))" opacity="0.6">
-                  <animateMotion
-                    dur={`${(((leftDur[i] ?? 3.3) * 1.15)).toFixed(2)}s`}
-                    repeatCount="indefinite"
-                    begin={`${(1.6 + i * 0.2).toFixed(2)}s`}
-                  >
-                    <mpath href={`#${p.id}`} />
-                  </animateMotion>
-                </circle>
-              </g>
-            ))}
+            {leftPaths.map((p, i) => {
+              const b1 = `${(0.8 + i * 0.15).toFixed(2)}s`;
+              const b2 = `${(1.6 + i * 0.2).toFixed(2)}s`;
+              const d1 = (leftDur[i] ?? 2.8).toFixed(2);
+              const d2 = (((leftDur[i] ?? 3.3) * 1.15)).toFixed(2);
 
-            <circle r="4" fill="hsl(var(--success))" opacity="0.85">
-              <animateMotion
-                dur={`${(rightDur["rp-top"] ?? 2.4).toFixed(2)}s`}
-                repeatCount="indefinite"
-                begin="2s"
-              >
+              return (
+                <g key={`ldots-${i}`}>
+                  <circle r="4" fill="hsl(var(--accent))" opacity="0.75" visibility="hidden">
+                    <animate attributeName="visibility" to="visible" begin={b1} dur="0.001s" fill="freeze" />
+                    <animateMotion dur={`${d1}s`} repeatCount="indefinite" begin={b1}>
+                      <mpath href={`#${p.id}`} />
+                    </animateMotion>
+                  </circle>
+
+                  <circle r="4" fill="hsl(var(--accent))" opacity="0.6" visibility="hidden">
+                    <animate attributeName="visibility" to="visible" begin={b2} dur="0.001s" fill="freeze" />
+                    <animateMotion dur={`${d2}s`} repeatCount="indefinite" begin={b2}>
+                      <mpath href={`#${p.id}`} />
+                    </animateMotion>
+                  </circle>
+                </g>
+              );
+            })}
+
+            {/* rp-top pair */}
+            <circle r="4" fill="hsl(var(--success))" opacity="0.85" visibility="hidden">
+              <animate attributeName="visibility" to="visible" begin="2s" dur="0.001s" fill="freeze" />
+              <animateMotion dur={`${(rightDur["rp-top"] ?? 2.4).toFixed(2)}s`} repeatCount="indefinite" begin="2s">
                 <mpath href="#rp-top" />
               </animateMotion>
             </circle>
-            <circle r="4" fill="hsl(var(--success))" opacity="0.6">
+            <circle r="4" fill="hsl(var(--success))" opacity="0.6" visibility="hidden">
+              <animate attributeName="visibility" to="visible" begin="2.8s" dur="0.001s" fill="freeze" />
               <animateMotion
                 dur={`${(((rightDur["rp-top"] ?? 2.4) * 1.25)).toFixed(2)}s`}
                 repeatCount="indefinite"
@@ -271,16 +266,15 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
               </animateMotion>
             </circle>
 
-            <circle r="4" fill="hsl(var(--accent))" opacity="0.85">
-              <animateMotion
-                dur={`${(rightDur["rp-bottom"] ?? 2.6).toFixed(2)}s`}
-                repeatCount="indefinite"
-                begin="2.2s"
-              >
+            {/* rp-bottom pair */}
+            <circle r="4" fill="hsl(var(--accent))" opacity="0.85" visibility="hidden">
+              <animate attributeName="visibility" to="visible" begin="2.2s" dur="0.001s" fill="freeze" />
+              <animateMotion dur={`${(rightDur["rp-bottom"] ?? 2.6).toFixed(2)}s`} repeatCount="indefinite" begin="2.2s">
                 <mpath href="#rp-bottom" />
               </animateMotion>
             </circle>
-            <circle r="4" fill="hsl(var(--accent))" opacity="0.6">
+            <circle r="4" fill="hsl(var(--accent))" opacity="0.6" visibility="hidden">
+              <animate attributeName="visibility" to="visible" begin="3s" dur="0.001s" fill="freeze" />
               <animateMotion
                 dur={`${(((rightDur["rp-bottom"] ?? 2.6) * 1.23)).toFixed(2)}s`}
                 repeatCount="indefinite"
@@ -302,10 +296,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
             height: "clamp(9.5rem, 18vw, 11.5rem)",
           }}
         >
-          <Brain
-            className="w-[92%] h-[92%] text-primary-foreground"
-            strokeWidth={0.3}
-          />
+          <Brain className="w-[92%] h-[92%] text-primary-foreground" strokeWidth={0.3} />
           <div className="absolute left-[25%] top-1/2 -translate-y-1/2 text-[clamp(0.72rem,0.9vw,0.82rem)] font-semibold text-white/95">
             ML
           </div>
@@ -325,7 +316,6 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
             Engine
           </div>
         </motion.div>
-
       </div>
 
       {/* RIGHT labels – begin AFTER the arrow tip */}
@@ -335,7 +325,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
       >
         <div className="flex items-center gap-2">
           <BarChart3 className="w-[clamp(1.1rem,1.6vw,1.4rem)] h-[clamp(1.1rem,1.6vw,1.4rem)] text-success" />
-        {/* Force two lines for better fit */}
+          {/* Force two lines for better fit */}
           <span className={`${cls.rightItemText}`}>Actionable<br />Insights</span>
         </div>
 

@@ -16,6 +16,7 @@ import Terms from "@/pages/Terms";
 import SignIn from "@/pages/SignIn";
 import SignUp from "@/pages/SignUp";
 import Reset from "@/pages/Reset";
+import ResetConfirm from "@/pages/ResetConfirm";
 import NotFound from "@/pages/NotFound";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Dashboard from "@/pages/app/Dashboard";
@@ -60,6 +61,7 @@ function App() {
               <Route path="/signin" element={<Layout showHeaderFooter={false}><SignIn /></Layout>} />
               <Route path="/signup" element={<Layout showHeaderFooter={false}><SignUp /></Layout>} />
               <Route path="/reset" element={<Layout showHeaderFooter={false}><Reset /></Layout>} />
+              <Route path="/reset-confirm" element={<Layout showHeaderFooter={false}><ResetConfirm /></Layout>} />
               
               {/* Protected app routes */}
               <Route path="/app/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />

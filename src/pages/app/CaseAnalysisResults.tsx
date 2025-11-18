@@ -282,29 +282,42 @@ export default function CaseAnalysisResults() {
         name.startsWith('POI_') && name.endsWith('.xlsx')
       ).length;
 
+      // Helper to normalize strings: lowercase, remove extensions, remove special chars/spaces
+      const normalizeName = (name: string) => {
+        // Remove all extensions first (e.g., .csv.xlsx or just .xlsx)
+        const nameNoExt = name.split('.')[0];
+        // Keep only alphanumeric chars and lowercase them
+        return nameNoExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+      };
+
       // Match original files with analysis results
       const analysisFileNames = Object.keys(zipData.files);
+      
       originalFiles.forEach(originalFile => {
-        const baseName = originalFile.file_name.replace(/\.[^/.]+$/, ""); // Remove extension
+        // 1. Normalize the original filename (e.g., "My Bank File.pdf" -> "mybankfile")
+        const normalizedOriginal = normalizeName(originalFile.file_name);
         
-        // Try multiple patterns for HITL (Pipeline B) and direct (Pipeline A) flows
-        const rawTransactionsFile = analysisFileNames.find(name => {
-          const patterns = [
-            `raw_transactions_${baseName}.xlsx`,        // Pipeline A
-            `raw_transactions_${baseName}.csv.xlsx`,    // Pipeline B
-          ];
-          return patterns.some(pattern => name === pattern);
+        // 2. Find the Raw Transaction file by matching normalized names
+        const rawTransactionsFile = analysisFileNames.find(zipFileName => {
+          if (!zipFileName.startsWith('raw_transactions_')) return false;
+          
+          // Remove the prefix to compare the core name
+          const cleanZipName = zipFileName.replace('raw_transactions_', '');
+          const normalizedZip = normalizeName(cleanZipName);
+          
+          return normalizedZip.includes(normalizedOriginal) || normalizedOriginal.includes(normalizedZip);
         });
         
-        const summaryFile = analysisFileNames.find(name => {
-          const patterns = [
-            `summary_${baseName}.xlsx`,        // Pipeline A
-            `summary_${baseName}.csv.xlsx`,    // Pipeline B
-          ];
-          return patterns.some(pattern => name === pattern);
+        // 3. Find the Summary file by matching normalized names
+        const summaryFile = analysisFileNames.find(zipFileName => {
+          if (!zipFileName.startsWith('summary_')) return false;
+          
+          const cleanZipName = zipFileName.replace('summary_', '');
+          const normalizedZip = normalizeName(cleanZipName);
+          
+          return normalizedZip.includes(normalizedOriginal) || normalizedOriginal.includes(normalizedZip);
         });
-
-        // Always add to fileSummaries, even if no matches found
+      
         parsedData.fileSummaries.push({
           originalFile: originalFile.file_name,
           rawTransactionsFile: rawTransactionsFile || null,

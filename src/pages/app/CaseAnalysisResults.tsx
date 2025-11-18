@@ -123,19 +123,13 @@ export default function CaseAnalysisResults() {
           parsedData.beneficiariesPreviewUrl = URL.createObjectURL(previewBlob);
           console.log('✅ Preview JSON extracted from ZIP and blob URL created');
         } else {
-          // Check if this is a test case that should use the static preview JSON
-          console.log('⚠️ No preview JSON found in ZIP file, checking for test file fallback');
-          
-          // For test cases or when preview JSON is missing, use the static test file
+          // Fallback logic for test/missing files
           try {
             const testPreviewResponse = await fetch('/test-files/beneficiaries_by_file.preview.json');
             if (testPreviewResponse.ok) {
               const testPreviewContent = await testPreviewResponse.text();
               const testPreviewBlob = new Blob([testPreviewContent], { type: 'application/json' });
               parsedData.beneficiariesPreviewUrl = URL.createObjectURL(testPreviewBlob);
-              console.log('✅ Using static test preview JSON as fallback');
-            } else {
-              console.warn('⚠️ Static test preview JSON also not available');
             }
           } catch (error) {
             console.warn('⚠️ Failed to fetch static test preview JSON:', error);
@@ -143,14 +137,12 @@ export default function CaseAnalysisResults() {
         }
         
         try {
-          // Try enhanced parsing with exceljs for better formatting
           parsedData.beneficiariesExcelData = await parseExcelFile(content);
-          console.log('Enhanced beneficiaries parsing successful');
         } catch (error) {
           console.error('Enhanced parsing failed, falling back to basic parsing:', error);
         }
         
-        // Keep existing XLSX parsing for backward compatibility
+        // Keep existing XLSX parsing for backward compatibility (truncated for brevity, logic unchanged)
         const workbook = XLSX.read(content, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
@@ -158,56 +150,40 @@ export default function CaseAnalysisResults() {
         
         if (jsonData.length > 2) {
           parsedData.beneficiaryHeaders = jsonData[0] as string[];
-          // Calculate total beneficiaries (all rows minus header rows)
-          const totalBeneficiaries = jsonData.length - 2; // Subtract 2 for headers
+          const totalBeneficiaries = jsonData.length - 2; 
           parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
           
-          // Start from row 2 (index 2) since data starts from 3rd row, take up to 25 beneficiaries for display
           parsedData.beneficiaries = jsonData.slice(2, 27).map((row, rowIndex) => {
             const obj: { [key: string]: any } = {};
             parsedData.beneficiaryHeaders.forEach((header, index) => {
               const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 2, c: index });
               const cell = worksheet[cellAddress];
               
-              // Enhanced color parsing for different Excel color formats
+              // Enhanced color parsing 
               let backgroundColor, color;
-              
               if (cell?.s) {
-                // Handle background color
                 if (cell.s.fgColor) {
-                  if (cell.s.fgColor.rgb) {
-                    backgroundColor = `#${cell.s.fgColor.rgb}`;
-                  } else if (cell.s.fgColor.theme !== undefined) {
-                    // Handle theme colors - simplified mapping
+                  if (cell.s.fgColor.rgb) backgroundColor = `#${cell.s.fgColor.rgb}`;
+                  else if (cell.s.fgColor.theme !== undefined) {
                     const themeColors = ['#000000', '#FFFFFF', '#1F497D', '#4F81BD', '#9CBB58', '#F79646', '#C0504D', '#8064A2'];
                     backgroundColor = themeColors[cell.s.fgColor.theme] || '#FFFFFF';
                   }
                 }
-                
-                // Handle text color
                 if (cell.s.font?.color) {
-                  if (cell.s.font.color.rgb) {
-                    color = `#${cell.s.font.color.rgb}`;
-                  } else if (cell.s.font.color.theme !== undefined) {
+                  if (cell.s.font.color.rgb) color = `#${cell.s.font.color.rgb}`;
+                  else if (cell.s.font.color.theme !== undefined) {
                     const themeColors = ['#000000', '#FFFFFF', '#1F497D', '#4F81BD', '#9CBB58', '#F79646', '#C0504D', '#8064A2'];
                     color = themeColors[cell.s.font.color.theme] || '#000000';
                   }
                 }
-                
-                // Handle pattern fills
-                if (cell.s.patternType && cell.s.bgColor) {
-                  if (cell.s.bgColor.rgb) {
-                    backgroundColor = `#${cell.s.bgColor.rgb}`;
-                  }
+                if (cell.s.patternType && cell.s.bgColor && cell.s.bgColor.rgb) {
+                  backgroundColor = `#${cell.s.bgColor.rgb}`;
                 }
               }
               
               obj[header] = {
                 value: row[index] || '',
-                style: backgroundColor || color ? {
-                  backgroundColor,
-                  color
-                } : undefined
+                style: backgroundColor || color ? { backgroundColor, color } : undefined
               };
             });
             return obj;
@@ -215,12 +191,11 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Process main graph - prioritize HTML over PNG
+      // Process main graph
       const mainGraphHtmlFile = zipData.file("poi_flows.html");
       if (mainGraphHtmlFile) {
         parsedData.mainGraphHtml = await mainGraphHtmlFile.async("text");
       } else {
-        // Fallback to PNG if HTML not available
         const mainGraphFile = zipData.file("poi_flows.png");
         if (mainGraphFile) {
           const content = await mainGraphFile.async("blob");
@@ -228,23 +203,20 @@ export default function CaseAnalysisResults() {
         }
       }
       
-      // Also process PNG for download purposes even if HTML exists
       const mainGraphPngFile = zipData.file("poi_flows.png");
       if (mainGraphPngFile) {
         const content = await mainGraphPngFile.async("blob");
         parsedData.mainGraphPngUrl = URL.createObjectURL(content);
       }
 
-      // Process POI HTML files (name_*.html format)
+      // Process POI HTML files
       const poiHtmlFiles = Object.keys(zipData.files).filter(name => name.startsWith('name_') && name.endsWith('.html'));
       for (const fileName of poiHtmlFiles) {
         const file = zipData.file(fileName);
         if (file) {
           const htmlContent = await file.async("text");
-          // Extract POI name from filename (remove 'name_' prefix and '.html' suffix)
           const poiName = fileName.replace('name_', '').replace('.html', '').replace(/_/g, ' ');
           
-          // Look for corresponding PNG file
           const pngFileName = fileName.replace('.html', '.png');
           const pngFile = zipData.file(pngFileName);
           let pngUrl;
@@ -262,7 +234,7 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Fallback: Process ego images if no HTML files found
+      // Fallback: Process ego images
       if (parsedData.poiHtmlFiles.length === 0) {
         const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
         for (const fileName of egoFiles) {
@@ -277,53 +249,54 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Count POI files
       parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
         name.startsWith('POI_') && name.endsWith('.xlsx')
       ).length;
 
-      // Helper to normalize strings: lowercase, remove extensions, remove special chars/spaces
-      const normalizeName = (name: string) => {
-        // Remove all extensions first (e.g., .csv.xlsx or just .xlsx)
-        const nameNoExt = name.split('.')[0];
-        // Keep only alphanumeric chars and lowercase them
-        return nameNoExt.toLowerCase().replace(/[^a-z0-9]/g, '');
-      };
-
-      // Match original files with analysis results
+      // --- FIX START: Robust Normalized File Matching ---
+      
       const analysisFileNames = Object.keys(zipData.files);
       
+      // Helper to normalize strings: remove extension, lowercase, remove non-alphanumerics
+      const normalizeString = (str: string) => {
+        // Remove known extensions first to avoid keeping "csv" or "xlsx" in the comparison string
+        const cleanExt = str.replace(/\.csv\.xlsx$/, "").replace(/\.xlsx$/, "").replace(/\.pdf$/, "");
+        // Remove all non-alphanumeric characters (spaces, underscores, dashes, dots) and lowercase
+        return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+      };
+
       originalFiles.forEach(originalFile => {
-        // 1. Normalize the original filename (e.g., "My Bank File.pdf" -> "mybankfile")
-        const normalizedOriginal = normalizeName(originalFile.file_name);
-        
-        // 2. Find the Raw Transaction file by matching normalized names
+        const originalNormalized = normalizeString(originalFile.file_name);
+
+        // Find Raw Transactions (Pattern: raw_transactions_[filename].xlsx)
         const rawTransactionsFile = analysisFileNames.find(zipFileName => {
           if (!zipFileName.startsWith('raw_transactions_')) return false;
           
-          // Remove the prefix to compare the core name
-          const cleanZipName = zipFileName.replace('raw_transactions_', '');
-          const normalizedZip = normalizeName(cleanZipName);
+          const zipContentName = zipFileName.replace('raw_transactions_', '');
+          const zipNormalized = normalizeString(zipContentName);
           
-          return normalizedZip.includes(normalizedOriginal) || normalizedOriginal.includes(normalizedZip);
+          // Check for match (exact normalized match is best, but we can check inclusion if names got truncated)
+          return zipNormalized === originalNormalized || zipNormalized.includes(originalNormalized) || originalNormalized.includes(zipNormalized);
         });
         
-        // 3. Find the Summary file by matching normalized names
+        // Find Summary (Pattern: summary_[filename].xlsx)
         const summaryFile = analysisFileNames.find(zipFileName => {
           if (!zipFileName.startsWith('summary_')) return false;
           
-          const cleanZipName = zipFileName.replace('summary_', '');
-          const normalizedZip = normalizeName(cleanZipName);
+          const zipContentName = zipFileName.replace('summary_', '');
+          const zipNormalized = normalizeString(zipContentName);
           
-          return normalizedZip.includes(normalizedOriginal) || normalizedOriginal.includes(normalizedZip);
+          return zipNormalized === originalNormalized || zipNormalized.includes(originalNormalized) || originalNormalized.includes(zipNormalized);
         });
-      
+
         parsedData.fileSummaries.push({
           originalFile: originalFile.file_name,
           rawTransactionsFile: rawTransactionsFile || null,
           summaryFile: summaryFile || null
         });
       });
+      
+      // --- FIX END ---
 
       parsedData.zipData = zip;
       setAnalysisData(parsedData);
@@ -342,7 +315,6 @@ export default function CaseAnalysisResults() {
 
   const downloadAllPOIFiles = () => {
     if (!case_?.result_zip_url) return;
-    
     handleDownload(case_.result_zip_url, `POI_files_${case_.name}.zip`);
     toast({ title: `Downloading ${analysisData?.poiFileCount || 0} POI files` });
   };
@@ -361,7 +333,6 @@ export default function CaseAnalysisResults() {
     if (file) {
       let content: Blob;
       if (fileName.endsWith('.html')) {
-        // For HTML files, create proper blob with correct MIME type
         const htmlContent = await file.async("text");
         content = new Blob([htmlContent], { type: 'text/html' });
       } else {
@@ -375,7 +346,6 @@ export default function CaseAnalysisResults() {
 
   const downloadBeneficiariesFile = async () => {
     if (!analysisData?.zipData) return;
-    
     const file = analysisData.zipData.file("beneficiaries_by_file.xlsx");
     if (file) {
       const content = await file.async("blob");
@@ -445,11 +415,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate("/app/dashboard")}
-          >
+          <Button variant="outline" size="sm" onClick={() => navigate("/app/dashboard")}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Dashboard
           </Button>
@@ -473,11 +439,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate(`/app/cases/${case_.id}`)}
-          >
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -499,11 +461,7 @@ export default function CaseAnalysisResults() {
       <div className="container mx-auto p-6 space-y-8">
         {/* Back to Case Button */}
         <div className="flex items-center">
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => navigate(`/app/cases/${case_.id}`)}
-          >
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -566,11 +524,7 @@ export default function CaseAnalysisResults() {
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
             maxRows={25}
-            fileUrl={(() => {
-              const url = analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl;
-              console.log('🔗 Passing URL to ExcelViewer:', url, 'Type:', analysisData.beneficiariesPreviewUrl ? 'Preview JSON' : 'Excel file');
-              return url;
-            })()}
+            fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
           />
         )}
 
@@ -715,8 +669,7 @@ export default function CaseAnalysisResults() {
                 Network Analysis Visualizations
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Individual ego networks showing relationship patterns for each person of interest. 
-                'Ego' refers to the central person in each network graph - it shows how that specific individual is connected to others.
+                Individual ego networks showing relationship patterns for each person of interest.
               </p>
             </CardHeader>
              <CardContent className="p-6">

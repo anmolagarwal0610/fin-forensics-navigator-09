@@ -1,12 +1,44 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import JSZip from "https://esm.sh/jszip@3.10.1";
-import { Resend } from "npm:resend@2.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-signature",
 };
+
+/**
+ * Verify HMAC-SHA256 webhook signature
+ */
+async function verifyWebhookSignature(
+  signature: string | null,
+  body: string,
+  secret: string
+): Promise<boolean> {
+  if (!signature) return false;
+  
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  
+  const expectedSigBuffer = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    encoder.encode(body)
+  );
+  
+  const expectedSig = Array.from(new Uint8Array(expectedSigBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  // Constant-time comparison to prevent timing attacks
+  return signature === expectedSig;
+}
 
 async function extractAndUploadCsvs(
   supabase: any,
@@ -111,12 +143,41 @@ async function extractAndUploadCsvs(
 }
 
 serve(async (req) => {
+  console.log("=== Job Webhook Received ===");
+
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const payload = await req.json();
+    // Read raw body for signature verification
+    const rawBody = await req.text();
+    const signature = req.headers.get('X-Signature');
+    const webhookSecret = Deno.env.get("WEBHOOK_SECRET");
+    
+    if (!webhookSecret) {
+      console.error("[Security] WEBHOOK_SECRET not configured");
+      return new Response("Server configuration error", { 
+        status: 500,
+        headers: corsHeaders 
+      });
+    }
+    
+    // VERIFY SIGNATURE BEFORE PROCESSING
+    const isValid = await verifyWebhookSignature(signature, rawBody, webhookSecret);
+    
+    if (!isValid) {
+      console.error("[Security] Invalid webhook signature - unauthorized request blocked");
+      return new Response("Unauthorized", { 
+        status: 401,
+        headers: corsHeaders 
+      });
+    }
+    
+    console.log("[Security] ✓ Webhook signature verified");
+    
+    // Parse the validated payload
+    const payload = JSON.parse(rawBody);
     console.log("Job webhook received:", JSON.stringify(payload, null, 2));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -278,47 +339,63 @@ async function updateCaseStatus(supabase: any, payload: any) {
 
     // Send failure notification email
     try {
-      const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+      const resendApiKey = Deno.env.get("RESEND_API_KEY");
       
-      // Fetch case details
-      const { data: caseData } = await supabase
-        .from("cases")
-        .select("name, creator_id")
-        .eq("id", caseId)
-        .single();
-      
-      if (caseData) {
-        // Fetch user email
-        const { data: userData } = await supabase.auth.admin.getUserById(caseData.creator_id);
+      if (!resendApiKey) {
+        console.warn("RESEND_API_KEY not configured, skipping failure email");
+      } else {
+        // Fetch case details
+        const { data: caseData } = await supabase
+          .from("cases")
+          .select("name, creator_id")
+          .eq("id", caseId)
+          .single();
         
-        const emailHtml = `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #dc2626;">⚠️ Analysis Failed</h2>
-            <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0;">
-              <p style="margin: 0;"><strong>Case:</strong> ${caseData.name}</p>
-              <p style="margin: 8px 0 0 0;"><strong>Case ID:</strong> ${caseId}</p>
+        if (caseData) {
+          // Fetch user email
+          const { data: userData } = await supabase.auth.admin.getUserById(caseData.creator_id);
+          
+          const emailHtml = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+              <h2 style="color: #dc2626;">⚠️ Analysis Failed</h2>
+              <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0;">
+                <p style="margin: 0;"><strong>Case:</strong> ${caseData.name}</p>
+                <p style="margin: 8px 0 0 0;"><strong>Case ID:</strong> ${caseId}</p>
+              </div>
+              <p><strong>Job ID:</strong> ${payload.job_id}</p>
+              <p><strong>Task:</strong> ${payload.task}</p>
+              <p><strong>Error:</strong></p>
+              <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 4px; margin: 8px 0;">
+                <code style="color: #dc2626; font-size: 14px;">${payload.error || 'Unknown error'}</code>
+              </div>
+              <p><strong>User:</strong> ${userData?.user?.email || 'Unknown'}</p>
+              <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
+              <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;" />
+              <p style="color: #6b7280; font-size: 12px;">This is an automated notification from FinNavigator AI.</p>
             </div>
-            <p><strong>Job ID:</strong> ${payload.job_id}</p>
-            <p><strong>Task:</strong> ${payload.task}</p>
-            <p><strong>Error:</strong></p>
-            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 4px; margin: 8px 0;">
-              <code style="color: #dc2626; font-size: 14px;">${payload.error || 'Unknown error'}</code>
-            </div>
-            <p><strong>User:</strong> ${userData?.user?.email || 'Unknown'}</p>
-            <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-            <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;" />
-            <p style="color: #6b7280; font-size: 12px;">This is an automated notification from FinNavigator AI.</p>
-          </div>
-        `;
-        
-        await resend.emails.send({
-          from: "FinNavigator Alerts <help@finnavigatorai.com>",
-          to: ["hello@finnavigatorai.com"],
-          subject: `[FAILURE ALERT] Case Analysis Failed - ${caseData.name}`,
-          html: emailHtml,
-        });
-        
-        console.log(`Failure notification email sent for case ${caseId}`);
+          `;
+          
+          const emailResponse = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              "Authorization": `Bearer ${resendApiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: "FinNavigator Alerts <help@finnavigatorai.com>",
+              to: ["hello@finnavigatorai.com"],
+              subject: `[FAILURE ALERT] Case Analysis Failed - ${caseData.name}`,
+              html: emailHtml,
+            }),
+          });
+          
+          if (!emailResponse.ok) {
+            const errorText = await emailResponse.text();
+            console.error("Failed to send failure notification:", errorText);
+          } else {
+            console.log(`Failure notification email sent for case ${caseId}`);
+          }
+        }
       }
     } catch (emailError: any) {
       console.error("Failed to send failure notification email:", emailError.message);

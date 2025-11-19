@@ -29,3 +29,12 @@ verify_jwt = true
 
 [functions.revoke-subscription]
 verify_jwt = true
+
+[functions.send-subscription-email]
+verify_jwt = false
+
+[functions.check-expired-subscriptions]
+verify_jwt = false
+
+[functions.bootstrap-admin]
+verify_jwt = true

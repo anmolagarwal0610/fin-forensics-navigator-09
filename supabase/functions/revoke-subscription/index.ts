@@ -100,10 +100,34 @@ serve(async (req) => {
       throw updateError;
     }
 
+    // Log the admin action
+    await supabase.rpc("log_admin_action", {
+      p_admin_id: user.id,
+      p_target_user_id: userId,
+      p_action: "revoke_subscription",
+      p_details: {},
+    });
+
     console.log(`Admin ${user.email} revoked subscription for user ${userId}`);
 
-    // TODO: Send email notification to user about subscription revocation
-    // This would require getting the user's email and calling the email service
+    // Get target user email for notification
+    const { data: targetAuthData } = await supabase.auth.admin.getUserById(userId);
+
+    if (targetAuthData?.user?.email) {
+      // Send email notification (non-blocking)
+      try {
+        await supabase.functions.invoke("send-subscription-email", {
+          body: {
+            to: targetAuthData.user.email,
+            type: "revoked",
+            data: {},
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to send notification email:", emailError);
+        // Don't fail the whole request if email fails
+      }
+    }
 
     return new Response(
       JSON.stringify({ 

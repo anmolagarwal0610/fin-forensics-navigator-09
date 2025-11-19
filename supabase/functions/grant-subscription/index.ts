@@ -94,7 +94,7 @@ serve(async (req) => {
 
     // Check that user is not granting to themselves
     if (userId === user.id) {
-      return new Response(JSON.stringify({ error: "Cannot modify your own subscription" }), {
+      return new Response(JSON.stringify({ error: "Cannot modify your own subscription. This is a safety measure to prevent accidental self-lockout." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -116,10 +116,40 @@ serve(async (req) => {
       throw updateError;
     }
 
+    // Log the admin action
+    await supabase.rpc("log_admin_action", {
+      p_admin_id: user.id,
+      p_target_user_id: userId,
+      p_action: "grant_subscription",
+      p_details: {
+        tier,
+        expires_at: expiresAt,
+      },
+    });
+
     console.log(`Admin ${user.email} granted ${tier} subscription to user ${userId}`);
 
-    // TODO: Send email notification to user about their new subscription
-    // This would require getting the user's email and calling the email service
+    // Get target user email for notification
+    const { data: targetAuthData } = await supabase.auth.admin.getUserById(userId);
+
+    if (targetAuthData?.user?.email) {
+      // Send email notification (non-blocking)
+      try {
+        await supabase.functions.invoke("send-subscription-email", {
+          body: {
+            to: targetAuthData.user.email,
+            type: "granted",
+            data: {
+              tier,
+              expiresAt,
+            },
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to send notification email:", emailError);
+        // Don't fail the whole request if email fails
+      }
+    }
 
     return new Response(
       JSON.stringify({ 

@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_log: {
+        Row: {
+          action: string
+          admin_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          admin_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          admin_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          target_user_id?: string
+        }
+        Relationships: []
+      }
       case_csv_files: {
         Row: {
           case_id: string
@@ -368,6 +395,15 @@ export type Database = {
         }[]
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      log_admin_action: {
+        Args: {
+          p_action: string
+          p_admin_id: string
+          p_details?: Json
+          p_target_user_id: string
+        }
+        Returns: string
+      }
       reset_usage_period: { Args: never; Returns: undefined }
       track_page_usage: {
         Args: { p_pages_processed: number; p_user_id: string }

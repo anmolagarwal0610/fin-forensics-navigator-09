@@ -16,41 +16,30 @@ export function useAdminUsers(searchQuery: string = '') {
   return useQuery({
     queryKey: ['admin-users', searchQuery],
     queryFn: async () => {
-      // Get all profiles
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (profileError) throw profileError;
-
-      // Get subscription statuses for all users
-      const usersWithStatus: AdminUser[] = [];
+      // Call secure edge function instead of client-side auth.admin
+      const { data: { session } } = await supabase.auth.getSession();
       
-      for (const profile of profiles) {
-        const { data: statusData } = await supabase.rpc('get_subscription_status', {
-          _user_id: profile.user_id
-        });
-
-        // Get email from auth.users (need service role for this in real app)
-        const { data: { user: authUser } } = await supabase.auth.admin.getUserById(profile.user_id);
-
-        usersWithStatus.push({
-          user_id: profile.user_id,
-          email: authUser?.email || 'Unknown',
-          full_name: profile.full_name,
-          organization_name: profile.organization_name,
-          subscription_tier: statusData?.[0]?.tier || profile.subscription_tier,
-          subscription_expires_at: profile.subscription_expires_at,
-          current_period_pages_used: profile.current_period_pages_used,
-          created_at: profile.created_at,
-        });
+      if (!session) {
+        throw new Error('Not authenticated');
       }
 
-      // Filter by search query
+      const response = await supabase.functions.invoke('admin-get-users', {
+        body: {},
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      const { users } = response.data;
+      
+      // Filter by search query client-side (already filtered by backend too)
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        return usersWithStatus.filter(u => 
+        return users.filter((u: AdminUser) => 
           u.email.toLowerCase().includes(query) ||
           u.user_id.toLowerCase().includes(query) ||
           u.full_name.toLowerCase().includes(query) ||
@@ -58,7 +47,7 @@ export function useAdminUsers(searchQuery: string = '') {
         );
       }
 
-      return usersWithStatus;
+      return users;
     },
   });
 }

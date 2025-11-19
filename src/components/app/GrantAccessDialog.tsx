@@ -41,24 +41,26 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
   const handleGrant = async () => {
     setLoading(true);
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      if (!currentUser) throw new Error('Not authenticated');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
 
       const expiryDate = calculateExpiry();
       
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          subscription_tier: tier,
-          subscription_expires_at: expiryDate.toISOString(),
-          subscription_granted_at: new Date().toISOString(),
-          subscription_granted_by: currentUser.id,
-          current_period_start: new Date().toISOString(),
-          current_period_pages_used: 0,
-        })
-        .eq('user_id', userId);
+      // Call secure edge function for server-side validation
+      const response = await supabase.functions.invoke('grant-subscription', {
+        body: {
+          userId,
+          tier,
+          expiresAt: expiryDate.toISOString(),
+        },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
 
-      if (error) throw error;
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to grant subscription');
+      }
 
       toast.success('Access Granted', {
         description: `${userEmail} now has ${tier} access until ${format(expiryDate, 'PPP')}`,

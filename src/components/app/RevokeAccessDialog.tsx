@@ -17,17 +17,20 @@ export function RevokeAccessDialog({ open, onOpenChange, userId, userEmail, onSu
   const handleRevoke = async () => {
     setLoading(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          subscription_tier: 'free',
-          subscription_expires_at: null,
-          subscription_granted_at: null,
-          subscription_granted_by: null,
-        })
-        .eq('user_id', userId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not authenticated');
 
-      if (error) throw error;
+      // Call secure edge function for server-side validation
+      const response = await supabase.functions.invoke('revoke-subscription', {
+        body: { userId },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to revoke subscription');
+      }
 
       toast.success('Access Revoked', {
         description: `${userEmail} has been downgraded to free tier`,

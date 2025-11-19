@@ -20,3 +20,12 @@ verify_jwt = true
 
 [functions.runtime-config]
 verify_jwt = false
+
+[functions.admin-get-users]
+verify_jwt = true
+
+[functions.grant-subscription]
+verify_jwt = true
+
+[functions.revoke-subscription]
+verify_jwt = true

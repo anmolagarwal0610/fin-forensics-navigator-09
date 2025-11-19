@@ -1,21 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { getCases, updateCaseStatus, addFiles, addEvent, type CaseRecord } from "@/api/cases";
+import { updateCaseStatus, addFiles, addEvent } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
 import { Upload, Users } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useAdminCases } from "@/hooks/useAdminCases";
 import AdminUsers from "./AdminUsers";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AdminCases() {
-  const [cases, setCases] = useState<CaseRecord[]>([]);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const { isAdmin, loading: adminLoading } = useIsAdmin();
+  const { data: cases, isLoading, refetch } = useAdminCases();
 
   useEffect(() => {
     if (adminLoading) return;
@@ -25,23 +26,7 @@ export default function AdminCases() {
       navigate("/app/dashboard", { replace: true });
       return;
     }
-
-    loadCases();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adminLoading, isAdmin]);
-
-  const loadCases = async () => {
-    try {
-      setLoading(true);
-      const data = await getCases();
-      setCases(data);
-    } catch (error) {
-      console.error("Failed to load cases:", error);
-      toast({ title: "Failed to load cases", variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [adminLoading, isAdmin, navigate]);
 
   const handleAttachResult = async (caseId: string) => {
     const input = document.createElement("input");
@@ -80,7 +65,7 @@ export default function AdminCases() {
         });
 
         toast({ title: "Result attached successfully" });
-        loadCases(); // Refresh the list
+        refetch(); // Refresh the list
       } catch (error) {
         console.error("Failed to attach result:", error);
         toast({ title: "Failed to attach result", variant: "destructive" });
@@ -120,41 +105,65 @@ export default function AdminCases() {
                 <CardTitle>Cases Management</CardTitle>
               </CardHeader>
               <CardContent>
-                {loading ? (
-                  <div className="text-center py-8">Loading cases...</div>
-                ) : cases.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">No cases pending.</div>
+                {isLoading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                    <Skeleton className="h-12 w-full" />
+                  </div>
+                ) : !cases || cases.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No cases yet.</div>
                 ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Case Name</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Created</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {cases.map((case_) => (
-                        <TableRow key={case_.id}>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: case_.color_hex }} />
-                              <span className="font-medium">{case_.name}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell><StatusBadge status={case_.status} /></TableCell>
-                          <TableCell>{new Date(case_.created_at).toLocaleDateString()}</TableCell>
-                          <TableCell>
-                            <Button variant="outline" size="sm" onClick={() => handleAttachResult(case_.id)} disabled={case_.status === "Ready"}>
-                              <Upload className="h-4 w-4 mr-2" />
-                              Attach Result ZIP
-                            </Button>
-                          </TableCell>
+                  <div className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Case Name</TableHead>
+                          <TableHead>User</TableHead>
+                          <TableHead>Email</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Created</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {cases.map((c) => (
+                          <TableRow key={c.id}>
+                            <TableCell className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full"
+                                style={{ backgroundColor: c.color_hex }}
+                              />
+                              <span className="font-medium">{c.name}</span>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{c.user_name}</p>
+                                <p className="text-xs text-muted-foreground">{c.organization}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm">{c.user_email}</TableCell>
+                            <TableCell>
+                              <StatusBadge status={c.status as any} />
+                            </TableCell>
+                            <TableCell>
+                              {new Date(c.created_at).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleAttachResult(c.id)}
+                              >
+                                <Upload className="mr-2 h-4 w-4" />
+                                {c.result_zip_url ? "Replace Result ZIP" : "Attach Result ZIP"}
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

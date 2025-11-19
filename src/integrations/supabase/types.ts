@@ -369,6 +369,10 @@ export type Database = {
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
       reset_usage_period: { Args: never; Returns: undefined }
+      track_page_usage: {
+        Args: { p_pages_processed: number; p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"

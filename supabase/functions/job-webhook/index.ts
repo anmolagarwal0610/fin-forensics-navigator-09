@@ -307,6 +307,13 @@ async function updateCaseStatus(supabase: any, payload: any) {
       } else {
         console.log(`Case ${caseId} set to Ready with result_zip_url: ${payload.url}`);
       }
+      
+      // TODO: Track page usage for final-analysis
+      // The backend needs to send pages_processed in the webhook payload
+      // Then call: await supabase.rpc('track_page_usage', {
+      //   p_user_id: payload.user_id || payload.userId,
+      //   p_pages_processed: payload.pages_processed
+      // });
     }
 
     const { error: eventError } = await supabase

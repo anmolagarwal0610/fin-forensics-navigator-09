@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
+import { UpgradeBanner } from "@/components/app/UpgradeBanner";
 
 // Components
 import KPICards from "@/components/app/KPICards";
 import RecentActivity from "@/components/app/RecentActivity";
 import QuickActions from "@/components/app/QuickActions";
 import DashboardSkeleton from "@/components/app/DashboardSkeleton";
+
 export default function Dashboard() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +24,7 @@ export default function Dashboard() {
       });
     }).finally(() => setLoading(false));
   }, []);
+
   if (loading) {
     return (
       <div className="w-full max-w-7xl mx-auto">
@@ -34,6 +37,8 @@ export default function Dashboard() {
 
   return (
     <div className="w-full max-w-7xl mx-auto space-y-6">
+      <UpgradeBanner />
+      
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}

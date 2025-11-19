@@ -257,15 +257,28 @@ serve(async (req) => {
       </html>
     `;
 
-    // Send email via Resend
-    const emailResponse = await resend.emails.send({
-      from: "FinNavigator Support <hello@finnavigatorai.com>",
-      to: ["hello@finnavigatorai.com"], 
-      replyTo: userEmail,
-      subject: emailSubject,
-      html: emailHtml,
+    // Send email via direct API call
+    const emailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "FinNavigator Support <hello@finnavigatorai.com>",
+        to: ["hello@finnavigatorai.com"], 
+        replyTo: userEmail,
+        subject: emailSubject,
+        html: emailHtml,
+      })
     });
 
+    if (!emailResponse.ok) {
+      const errorText = await emailResponse.text();
+      throw new Error(`Failed to send support email: ${errorText}`);
+    }
+
+    const emailResult = await emailResponse.json();
     console.log('Support ticket email sent:', ticketId);
 
     return new Response(

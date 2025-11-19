@@ -4,28 +4,30 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import FileUploader from "@/components/app/FileUploader";
 import { getCaseById, addFiles, addEvent, updateCaseStatus, type CaseRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Info } from "lucide-react";
+import { useSubscription } from "@/hooks/useSubscription";
+import { ArrowLeft, Info, AlertCircle, Zap } from "lucide-react";
+import { Link } from "react-router-dom";
+
 interface FileItem {
   name: string;
   size: number;
   file: File;
 }
+
 export default function CaseUpload() {
-  const {
-    id
-  } = useParams<{
-    id: string;
-  }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [case_, setCase] = useState<CaseRecord | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [useHitl, setUseHitl] = useState(true);
+  const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   useEffect(() => {
     if (!id) return;
     getCaseById(id).then(data => {
@@ -45,6 +47,17 @@ export default function CaseUpload() {
   }, [id, navigate]);
   const handleStartAnalysis = async () => {
     if (!case_ || files.length === 0) return;
+
+    // Check subscription access
+    if (!hasAccess) {
+      toast({
+        title: "Subscription Limit Reached",
+        description: `You have ${pagesRemaining} pages remaining. Upgrade to continue.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -145,6 +158,23 @@ export default function CaseUpload() {
         </div>
       </div>
 
+      {!hasAccess && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Subscription Limit Reached</AlertTitle>
+          <AlertDescription className="flex items-center justify-between">
+            <span>
+              You have {pagesRemaining} pages remaining. Upgrade your plan to start analysis.
+            </span>
+            <Button asChild size="sm" className="ml-4">
+              <Link to="/pricing">
+                <Zap className="mr-2 h-4 w-4" />
+                Upgrade Now
+              </Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Upload Files for Analysis</CardTitle>
@@ -169,7 +199,7 @@ export default function CaseUpload() {
               <p>No files uploaded yet.</p>
               <p className="text-sm mt-1">Upload files to begin analysis</p>
             </div> : <div className="flex justify-end">
-              <Button onClick={handleStartAnalysis} disabled={submitting} size="lg">
+              <Button onClick={handleStartAnalysis} disabled={submitting || !hasAccess} size="lg">
                 {submitting ? "Submitting..." : useHitl ? "Start Initial Parse" : "Start Analysis"}
               </Button>
             </div>}

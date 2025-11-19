@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getCases, updateCaseStatus, addFiles, addEvent, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Upload } from "lucide-react";
+import { Upload, Users } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import AdminUsers from "./AdminUsers";
 
 export default function AdminCases() {
   const [cases, setCases] = useState<CaseRecord[]>([]);
@@ -89,81 +91,80 @@ export default function AdminCases() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Admin Notice Banner */}
+    <div className="container mx-auto p-6 space-y-6">
       <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
         <CardContent className="pt-6">
           <p className="text-sm text-amber-800 dark:text-amber-200">
-            <strong>Note:</strong> Admin-only page (stub for future permissions)
+            <strong>Note:</strong> Admin-only page
           </p>
         </CardContent>
       </Card>
 
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Admin - All Cases</h1>
-      </div>
+      <Tabs defaultValue="cases" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="cases">Cases</TabsTrigger>
+          <TabsTrigger value="users">
+            <Users className="h-4 w-4 mr-2" />
+            Users
+          </TabsTrigger>
+        </TabsList>
 
-      {adminLoading ? (
-        <Card><CardContent className="p-6">Checking permissions…</CardContent></Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Cases Management</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8">Loading cases...</div>
-            ) : cases.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No cases pending.
-              </div>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Case Name</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cases.map((case_) => (
-                    <TableRow key={case_.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="inline-block h-3 w-3 rounded-full"
-                            style={{ backgroundColor: case_.color_hex }}
-                          />
-                          <span className="font-medium">{case_.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <StatusBadge status={case_.status} />
-                      </TableCell>
-                      <TableCell>
-                        {new Date(case_.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleAttachResult(case_.id)}
-                          disabled={case_.status === "Ready"}
-                        >
-                          <Upload className="h-4 w-4 mr-2" />
-                          Attach Result ZIP
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        <TabsContent value="cases" className="space-y-6">
+          <h1 className="text-2xl font-semibold">Admin - All Cases</h1>
+          
+          {adminLoading ? (
+            <Card><CardContent className="p-6">Checking permissions…</CardContent></Card>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>Cases Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">Loading cases...</div>
+                ) : cases.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No cases pending.</div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Case Name</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Created</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {cases.map((case_) => (
+                        <TableRow key={case_.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <span className="inline-block h-3 w-3 rounded-full" style={{ backgroundColor: case_.color_hex }} />
+                              <span className="font-medium">{case_.name}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell><StatusBadge status={case_.status} /></TableCell>
+                          <TableCell>{new Date(case_.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            <Button variant="outline" size="sm" onClick={() => handleAttachResult(case_.id)} disabled={case_.status === "Ready"}>
+                              <Upload className="h-4 w-4 mr-2" />
+                              Attach Result ZIP
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="users">
+          <AdminUsers />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

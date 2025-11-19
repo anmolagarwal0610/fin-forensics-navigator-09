@@ -200,14 +200,49 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    const userEmailResponse = await resend.emails.send({
-      from: "FinNavigator <enquiry@finnavigatorai.com>",
-      to: [sanitizedEmail],
-      subject: "Thank you for contacting FinNavigator",
-      html: userEmailHtml,
+    const adminEmailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "help@finnavigatorai.com",
+        to: "hello@finnavigatorai.com",
+        subject: `New Contact Form Submission from ${sanitizedName}`,
+        html: adminEmailHtml,
+      })
     });
 
-    console.log("User confirmation email sent:", userEmailResponse);
+    if (!adminEmailResponse.ok) {
+      const errorText = await adminEmailResponse.text();
+      throw new Error(`Failed to send admin email: ${errorText}`);
+    }
+
+    const adminEmailResult = await adminEmailResponse.json();
+    console.log("Admin email sent:", adminEmailResult);
+
+    const userEmailResponse = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${Deno.env.get("RESEND_API_KEY")}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: "FinNavigator <enquiry@finnavigatorai.com>",
+        to: [sanitizedEmail],
+        subject: "Thank you for contacting FinNavigator",
+        html: userEmailHtml,
+      })
+    });
+
+    if (!userEmailResponse.ok) {
+      const errorText = await userEmailResponse.text();
+      throw new Error(`Failed to send user email: ${errorText}`);
+    }
+
+    const userEmailResult = await userEmailResponse.json();
+    console.log("User confirmation email sent:", userEmailResult);
 
     return new Response(
       JSON.stringify({ 

@@ -224,29 +224,77 @@ export type Database = {
       profiles: {
         Row: {
           created_at: string
+          current_period_pages_used: number
+          current_period_start: string | null
           full_name: string
           id: string
           organization_name: string
           phone_number: string | null
+          subscription_expires_at: string | null
+          subscription_granted_at: string | null
+          subscription_granted_by: string | null
+          subscription_tier: Database["public"]["Enums"]["subscription_tier"]
           updated_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
+          current_period_pages_used?: number
+          current_period_start?: string | null
           full_name: string
           id?: string
           organization_name: string
           phone_number?: string | null
+          subscription_expires_at?: string | null
+          subscription_granted_at?: string | null
+          subscription_granted_by?: string | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
+          current_period_pages_used?: number
+          current_period_start?: string | null
           full_name?: string
           id?: string
           organization_name?: string
           phone_number?: string | null
+          subscription_expires_at?: string | null
+          subscription_granted_at?: string | null
+          subscription_granted_by?: string | null
+          subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      usage_history: {
+        Row: {
+          created_at: string | null
+          id: string
+          pages_processed: number
+          period_end: string
+          period_start: string
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pages_processed?: number
+          period_end: string
+          period_start: string
+          tier: Database["public"]["Enums"]["subscription_tier"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pages_processed?: number
+          period_end?: string
+          period_start?: string
+          tier?: Database["public"]["Enums"]["subscription_tier"]
           user_id?: string
         }
         Relationships: []
@@ -310,7 +358,17 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      get_subscription_status: {
+        Args: { _user_id: string }
+        Returns: {
+          expires_at: string
+          is_active: boolean
+          pages_remaining: number
+          tier: Database["public"]["Enums"]["subscription_tier"]
+        }[]
+      }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      reset_usage_period: { Args: never; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
@@ -329,6 +387,7 @@ export type Database = {
         | "analysis_ready"
         | "note_added"
       file_type: "upload" | "result"
+      subscription_tier: "free" | "starter" | "professional" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -474,6 +533,7 @@ export const Constants = {
         "note_added",
       ],
       file_type: ["upload", "result"],
+      subscription_tier: ["free", "starter", "professional", "enterprise"],
     },
   },
 } as const

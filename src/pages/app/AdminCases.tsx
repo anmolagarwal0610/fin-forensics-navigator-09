@@ -1,22 +1,33 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { updateCaseStatus, addFiles, addEvent } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Upload, Users } from "lucide-react";
+import { Download, Link as LinkIcon, Users } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useAdminCases } from "@/hooks/useAdminCases";
 import AdminUsers from "./AdminUsers";
 import { Skeleton } from "@/components/ui/skeleton";
+import UpdateResultUrlDialog from "@/components/app/UpdateResultUrlDialog";
 
 export default function AdminCases() {
   const navigate = useNavigate();
   const { isAdmin, loading: adminLoading } = useIsAdmin();
   const { data: cases, isLoading, refetch } = useAdminCases();
+  const [dialogState, setDialogState] = useState<{
+    isOpen: boolean;
+    caseId: string;
+    caseName: string;
+    currentUrl: string | null;
+  }>({
+    isOpen: false,
+    caseId: "",
+    caseName: "",
+    currentUrl: null,
+  });
 
   useEffect(() => {
     if (adminLoading) return;
@@ -28,51 +39,18 @@ export default function AdminCases() {
     }
   }, [adminLoading, isAdmin, navigate]);
 
-  const handleAttachResult = async (caseId: string) => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".zip";
+  const handleDownloadInput = (url: string, caseName: string) => {
+    window.open(url, '_blank');
+    toast({ title: "Opening input ZIP", description: `Downloading files for ${caseName}` });
+  };
 
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
-
-      // Basic client-side validation: type and size (<= 50MB)
-      const isZipByName = /\.zip$/i.test(file.name);
-      const isZipByMime = (file.type || "").includes("zip");
-      const MAX_SIZE_BYTES = 50 * 1024 * 1024;
-
-      if (!isZipByName && !isZipByMime) {
-        toast({ title: "Invalid file type", description: "Please upload a .zip file.", variant: "destructive" });
-        return;
-      }
-      if (file.size > MAX_SIZE_BYTES) {
-        toast({ title: "File too large", description: "ZIP must be 50MB or less.", variant: "destructive" });
-        return;
-      }
-
-      try {
-        // Add result file metadata (no storage upload in this app)
-        await addFiles(caseId, [{ name: file.name }]);
-
-        // Update case status to Ready
-        await updateCaseStatus(caseId, "Ready");
-
-        // Add analysis_ready event
-        await addEvent(caseId, "analysis_ready", {
-          result_file: file.name,
-          completed_at: new Date().toISOString(),
-        });
-
-        toast({ title: "Result attached successfully" });
-        refetch(); // Refresh the list
-      } catch (error) {
-        console.error("Failed to attach result:", error);
-        toast({ title: "Failed to attach result", variant: "destructive" });
-      }
-    };
-
-    input.click();
+  const handleUpdateResultUrl = (caseId: string, caseName: string, currentUrl: string | null) => {
+    setDialogState({
+      isOpen: true,
+      caseId,
+      caseName,
+      currentUrl,
+    });
   };
 
   return (
@@ -123,7 +101,8 @@ export default function AdminCases() {
                           <TableHead>Email</TableHead>
                           <TableHead>Status</TableHead>
                           <TableHead>Created</TableHead>
-                          <TableHead>Actions</TableHead>
+                          <TableHead>Input Files</TableHead>
+                          <TableHead>Result URL</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -150,13 +129,27 @@ export default function AdminCases() {
                               {new Date(c.created_at).toLocaleDateString()}
                             </TableCell>
                             <TableCell>
+                              {c.input_zip_url ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleDownloadInput(c.input_zip_url!, c.name)}
+                                >
+                                  <Download className="mr-2 h-4 w-4" />
+                                  Download
+                                </Button>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">No files</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
                               <Button
                                 size="sm"
                                 variant="outline"
-                                onClick={() => handleAttachResult(c.id)}
+                                onClick={() => handleUpdateResultUrl(c.id, c.name, c.result_zip_url)}
                               >
-                                <Upload className="mr-2 h-4 w-4" />
-                                {c.result_zip_url ? "Replace Result ZIP" : "Attach Result ZIP"}
+                                <LinkIcon className="mr-2 h-4 w-4" />
+                                {c.result_zip_url ? "Update URL" : "Set URL"}
                               </Button>
                             </TableCell>
                           </TableRow>
@@ -174,6 +167,15 @@ export default function AdminCases() {
           <AdminUsers />
         </TabsContent>
       </Tabs>
+
+      <UpdateResultUrlDialog
+        isOpen={dialogState.isOpen}
+        onClose={() => setDialogState({ ...dialogState, isOpen: false })}
+        caseId={dialogState.caseId}
+        caseName={dialogState.caseName}
+        currentUrl={dialogState.currentUrl}
+        onSuccess={refetch}
+      />
     </div>
   );
 }

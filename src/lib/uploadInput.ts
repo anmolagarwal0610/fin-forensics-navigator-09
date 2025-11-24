@@ -94,6 +94,17 @@ export async function uploadInput(
 
   if (signedError || !signedData) throw new Error("Failed to generate signed URL for ZIP");
 
+  // Save input_zip_url to cases table for admin access
+  const { error: updateError } = await supabase
+    .from('cases')
+    .update({ input_zip_url: signedData.signedUrl })
+    .eq('id', caseId);
+
+  if (updateError) {
+    console.error('Failed to save input_zip_url:', updateError);
+    // Don't throw - this is non-critical for the upload flow
+  }
+
   console.log('ZIP file uploaded and signed URL generated');
   return { zipPath, signedUrl: signedData.signedUrl };
 }

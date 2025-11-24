@@ -13,6 +13,7 @@ export interface AdminCase {
   description: string | null;
   tags: string[] | null;
   result_zip_url: string | null;
+  input_zip_url: string | null;
 }
 
 export function useAdminCases() {

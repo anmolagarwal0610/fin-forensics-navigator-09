@@ -1,16 +1,18 @@
-import * as pdfjsLib from 'pdfjs-dist';
-import * as ExcelJS from 'exceljs';
+// pagecounter.ts
+import * as pdfjsLib from "pdfjs-dist";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
+import * as ExcelJS from "exceljs";
 
-// Configure PDF.js worker with HTTPS for security and reliability
-if (typeof window !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 
-    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Use Vite emitted URL for the pdf.js worker so the browser can fetch it reliably
+if (typeof window !== "undefined") {
+  // pdfWorkerUrl is a string URL emitted by Vite (works in dev & prod)
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 }
 
 export interface PageCount {
   fileName: string;
   pages: number;
-  fileType: 'pdf' | 'excel' | 'csv' | 'image' | 'unknown';
+  fileType: "pdf" | "excel" | "csv" | "image" | "unknown";
 }
 
 /**
@@ -29,17 +31,19 @@ async function countExcelPages(file: File): Promise<number> {
   const arrayBuffer = await file.arrayBuffer();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(arrayBuffer);
-  
+
   let totalRows = 0;
   workbook.eachSheet((worksheet) => {
     worksheet.eachRow((row) => {
-      const hasData = row.values && Array.isArray(row.values) && 
-        row.values.some(val => val !== null && val !== undefined && val !== '');
+      const hasData =
+        row.values &&
+        Array.isArray(row.values) &&
+        row.values.some((val) => val !== null && val !== undefined && val !== "");
       if (hasData) totalRows++;
     });
   });
-  
-  // 50 rows = 1 page, round down (120 rows = 2 pages)
+
+  // 50 rows = 1 page, round down
   return Math.floor(totalRows / 50);
 }
 
@@ -48,11 +52,11 @@ async function countExcelPages(file: File): Promise<number> {
  */
 async function countCsvPages(file: File): Promise<number> {
   const text = await file.text();
-  const lines = text.split('\n').filter(line => line.trim().length > 0);
-  
+  const lines = text.split("\n").filter((line) => line.trim().length > 0);
+
   // Subtract 1 for header row if exists
   const dataRows = lines.length > 1 ? lines.length - 1 : lines.length;
-  
+
   // 50 rows = 1 page, round down
   return Math.floor(dataRows / 50);
 }
@@ -70,52 +74,46 @@ function countImagePages(): number {
 export async function countFilePages(file: File): Promise<PageCount> {
   const fileName = file.name.toLowerCase();
   const startTime = performance.now();
-  
+
   console.log(`[PageCounter] Starting count for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-  
+
   try {
     let pages = 0;
-    let fileType: PageCount['fileType'] = 'unknown';
-    
-    if (fileName.endsWith('.pdf')) {
+    let fileType: PageCount["fileType"] = "unknown";
+
+    if (fileName.endsWith(".pdf")) {
       pages = await countPdfPages(file);
-      fileType = 'pdf';
-    } 
-    else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+      fileType = "pdf";
+    } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
       pages = await countExcelPages(file);
-      fileType = 'excel';
-    }
-    else if (fileName.endsWith('.csv')) {
+      fileType = "excel";
+    } else if (fileName.endsWith(".csv")) {
       pages = await countCsvPages(file);
-      fileType = 'csv';
-    }
-    else if (fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+      fileType = "csv";
+    } else if (fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
       pages = countImagePages();
-      fileType = 'image';
-    }
-    else {
+      fileType = "image";
+    } else {
       console.warn(`[PageCounter] Unknown file type: ${fileName}`);
-      return { fileName: file.name, pages: 0, fileType: 'unknown' };
+      return { fileName: file.name, pages: 0, fileType: "unknown" };
     }
-    
+
     const duration = Math.round(performance.now() - startTime);
     console.log(`[PageCounter] ✅ ${file.name}: ${pages} pages (${duration}ms, ${fileType})`);
-    
+
     return { fileName: file.name, pages, fileType };
-    
   } catch (error) {
     const duration = Math.round(performance.now() - startTime);
     console.error(`[PageCounter] ❌ ${file.name} failed after ${duration}ms:`, error);
-    
-    // Add more context to error for debugging
+
     if (error instanceof Error) {
-      if (fileName.endsWith('.pdf')) {
+      if (fileName.endsWith(".pdf")) {
         throw new Error(`PDF.js error: ${error.message}. Check if PDF.js worker loaded correctly.`);
       } else {
         throw new Error(`${error.message}`);
       }
     }
-    
+
     throw new Error(`Failed to count pages in ${file.name}`);
   }
 }
@@ -129,6 +127,6 @@ export async function countTotalPages(files: File[]): Promise<{
 }> {
   const breakdown = await Promise.all(files.map(countFilePages));
   const total = breakdown.reduce((sum, item) => sum + item.pages, 0);
-  
+
   return { total, breakdown };
 }

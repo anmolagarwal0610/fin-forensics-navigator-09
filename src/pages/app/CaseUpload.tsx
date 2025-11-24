@@ -17,6 +17,8 @@ interface FileItem {
   name: string;
   size: number;
   file: File;
+  pageCount?: number;
+  isCountingPages?: boolean;
 }
 
 export default function CaseUpload() {
@@ -28,6 +30,11 @@ export default function CaseUpload() {
   const [submitting, setSubmitting] = useState(false);
   const [useHitl, setUseHitl] = useState(true);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
+
+  // Calculate total pages from files
+  const totalPages = files.reduce((sum, f) => sum + (f.pageCount || 0), 0);
+  const allPagesCounted = files.every(f => !f.isCountingPages && f.pageCount !== undefined);
+  const canSubmit = files.length > 0 && allPagesCounted && hasAccess && totalPages <= pagesRemaining;
   useEffect(() => {
     if (!id) return;
     getCaseById(id).then(data => {
@@ -46,13 +53,13 @@ export default function CaseUpload() {
     }).finally(() => setLoading(false));
   }, [id, navigate]);
   const handleStartAnalysis = async () => {
-    if (!case_ || files.length === 0) return;
+    if (!case_ || files.length === 0 || !canSubmit) return;
 
-    // Check subscription access
-    if (!hasAccess) {
+    // Check if we have enough pages
+    if (totalPages > pagesRemaining) {
       toast({
-        title: "Subscription Limit Reached",
-        description: `You have ${pagesRemaining} pages remaining. Upgrade to continue.`,
+        title: "Insufficient Pages",
+        description: `You need ${totalPages} pages but only have ${pagesRemaining} remaining. Upgrade to continue.`,
         variant: "destructive"
       });
       return;
@@ -64,6 +71,19 @@ export default function CaseUpload() {
       if (authError || !user) {
         throw new Error("Authentication required");
       }
+
+      // 🔥 Track page usage IMMEDIATELY before starting job
+      const { error: trackingError } = await supabase.rpc('track_page_usage', {
+        p_user_id: user.id,
+        p_pages_processed: totalPages
+      });
+
+      if (trackingError) {
+        console.error('Failed to track page usage:', trackingError);
+        throw new Error('Failed to update page usage. Please try again.');
+      }
+
+      console.log(`✅ Tracked ${totalPages} pages for user ${user.id}`);
 
       // Convert FileItem[] to File[]
       const uploadFiles = files.map(f => f.file);
@@ -107,17 +127,18 @@ export default function CaseUpload() {
         }
       );
 
-      // Add event for tracking
+      // Add event for tracking with page count
       await addEvent(case_.id, "analysis_submitted", {
         job_id,
         mode: useHitl ? 'hitl' : 'direct',
         task,
-        file_count: files.length
+        file_count: files.length,
+        pages_processed: totalPages
       });
 
       toast({
         title: "Analysis started!",
-        description: `Job ID: ${job_id.slice(0, 8)}... Track progress via Realtime updates.`
+        description: `Processing ${totalPages} pages. Job ID: ${job_id.slice(0, 8)}...`
       });
 
       // Navigate to dashboard immediately
@@ -195,12 +216,49 @@ export default function CaseUpload() {
 
           <FileUploader files={files} onFilesChange={setFiles} />
 
+          {files.length > 0 && (
+            <Alert className={totalPages > pagesRemaining ? 'border-destructive' : 'border-emerald-500'}>
+              <Info className="h-4 w-4" />
+              <AlertTitle>Page Summary</AlertTitle>
+              <AlertDescription>
+                <div className="space-y-1 mt-2">
+                  <div className="flex justify-between">
+                    <span>Total pages to process:</span>
+                    <span className="font-semibold">{totalPages}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Pages remaining in plan:</span>
+                    <span className={totalPages > pagesRemaining ? 'text-destructive font-semibold' : 'font-semibold'}>
+                      {pagesRemaining}
+                    </span>
+                  </div>
+                  {!allPagesCounted && (
+                    <p className="text-sm text-muted-foreground mt-2">
+                      ⏳ Counting pages...
+                    </p>
+                  )}
+                  {totalPages > pagesRemaining && (
+                    <p className="text-sm text-destructive mt-2">
+                      ⚠️ Insufficient pages. Please upgrade or remove files.
+                    </p>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+          )}
+
           {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
               <p>No files uploaded yet.</p>
               <p className="text-sm mt-1">Upload files to begin analysis</p>
             </div> : <div className="flex justify-end">
-              <Button onClick={handleStartAnalysis} disabled={submitting || !hasAccess} size="lg">
-                {submitting ? "Submitting..." : useHitl ? "Start Initial Parse" : "Start Analysis"}
+              <Button 
+                onClick={handleStartAnalysis} 
+                disabled={!canSubmit || submitting} 
+                size="lg"
+              >
+                {submitting ? "Submitting..." : 
+                 !allPagesCounted ? "Counting pages..." :
+                 useHitl ? "Start Initial Parse" : "Start Analysis"}
               </Button>
             </div>}
         </CardContent>

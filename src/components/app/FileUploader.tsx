@@ -5,11 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { X, Upload, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { countFilePages } from "@/utils/pageCounter";
 
 interface FileItem {
   name: string;
   size: number;
   file: File;
+  pageCount?: number;
+  isCountingPages?: boolean;
 }
 
 interface FileUploaderProps {
@@ -27,18 +30,41 @@ export default function FileUploader({
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles = acceptedFiles.map(file => ({
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    const newFiles: FileItem[] = acceptedFiles.map(file => ({
       name: file.name,
       size: file.size,
-      file
+      file: file,
+      isCountingPages: true,
+      pageCount: undefined
     }));
+    
     const combinedFiles = [...files, ...newFiles];
-    // Limit to 5 files max
-    if (combinedFiles.length > 25) {
-      onFilesChange(combinedFiles.slice(0, 25));
-    } else {
-      onFilesChange(combinedFiles);
+    const finalFiles = combinedFiles.length > 25 ? combinedFiles.slice(0, 25) : combinedFiles;
+    onFilesChange(finalFiles);
+    
+    // Count pages in background for new files
+    for (const newFile of newFiles) {
+      try {
+        const result = await countFilePages(newFile.file);
+        // Get current files and update the specific one
+        const currentFiles = [...files, ...newFiles];
+        const updatedFiles = currentFiles.map(f => 
+          f.file === newFile.file 
+            ? { ...f, pageCount: result.pages, isCountingPages: false }
+            : f
+        );
+        onFilesChange(updatedFiles.slice(0, 25));
+      } catch (error) {
+        console.error('Failed to count pages:', error);
+        const currentFiles = [...files, ...newFiles];
+        const updatedFiles = currentFiles.map(f => 
+          f.file === newFile.file 
+            ? { ...f, pageCount: 0, isCountingPages: false }
+            : f
+        );
+        onFilesChange(updatedFiles.slice(0, 25));
+      }
     }
   }, [files, onFilesChange]);
 
@@ -108,9 +134,15 @@ export default function FileUploader({
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <div>
                     <p className="font-medium text-sm">{file.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {formatFileSize(file.size)}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{formatFileSize(file.size)}</span>
+                      {file.isCountingPages && <span>• Counting pages...</span>}
+                      {file.pageCount !== undefined && (
+                        <span className="text-emerald-600 font-medium">
+                          • {file.pageCount} {file.pageCount === 1 ? 'page' : 'pages'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <Button

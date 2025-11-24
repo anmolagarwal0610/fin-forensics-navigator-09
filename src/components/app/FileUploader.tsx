@@ -3,9 +3,10 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { X, Upload, FileText } from "lucide-react";
+import { X, Upload, FileText, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { countFilePages } from "@/utils/pageCounter";
+import { toast } from "@/hooks/use-toast";
 
 interface FileItem {
   name: string;
@@ -13,11 +14,12 @@ interface FileItem {
   file: File;
   pageCount?: number;
   isCountingPages?: boolean;
+  countingError?: boolean;
 }
 
 interface FileUploaderProps {
   files: FileItem[];
-  onFilesChange: (files: FileItem[]) => void;
+  onFilesChange: (files: FileItem[] | ((prevFiles: FileItem[]) => FileItem[])) => void;
   maxFileSize?: number;
   acceptedTypes?: string[];
 }
@@ -36,37 +38,53 @@ export default function FileUploader({
       size: file.size,
       file: file,
       isCountingPages: true,
-      pageCount: undefined
+      pageCount: undefined,
+      countingError: false
     }));
     
-    const combinedFiles = [...files, ...newFiles];
-    const finalFiles = combinedFiles.length > 25 ? combinedFiles.slice(0, 25) : combinedFiles;
-    onFilesChange(finalFiles);
+    // Immediately add files with "counting" status using functional update
+    onFilesChange(prevFiles => {
+      const combinedFiles = [...prevFiles, ...newFiles];
+      return combinedFiles.length > 25 ? combinedFiles.slice(0, 25) : combinedFiles;
+    });
     
-    // Count pages in background for new files
+    // Count pages for each file individually using functional state updates
     for (const newFile of newFiles) {
       try {
         const result = await countFilePages(newFile.file);
-        // Get current files and update the specific one
-        const currentFiles = [...files, ...newFiles];
-        const updatedFiles = currentFiles.map(f => 
-          f.file === newFile.file 
-            ? { ...f, pageCount: result.pages, isCountingPages: false }
-            : f
+        
+        // Use functional state update to avoid stale closure
+        onFilesChange(prevFiles => 
+          prevFiles.map(f => 
+            f.file === newFile.file 
+              ? { ...f, pageCount: result.pages, isCountingPages: false, countingError: false }
+              : f
+          )
         );
-        onFilesChange(updatedFiles.slice(0, 25));
+        
+        console.log(`✅ Counted ${result.pages} pages in ${newFile.name}`);
+        
       } catch (error) {
-        console.error('Failed to count pages:', error);
-        const currentFiles = [...files, ...newFiles];
-        const updatedFiles = currentFiles.map(f => 
-          f.file === newFile.file 
-            ? { ...f, pageCount: 0, isCountingPages: false }
-            : f
+        console.error(`❌ Failed to count pages for ${newFile.name}:`, error);
+        
+        // Show error to user with toast
+        toast({
+          title: "Page counting failed",
+          description: `Could not count pages in ${newFile.name}. ${error instanceof Error ? error.message : 'Unknown error'}`,
+          variant: "destructive"
+        });
+        
+        // Mark as failed with error flag
+        onFilesChange(prevFiles => 
+          prevFiles.map(f => 
+            f.file === newFile.file 
+              ? { ...f, pageCount: undefined, isCountingPages: false, countingError: true }
+              : f
+          )
         );
-        onFilesChange(updatedFiles.slice(0, 25));
       }
     }
-  }, [files, onFilesChange]);
+  }, [onFilesChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -136,9 +154,17 @@ export default function FileUploader({
                     <p className="font-medium text-sm">{file.name}</p>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>{formatFileSize(file.size)}</span>
-                      {file.isCountingPages && <span>• Counting pages...</span>}
-                      {file.pageCount !== undefined && (
-                        <span className="text-emerald-600 font-medium">
+                      {file.isCountingPages && (
+                        <span className="text-blue-600 dark:text-blue-400">• Counting pages...</span>
+                      )}
+                      {file.countingError && (
+                        <span className="text-destructive font-medium flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          • Failed to count pages
+                        </span>
+                      )}
+                      {file.pageCount !== undefined && !file.countingError && (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                           • {file.pageCount} {file.pageCount === 1 ? 'page' : 'pages'}
                         </span>
                       )}

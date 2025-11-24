@@ -131,6 +131,7 @@ export type Database = {
           description: string | null
           hitl_stage: string | null
           id: string
+          input_zip_url: string | null
           name: string
           org_id: string | null
           result_zip_url: string | null
@@ -148,6 +149,7 @@ export type Database = {
           description?: string | null
           hitl_stage?: string | null
           id?: string
+          input_zip_url?: string | null
           name: string
           org_id?: string | null
           result_zip_url?: string | null
@@ -165,6 +167,7 @@ export type Database = {
           description?: string | null
           hitl_stage?: string | null
           id?: string
+          input_zip_url?: string | null
           name?: string
           org_id?: string | null
           result_zip_url?: string | null

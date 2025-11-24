@@ -1,9 +1,11 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import * as ExcelJS from 'exceljs';
 
-// Configure PDF.js worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = 
-  `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Configure PDF.js worker with HTTPS for security and reliability
+if (typeof window !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 
+    `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+}
 
 export interface PageCount {
   fileName: string;
@@ -63,34 +65,57 @@ function countImagePages(): number {
 }
 
 /**
- * Detect file type and count pages
+ * Detect file type and count pages with comprehensive logging
  */
 export async function countFilePages(file: File): Promise<PageCount> {
   const fileName = file.name.toLowerCase();
+  const startTime = performance.now();
+  
+  console.log(`[PageCounter] Starting count for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
   
   try {
+    let pages = 0;
+    let fileType: PageCount['fileType'] = 'unknown';
+    
     if (fileName.endsWith('.pdf')) {
-      const pages = await countPdfPages(file);
-      return { fileName: file.name, pages, fileType: 'pdf' };
+      pages = await countPdfPages(file);
+      fileType = 'pdf';
     } 
     else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-      const pages = await countExcelPages(file);
-      return { fileName: file.name, pages, fileType: 'excel' };
+      pages = await countExcelPages(file);
+      fileType = 'excel';
     }
     else if (fileName.endsWith('.csv')) {
-      const pages = await countCsvPages(file);
-      return { fileName: file.name, pages, fileType: 'csv' };
+      pages = await countCsvPages(file);
+      fileType = 'csv';
     }
     else if (fileName.endsWith('.png') || fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
-      const pages = countImagePages();
-      return { fileName: file.name, pages, fileType: 'image' };
+      pages = countImagePages();
+      fileType = 'image';
     }
     else {
-      console.warn(`Unknown file type: ${fileName}`);
+      console.warn(`[PageCounter] Unknown file type: ${fileName}`);
       return { fileName: file.name, pages: 0, fileType: 'unknown' };
     }
+    
+    const duration = Math.round(performance.now() - startTime);
+    console.log(`[PageCounter] ✅ ${file.name}: ${pages} pages (${duration}ms, ${fileType})`);
+    
+    return { fileName: file.name, pages, fileType };
+    
   } catch (error) {
-    console.error(`Error counting pages for ${file.name}:`, error);
+    const duration = Math.round(performance.now() - startTime);
+    console.error(`[PageCounter] ❌ ${file.name} failed after ${duration}ms:`, error);
+    
+    // Add more context to error for debugging
+    if (error instanceof Error) {
+      if (fileName.endsWith('.pdf')) {
+        throw new Error(`PDF.js error: ${error.message}. Check if PDF.js worker loaded correctly.`);
+      } else {
+        throw new Error(`${error.message}`);
+      }
+    }
+    
     throw new Error(`Failed to count pages in ${file.name}`);
   }
 }

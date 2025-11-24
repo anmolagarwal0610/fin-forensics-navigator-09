@@ -1,6 +1,6 @@
-// pagecounter.ts
+// src/utils/pageCounter.ts
 import * as pdfjsLib from "pdfjs-dist";
-import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.js?url";
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import * as ExcelJS from "exceljs";
 
 // Use Vite emitted URL for the pdf.js worker so the browser can fetch it reliably
@@ -75,7 +75,11 @@ export async function countFilePages(file: File): Promise<PageCount> {
   const fileName = file.name.toLowerCase();
   const startTime = performance.now();
 
-  console.log(`[PageCounter] Starting count for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+  console.log(
+    `[PageCounter] Starting count for ${file.name} (${(file.size / 1024 / 1024).toFixed(
+      2
+    )} MB)`
+  );
 
   try {
     let pages = 0;
@@ -90,7 +94,11 @@ export async function countFilePages(file: File): Promise<PageCount> {
     } else if (fileName.endsWith(".csv")) {
       pages = await countCsvPages(file);
       fileType = "csv";
-    } else if (fileName.endsWith(".png") || fileName.endsWith(".jpg") || fileName.endsWith(".jpeg")) {
+    } else if (
+      fileName.endsWith(".png") ||
+      fileName.endsWith(".jpg") ||
+      fileName.endsWith(".jpeg")
+    ) {
       pages = countImagePages();
       fileType = "image";
     } else {
@@ -108,7 +116,9 @@ export async function countFilePages(file: File): Promise<PageCount> {
 
     if (error instanceof Error) {
       if (fileName.endsWith(".pdf")) {
-        throw new Error(`PDF.js error: ${error.message}. Check if PDF.js worker loaded correctly.`);
+        throw new Error(
+          `PDF.js error: ${error.message}. Check if PDF.js worker loaded correctly.`
+        );
       } else {
         throw new Error(`${error.message}`);
       }

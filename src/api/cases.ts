@@ -1,4 +1,3 @@
-
 import { supabase } from "@/lib/supabase";
 
 export type CaseStatus = 'Active' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout' | 'Review';
@@ -52,13 +51,37 @@ export interface EventRecord {
   created_at: string;
 }
 
+// Retry utility function
+async function retryOperation<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      lastError = error as Error;
+      if (attempt < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs * (attempt + 1)));
+      }
+    }
+  }
+  
+  throw lastError;
+}
+
 export const getCases = async () => {
-  const { data, error } = await supabase
-    .from("cases")
-    .select("*")
-    .order("updated_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CaseRecord[];
+  return retryOperation(async () => {
+    const { data, error } = await supabase
+      .from("cases")
+      .select("*")
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as CaseRecord[];
+  });
 };
 
 export const createCase = async (payload: {
@@ -136,7 +159,9 @@ export const addFiles = async (caseId: string, files: { name: string; url?: stri
 
   if (!files.length) return [];
   
-  console.log(`[addFiles] Called for case ${caseId} with ${files.length} files:`, files.map(f => f.name));
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[addFiles] Called for case ${caseId} with ${files.length} files`);
+  }
   
   // Check for existing files to prevent duplicates
   const { data: existingFiles } = await supabase
@@ -148,16 +173,9 @@ export const addFiles = async (caseId: string, files: { name: string; url?: stri
   const existingNames = new Set(existingFiles?.map(f => f.file_name) || []);
   const newFiles = files.filter(f => !existingNames.has(f.name));
   
-  if (existingNames.size > 0) {
-    console.warn(`[addFiles] Found ${existingNames.size} duplicate files for case ${caseId}:`, Array.from(existingNames));
-  }
-  
   if (!newFiles.length) {
-    console.log(`[addFiles] No new files to insert for case ${caseId} - all duplicates`);
     return [];
   }
-  
-  console.log(`[addFiles] Inserting ${newFiles.length} new files for case ${caseId}`);
   
   const toInsert = newFiles.map((f) => ({
     case_id: caseId,
@@ -170,26 +188,31 @@ export const addFiles = async (caseId: string, files: { name: string; url?: stri
   const { data, error } = await supabase.from("case_files").insert(toInsert).select();
   if (error) throw error;
   
-  console.log(`[addFiles] Successfully inserted ${data.length} files for case ${caseId}`);
   return (data ?? []) as CaseFileRecord[];
 };
 
 export const getCaseById = async (id: string) => {
-  const { data, error } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
-  if (error) throw error;
-  return data as CaseRecord | null;
+  return retryOperation(async () => {
+    const { data, error } = await supabase.from("cases").select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data as CaseRecord | null;
+  });
 };
 
 export const getCaseFiles = async (caseId: string) => {
-  const { data, error } = await supabase.from("case_files").select("*").eq("case_id", caseId).order("uploaded_at", { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as CaseFileRecord[];
+  return retryOperation(async () => {
+    const { data, error } = await supabase.from("case_files").select("*").eq("case_id", caseId).order("uploaded_at", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as CaseFileRecord[];
+  });
 };
 
 export const getCaseEvents = async (caseId: string) => {
-  const { data, error } = await supabase.from("events").select("*").eq("case_id", caseId).order("created_at", { ascending: true });
-  if (error) throw error;
-  return (data ?? []) as EventRecord[];
+  return retryOperation(async () => {
+    const { data, error } = await supabase.from("events").select("*").eq("case_id", caseId).order("created_at", { ascending: true });
+    if (error) throw error;
+    return (data ?? []) as EventRecord[];
+  });
 };
 
 export const deleteCase = async (caseId: string) => {

@@ -7,6 +7,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Mail, Phone, MapPin, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { z } from "zod";
+
+const contactSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
+  email: z.string().trim().email("Invalid email address").max(255, "Email must be less than 255 characters"),
+  organization: z.string().trim().max(200, "Organization name must be less than 200 characters").optional(),
+  message: z.string().trim().min(1, "Message is required").max(2000, "Message must be less than 2000 characters")
+});
+
+type ContactFormData = z.infer<typeof contactSchema>;
 
 const Contact = () => {
   const [formData, setFormData] = useState({
@@ -31,29 +41,15 @@ const Contact = () => {
     setIsSubmitting(true);
     
     try {
-      // Validate inputs
-      if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
-        toast({
-          title: "Validation Error",
-          description: "Please fill in all required fields.",
-          variant: "destructive",
-        });
-        setIsSubmitting(false);
-        return;
-      }
+      // Validate inputs with Zod
+      const validatedData = contactSchema.parse(formData);
 
       // Call edge function to send emails
       const { data, error } = await supabase.functions.invoke('send-contact-email', {
-        body: {
-          name: formData.name.trim(),
-          email: formData.email.trim(),
-          organization: formData.organization.trim(),
-          message: formData.message.trim(),
-        }
+        body: validatedData
       });
 
       if (error) {
-        console.error("Error sending contact form:", error);
         toast({
           title: "Error",
           description: "Failed to send your message. Please try again or email us directly at hello@finnavigatorai.com",
@@ -78,12 +74,19 @@ const Contact = () => {
         message: ""
       });
     } catch (error) {
-      console.error("Error submitting contact form:", error);
-      toast({
-        title: "Error",
-        description: "An unexpected error occurred. Please try again later.",
-        variant: "destructive",
-      });
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.errors[0].message,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: "An unexpected error occurred. Please try again later.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -125,6 +128,8 @@ const Contact = () => {
                       value={formData.name}
                       onChange={handleInputChange}
                       placeholder="Your full name"
+                      maxLength={100}
+                      aria-required="true"
                     />
                   </div>
                   <div className="space-y-2">
@@ -137,6 +142,8 @@ const Contact = () => {
                       value={formData.email}
                       onChange={handleInputChange}
                       placeholder="your.email@example.com"
+                      maxLength={255}
+                      aria-required="true"
                     />
                   </div>
                 </div>
@@ -150,6 +157,7 @@ const Contact = () => {
                     value={formData.organization}
                     onChange={handleInputChange}
                     placeholder="Your organization or agency"
+                    maxLength={200}
                   />
                 </div>
                 
@@ -163,6 +171,8 @@ const Contact = () => {
                     onChange={handleInputChange}
                     placeholder="Tell us about your requirements, use case, or any questions you have..."
                     rows={5}
+                    maxLength={2000}
+                    aria-required="true"
                   />
                 </div>
                 
@@ -172,6 +182,7 @@ const Contact = () => {
                   variant="cta" 
                   className="w-full"
                   disabled={isSubmitting}
+                  aria-label="Send message"
                 >
                   {isSubmitting ? (
                     "Sending..."

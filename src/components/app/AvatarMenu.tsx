@@ -10,12 +10,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { getInitials, cleanupAuthState } from "@/utils/auth";
 import { supabase } from "@/lib/supabase";
-import { useAuthSession } from "@/hooks/useAuthSession";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
 export default function AvatarMenu() {
-  const { user } = useAuthSession();
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleSignOut = async () => {

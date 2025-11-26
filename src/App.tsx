@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 import { AuthProvider } from "@/contexts/AuthContext";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import ScrollToTop from "@/components/ScrollToTop";
 import Layout from "@/components/layout/Layout";
 import { Toaster } from "@/components/ui/toaster";
@@ -42,12 +43,13 @@ const queryClient = new QueryClient({
 
 function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <Router>
-            <ScrollToTop />
-            <Routes>
+    <ErrorBoundary>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <Router>
+              <ScrollToTop />
+              <Routes>
               {/* Public routes */}
               <Route path="/" element={<Layout><Landing /></Layout>} />
               <Route path="/pricing" element={<Layout><Pricing /></Layout>} />
@@ -78,11 +80,12 @@ function App() {
               {/* 404 route */}
               <Route path="*" element={<Layout><NotFound /></Layout>} />
             </Routes>
-            <Toaster />
-          </Router>
-        </AuthProvider>
-      </QueryClientProvider>
-    </ThemeProvider>
+              <Toaster />
+            </Router>
+          </AuthProvider>
+        </QueryClientProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 

@@ -1,10 +1,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuthSession } from "@/hooks/useAuthSession";
+import { useAuth } from "@/contexts/AuthContext";
 import ChangePassword from "@/components/auth/ChangePassword";
 
 export default function Account() {
-  const { user } = useAuthSession();
+  const { user } = useAuth();
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import MobileMenu from "@/components/MobileMenu";
 import navArrow from "@/assets/nav-arrow.png";
 
 const Header = () => {
@@ -58,11 +59,12 @@ const Header = () => {
           
           <div className="flex items-center space-x-2">
             <ThemeToggle />
-            <Link to="/signin">
+            <Link to="/signin" className="hidden md:block">
               <Button variant="ghost" size="sm">
                 Sign In
               </Button>
             </Link>
+            <MobileMenu />
           </div>
         </div>
       </div>

@@ -173,12 +173,12 @@ const EnhancedCTASection = () => {
           once: true
         }}>
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-              <span className="text-sm font-medium">Free 14-day trial</span>
+              
+              
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-              <span className="text-sm font-medium">No credit card required</span>
+              <span className="text-sm font-medium">No credit card required for Free Trial</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-success rounded-full animate-pulse" />

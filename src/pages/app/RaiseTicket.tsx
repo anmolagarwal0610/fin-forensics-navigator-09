@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { motion } from "framer-motion";
 import { Ticket } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -167,15 +168,25 @@ export default function RaiseTicket() {
   };
 
   return (
-    <div className="max-w-4xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold mb-2">Raise a Support Ticket</h1>
-        <p className="text-sm text-muted-foreground">
-          Having trouble? Let us know and we'll get back to you as soon as possible.
-        </p>
-      </div>
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
+      className="max-w-4xl"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
+        <div>
+          <h1 className="text-2xl font-semibold mb-2">Raise a Support Ticket</h1>
+          <p className="text-sm text-muted-foreground">
+            Having trouble? Let us know and we'll get back to you as soon as possible.
+          </p>
+        </div>
 
-      <Card>
+        <Card>
         <CardHeader>
           <div className="flex items-center gap-3">
             <Ticket className="h-8 w-8 text-primary" />
@@ -315,6 +326,7 @@ export default function RaiseTicket() {
           </Form>
         </CardContent>
       </Card>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

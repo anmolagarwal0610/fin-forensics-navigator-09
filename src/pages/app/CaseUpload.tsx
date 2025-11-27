@@ -167,9 +167,9 @@ export default function CaseUpload() {
   }
   return <div className="space-y-6">
       <div className="space-y-4">
-        <Button variant="outline" size="sm" onClick={() => navigate("/app/dashboard")}>
+        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Dashboard
+          Back
         </Button>
         <div className="flex items-center gap-2">
           <span className="inline-block h-3 w-3 rounded-full" style={{

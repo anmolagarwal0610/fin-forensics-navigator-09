@@ -321,7 +321,11 @@ async function updateCaseStatus(supabase: any, payload: any) {
       .insert({
         case_id: caseId,
         type: "analysis_ready",
-        payload: { job_id: payload.job_id, result_url: payload.url }
+        payload: { 
+          job_id: payload.job_id, 
+          result_url: payload.url,
+          stage: payload.task // 'initial-parse' or 'final-analysis' or 'parse-statements'
+        }
       });
     
     if (eventError) {

@@ -64,15 +64,17 @@ export default function CaseDetail() {
       case 'files_uploaded':
         return <Upload className="h-4 w-4" />;
       case 'analysis_submitted':
-        // Check if it's HITL review stage
-        if (payload?.stage === 'initial_parse') {
-          return <FileSearch className="h-4 w-4" />;
-        }
-        if (payload?.stage === 'final_analysis') {
+        // Review completion stage
+        if (payload?.stage === 'review_completed') {
           return <FileCheck className="h-4 w-4" />;
         }
         return <Clock className="h-4 w-4" />;
       case 'analysis_ready':
+        // Initial parse complete (HITL stage)
+        if (payload?.stage === 'initial-parse') {
+          return <FileSearch className="h-4 w-4" />;
+        }
+        // Final analysis complete
         return <CheckCircle className="h-4 w-4" />;
       default:
         return <Clock className="h-4 w-4" />;
@@ -89,19 +91,24 @@ export default function CaseDetail() {
       case 'files_uploaded':
         return 'Files Uploaded';
       case 'analysis_submitted':
-        // HITL flow stages
-        if (payload?.stage === 'initial_parse') {
-          return 'Extracted Data Received for Review';
+        // Review completion stage
+        if (payload?.stage === 'review_completed') {
+          return payload?.changes_made 
+            ? 'Review Done - Submitted for Final Analysis - Changes Made'
+            : 'Review Done - Submitted for Final Analysis - No Changes Made';
         }
-        if (payload?.stage === 'final_analysis') {
-          return 'Submitted for Final Analysis - No Changes Made';
-        }
-        // Check if it's HITL mode
+        // HITL flow start
         if (payload?.mode === 'hitl') {
           return 'Analysis Started - HITL Flow';
         }
+        // Direct flow start
         return 'Analysis Started';
       case 'analysis_ready':
+        // Initial parse complete (HITL stage 1)
+        if (payload?.stage === 'initial-parse') {
+          return 'Report Prepared for Human Review';
+        }
+        // Final analysis complete (HITL stage 3 or direct complete)
         return 'Results Ready';
       case 'note_added':
         return 'Note Added';
@@ -212,9 +219,9 @@ export default function CaseDetail() {
       <DocumentHead title={`${case_.name} - FinNavigator`} />
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate("/app/dashboard")}>
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
+            Back
           </Button>
         </div>
 

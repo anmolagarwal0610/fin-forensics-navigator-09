@@ -146,6 +146,18 @@ export default function CaseReview() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Calculate if any changes were made
+      const changesMade = csvFiles.some(f => f.is_corrected);
+
+      // Add review completion event
+      const { addEvent } = await import('@/api/cases');
+      await addEvent(case_.id, "analysis_submitted", {
+        stage: 'review_completed',
+        changes_made: changesMade,
+        corrected_files: csvFiles.filter(f => f.is_corrected).length,
+        total_files: csvFiles.length
+      });
+
       // Download CSV files (corrected or original)
       const csvFilesToProcess: File[] = [];
       
@@ -239,7 +251,7 @@ export default function CaseReview() {
         <Button 
           variant="outline" 
           size="sm"
-          onClick={() => navigate(`/app/cases/${id}`)}
+          onClick={() => navigate(-1)}
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back

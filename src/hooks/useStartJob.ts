@@ -1,4 +1,4 @@
-import { uploadInput } from '@/lib/uploadInput';
+import { uploadInput, type PasswordEntry } from '@/lib/uploadInput';
 import { startJob } from '@/lib/startJob';
 import { subscribeJob } from '@/lib/subscribeJob';
 import type { JobTask, JobRow } from '@/types/job';
@@ -11,12 +11,13 @@ export async function startJobFlow(
   task: JobTask,
   sessionId: string,
   userId: string,
+  passwords: PasswordEntry[],
   setJob: (j: Partial<JobRow>) => void,
   onDone?: (row: JobRow) => void,
   skipFileInsertion: boolean = false
 ) {
-  // 1. Upload files, create ZIP, and get signed ZIP URL
-  const { signedUrl: zipUrl } = await uploadInput(files, userId, sessionId, skipFileInsertion);
+  // 1. Upload files, create ZIP, and get signed ZIP URL (with passwords if any)
+  const { signedUrl: zipUrl } = await uploadInput(files, userId, sessionId, skipFileInsertion, passwords);
   
   // 2. Start job via FastAPI with ZIP URL
   const { job_id, status } = await startJob(task, zipUrl, sessionId, userId);

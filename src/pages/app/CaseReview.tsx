@@ -184,6 +184,7 @@ export default function CaseReview() {
         'final-analysis',
         case_.id,
         user.id,
+        [], // No passwords for CSV files
         (job) => {
           console.log('Final analysis job update:', job);
         },

@@ -20,7 +20,9 @@ interface FileItem {
   pageCount?: number;
   isCountingPages?: boolean;
   needsPassword?: boolean;
-  isDecrypting?: boolean;
+  password?: string;
+  passwordVerified?: boolean;
+  isVerifying?: boolean;
 }
 
 export default function CaseUpload() {
@@ -36,7 +38,7 @@ export default function CaseUpload() {
   // Calculate total pages from files
   const totalPages = files.reduce((sum, f) => sum + (f.pageCount || 0), 0);
   const allPagesCounted = files.every(f => !f.isCountingPages && f.pageCount !== undefined);
-  const hasLockedFiles = files.some(f => f.needsPassword);
+  const hasLockedFiles = files.some(f => f.needsPassword && !f.passwordVerified);
   const canSubmit = files.length > 0 && allPagesCounted && hasAccess && totalPages <= pagesRemaining && !hasLockedFiles;
   useEffect(() => {
     if (!id) return;
@@ -91,18 +93,29 @@ export default function CaseUpload() {
       // Convert FileItem[] to File[]
       const uploadFiles = files.map(f => f.file);
       
+      // Extract passwords for protected files
+      const passwords = files
+        .filter(f => f.needsPassword && f.passwordVerified && f.password)
+        .map(f => ({
+          filename: f.name,
+          password: f.password!
+        }));
+      
+      console.log(`📦 Uploading ${uploadFiles.length} files with ${passwords.length} password(s)`);
+      
       // Determine task type based on HITL mode
       const task = useHitl ? 'initial-parse' : 'parse-statements';
 
       // Import the startJobFlow function
       const { startJobFlow } = await import('@/hooks/useStartJob');
       
-      // Start job flow with Realtime tracking (now sends ZIP URL)
+      // Start job flow with Realtime tracking (now sends ZIP URL with passwords)
       const { job_id } = await startJobFlow(
         uploadFiles,
         task,
         case_.id,
         user.id,
+        passwords,
         (job) => {
           console.log('Job update:', job);
         },
@@ -242,7 +255,7 @@ export default function CaseUpload() {
                   )}
                   {hasLockedFiles && (
                     <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                      🔒 Some files are password-protected. Please unlock them to continue.
+                      🔒 Some files are password-protected. Please verify passwords to continue.
                     </p>
                   )}
                   {totalPages > pagesRemaining && (

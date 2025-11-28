@@ -2,6 +2,11 @@ import { supabase } from '@/integrations/supabase/client';
 import JSZip from 'jszip';
 import { addFiles } from '@/api/cases';
 
+export interface PasswordEntry {
+  filename: string;
+  password: string;
+}
+
 /**
  * Sanitize filename for Supabase Storage compatibility
  * Removes invalid characters while preserving extension
@@ -32,7 +37,8 @@ export async function uploadInput(
   files: File[],
   userId: string,
   caseId: string,
-  skipFileInsertion: boolean = false
+  skipFileInsertion: boolean = false,
+  passwords?: PasswordEntry[]
 ): Promise<{ zipPath: string; signedUrl: string }> {
   const bucket = 'case-files';
   
@@ -69,6 +75,17 @@ export async function uploadInput(
   for (const file of files) {
     const arrayBuffer = await file.arrayBuffer();
     zip.file(file.name, arrayBuffer);
+  }
+  
+  // Add password.txt if there are protected files
+  if (passwords && passwords.length > 0) {
+    const passwordData = {
+      version: "1.0",
+      protected_files: passwords
+    };
+    const passwordJson = JSON.stringify(passwordData, null, 2);
+    zip.file('password.txt', passwordJson);
+    console.log(`📝 Added password.txt with ${passwords.length} password(s) to ZIP`);
   }
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });

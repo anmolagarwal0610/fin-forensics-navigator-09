@@ -4,10 +4,10 @@ import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { X, Upload, FileText, AlertCircle, Lock, Unlock, Loader2 } from "lucide-react";
+import { X, Upload, FileText, AlertCircle, Lock, CheckCircle, Loader2, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { countFilePages } from "@/utils/pageCounter";
-import { decryptPdf } from "@/utils/pdfDecryptor";
+import { verifyPdfPassword } from "@/utils/passwordVerifier";
 import { toast } from "@/hooks/use-toast";
 
 interface FileItem {
@@ -19,8 +19,9 @@ interface FileItem {
   countingError?: boolean;
   needsPassword?: boolean;
   password?: string;
-  isDecrypting?: boolean;
-  decryptError?: string;
+  passwordVerified?: boolean;
+  isVerifying?: boolean;
+  verifyError?: string;
 }
 
 interface FileUploaderProps {
@@ -38,6 +39,7 @@ export default function FileUploader({
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});
+  const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const newFiles: FileItem[] = acceptedFiles.map(file => ({
@@ -135,67 +137,62 @@ export default function FileUploader({
     setPasswordInputs(prev => ({ ...prev, [index]: value }));
   };
 
-  const handleUnlockPdf = async (index: number) => {
+  const togglePasswordVisibility = (index: number) => {
+    setShowPassword(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
+  const handleVerifyPassword = async (index: number) => {
     const file = files[index];
     const password = passwordInputs[index];
     
     if (!password) {
       toast({
         title: "Password required",
-        description: "Please enter a password to unlock this PDF.",
+        description: "Please enter a password to verify.",
         variant: "destructive"
       });
       return;
     }
     
-    // Mark as decrypting
+    // Mark as verifying
     onFilesChange(prev => prev.map((f, i) => 
-      i === index ? { ...f, isDecrypting: true, decryptError: undefined } : f
+      i === index ? { ...f, isVerifying: true, verifyError: undefined } : f
     ));
     
     try {
-      const result = await decryptPdf(file.file, password);
+      const result = await verifyPdfPassword(file.file, password);
       
-      if (result.success && result.file) {
-        // Replace with clean file and recount pages
-        const pageResult = await countFilePages(result.file);
-        
+      if (result.valid && result.pageCount !== undefined) {
+        // Password is correct - store it and update page count
         onFilesChange(prev => prev.map((f, i) => 
           i === index ? {
             ...f,
-            file: result.file!,
-            needsPassword: false,
-            isDecrypting: false,
-            pageCount: pageResult.pages,
-            isCountingPages: false,
-            countingError: false,
-            decryptError: undefined
+            password: password,
+            passwordVerified: true,
+            isVerifying: false,
+            pageCount: result.pageCount,
+            needsPassword: true, // Keep this flag to know it WAS protected
+            verifyError: undefined
           } : f
         ));
         
         toast({
-          title: "PDF unlocked",
-          description: `${file.name} is now ready for analysis.`
-        });
-        
-        // Clear password input
-        setPasswordInputs(prev => {
-          const newInputs = { ...prev };
-          delete newInputs[index];
-          return newInputs;
+          title: "Password verified",
+          description: `${file.name} password is correct. Ready for analysis.`
         });
       } else {
+        // Password is incorrect
         onFilesChange(prev => prev.map((f, i) => 
-          i === index ? { ...f, isDecrypting: false, decryptError: result.error } : f
+          i === index ? { ...f, isVerifying: false, verifyError: result.error } : f
         ));
       }
     } catch (error) {
-      console.error('Failed to decrypt PDF:', error);
+      console.error('Failed to verify password:', error);
       onFilesChange(prev => prev.map((f, i) => 
         i === index ? { 
           ...f, 
-          isDecrypting: false, 
-          decryptError: error instanceof Error ? error.message : 'Failed to decrypt PDF' 
+          isVerifying: false, 
+          verifyError: error instanceof Error ? error.message : 'Failed to verify password' 
         } : f
       ));
     }
@@ -256,13 +253,19 @@ export default function FileUploader({
                           • Failed to count pages
                         </span>
                       )}
-                      {file.needsPassword && (
+                      {file.needsPassword && !file.passwordVerified && (
                         <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
                           <Lock className="h-3 w-3" />
                           • Password protected
                         </span>
                       )}
-                      {file.pageCount !== undefined && !file.countingError && !file.needsPassword && (
+                      {file.passwordVerified && (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                          <CheckCircle className="h-3 w-3" />
+                          • Password verified
+                        </span>
+                      )}
+                      {file.pageCount !== undefined && !file.countingError && (!file.needsPassword || file.passwordVerified) && (
                         <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                           • {file.pageCount} {file.pageCount === 1 ? 'page' : 'pages'}
                         </span>
@@ -283,43 +286,55 @@ export default function FileUploader({
                 </Button>
               </div>
               
-              {file.needsPassword && (
+              {file.needsPassword && !file.passwordVerified && (
                 <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
                   <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm mb-2">
                     <Lock className="h-4 w-4" />
                     <span className="font-medium">This PDF is password-protected</span>
                   </div>
                   <div className="flex gap-2">
-                    <Input
-                      type="password"
-                      placeholder="Enter PDF password"
-                      value={passwordInputs[index] || ''}
-                      onChange={(e) => handlePasswordChange(index, e.target.value)}
-                      className="h-9 text-sm"
-                      onKeyDown={(e) => e.key === 'Enter' && handleUnlockPdf(index)}
-                      disabled={file.isDecrypting}
-                    />
+                    <div className="relative flex-1">
+                      <Input
+                        type={showPassword[index] ? "text" : "password"}
+                        placeholder="Enter PDF password"
+                        value={passwordInputs[index] || ''}
+                        onChange={(e) => handlePasswordChange(index, e.target.value)}
+                        className="h-9 text-sm pr-10"
+                        onKeyDown={(e) => e.key === 'Enter' && handleVerifyPassword(index)}
+                        disabled={file.isVerifying}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
+                        onClick={() => togglePasswordVisibility(index)}
+                        disabled={file.isVerifying}
+                      >
+                        {showPassword[index] ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </Button>
+                    </div>
                     <Button 
                       size="sm" 
                       variant="outline"
-                      onClick={() => handleUnlockPdf(index)}
-                      disabled={file.isDecrypting || !passwordInputs[index]}
+                      onClick={() => handleVerifyPassword(index)}
+                      disabled={file.isVerifying || !passwordInputs[index]}
                       className="h-9 px-3"
                     >
-                      {file.isDecrypting ? (
+                      {file.isVerifying ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          <Unlock className="h-4 w-4 mr-2" />
-                          Unlock
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Verify
                         </>
                       )}
                     </Button>
                   </div>
-                  {file.decryptError && (
+                  {file.verifyError && (
                     <p className="text-xs text-destructive mt-2 flex items-center gap-1">
                       <AlertCircle className="h-3 w-3" />
-                      {file.decryptError}
+                      {file.verifyError}
                     </p>
                   )}
                 </div>

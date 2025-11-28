@@ -13,15 +13,27 @@ export interface PageCount {
   fileName: string;
   pages: number;
   fileType: "pdf" | "excel" | "csv" | "image" | "unknown";
+  needsPassword?: boolean;
 }
 
 /**
  * Count pages in a PDF file
  */
-async function countPdfPages(file: File): Promise<number> {
+async function countPdfPages(file: File): Promise<{ pages: number; needsPassword?: boolean }> {
   const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-  return pdf.numPages;
+  
+  try {
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    return { pages: pdf.numPages };
+  } catch (error: any) {
+    // Check if it's a password exception
+    if (error.name === 'PasswordException') {
+      console.log(`[PageCounter] 🔒 ${file.name} is password-protected`);
+      return { pages: 0, needsPassword: true };
+    }
+    throw error;
+  }
 }
 
 /**
@@ -84,9 +96,12 @@ export async function countFilePages(file: File): Promise<PageCount> {
   try {
     let pages = 0;
     let fileType: PageCount["fileType"] = "unknown";
+    let needsPassword = false;
 
     if (fileName.endsWith(".pdf")) {
-      pages = await countPdfPages(file);
+      const result = await countPdfPages(file);
+      pages = result.pages;
+      needsPassword = result.needsPassword || false;
       fileType = "pdf";
     } else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
       pages = await countExcelPages(file);
@@ -107,9 +122,14 @@ export async function countFilePages(file: File): Promise<PageCount> {
     }
 
     const duration = Math.round(performance.now() - startTime);
-    console.log(`[PageCounter] ✅ ${file.name}: ${pages} pages (${duration}ms, ${fileType})`);
+    
+    if (needsPassword) {
+      console.log(`[PageCounter] 🔒 ${file.name}: password-protected (${duration}ms)`);
+    } else {
+      console.log(`[PageCounter] ✅ ${file.name}: ${pages} pages (${duration}ms, ${fileType})`);
+    }
 
-    return { fileName: file.name, pages, fileType };
+    return { fileName: file.name, pages, fileType, needsPassword };
   } catch (error) {
     const duration = Math.round(performance.now() - startTime);
     console.error(`[PageCounter] ❌ ${file.name} failed after ${duration}ms:`, error);

@@ -19,6 +19,8 @@ interface FileItem {
   file: File;
   pageCount?: number;
   isCountingPages?: boolean;
+  needsPassword?: boolean;
+  isDecrypting?: boolean;
 }
 
 export default function CaseUpload() {
@@ -34,7 +36,8 @@ export default function CaseUpload() {
   // Calculate total pages from files
   const totalPages = files.reduce((sum, f) => sum + (f.pageCount || 0), 0);
   const allPagesCounted = files.every(f => !f.isCountingPages && f.pageCount !== undefined);
-  const canSubmit = files.length > 0 && allPagesCounted && hasAccess && totalPages <= pagesRemaining;
+  const hasLockedFiles = files.some(f => f.needsPassword);
+  const canSubmit = files.length > 0 && allPagesCounted && hasAccess && totalPages <= pagesRemaining && !hasLockedFiles;
   useEffect(() => {
     if (!id) return;
     getCaseById(id).then(data => {
@@ -235,6 +238,11 @@ export default function CaseUpload() {
                   {!allPagesCounted && (
                     <p className="text-sm text-muted-foreground mt-2">
                       ⏳ Counting pages...
+                    </p>
+                  )}
+                  {hasLockedFiles && (
+                    <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
+                      🔒 Some files are password-protected. Please unlock them to continue.
                     </p>
                   )}
                   {totalPages > pagesRemaining && (

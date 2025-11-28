@@ -3,9 +3,11 @@ import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { X, Upload, FileText, AlertCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { X, Upload, FileText, AlertCircle, Lock, Unlock, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { countFilePages } from "@/utils/pageCounter";
+import { decryptPdf } from "@/utils/pdfDecryptor";
 import { toast } from "@/hooks/use-toast";
 
 interface FileItem {
@@ -15,6 +17,10 @@ interface FileItem {
   pageCount?: number;
   isCountingPages?: boolean;
   countingError?: boolean;
+  needsPassword?: boolean;
+  password?: string;
+  isDecrypting?: boolean;
+  decryptError?: string;
 }
 
 interface FileUploaderProps {
@@ -31,6 +37,7 @@ export default function FileUploader({
   acceptedTypes = ['.pdf', '.zip']
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
+  const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     const newFiles: FileItem[] = acceptedFiles.map(file => ({
@@ -57,12 +64,22 @@ export default function FileUploader({
         onFilesChange(prevFiles => 
           prevFiles.map(f => 
             f.file === newFile.file 
-              ? { ...f, pageCount: result.pages, isCountingPages: false, countingError: false }
+              ? { 
+                  ...f, 
+                  pageCount: result.pages, 
+                  isCountingPages: false, 
+                  countingError: false,
+                  needsPassword: result.needsPassword || false
+                }
               : f
           )
         );
         
-        console.log(`✅ Counted ${result.pages} pages in ${newFile.name}`);
+        if (result.needsPassword) {
+          console.log(`🔒 ${newFile.name} requires a password`);
+        } else {
+          console.log(`✅ Counted ${result.pages} pages in ${newFile.name}`);
+        }
         
       } catch (error) {
         console.error(`❌ Failed to count pages for ${newFile.name}:`, error);
@@ -106,6 +123,82 @@ export default function FileUploader({
   const removeFile = (index: number) => {
     const updatedFiles = files.filter((_, i) => i !== index);
     onFilesChange(updatedFiles);
+    // Clean up password input
+    setPasswordInputs(prev => {
+      const newInputs = { ...prev };
+      delete newInputs[index];
+      return newInputs;
+    });
+  };
+
+  const handlePasswordChange = (index: number, value: string) => {
+    setPasswordInputs(prev => ({ ...prev, [index]: value }));
+  };
+
+  const handleUnlockPdf = async (index: number) => {
+    const file = files[index];
+    const password = passwordInputs[index];
+    
+    if (!password) {
+      toast({
+        title: "Password required",
+        description: "Please enter a password to unlock this PDF.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // Mark as decrypting
+    onFilesChange(prev => prev.map((f, i) => 
+      i === index ? { ...f, isDecrypting: true, decryptError: undefined } : f
+    ));
+    
+    try {
+      const result = await decryptPdf(file.file, password);
+      
+      if (result.success && result.file) {
+        // Replace with clean file and recount pages
+        const pageResult = await countFilePages(result.file);
+        
+        onFilesChange(prev => prev.map((f, i) => 
+          i === index ? {
+            ...f,
+            file: result.file!,
+            needsPassword: false,
+            isDecrypting: false,
+            pageCount: pageResult.pages,
+            isCountingPages: false,
+            countingError: false,
+            decryptError: undefined
+          } : f
+        ));
+        
+        toast({
+          title: "PDF unlocked",
+          description: `${file.name} is now ready for analysis.`
+        });
+        
+        // Clear password input
+        setPasswordInputs(prev => {
+          const newInputs = { ...prev };
+          delete newInputs[index];
+          return newInputs;
+        });
+      } else {
+        onFilesChange(prev => prev.map((f, i) => 
+          i === index ? { ...f, isDecrypting: false, decryptError: result.error } : f
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to decrypt PDF:', error);
+      onFilesChange(prev => prev.map((f, i) => 
+        i === index ? { 
+          ...f, 
+          isDecrypting: false, 
+          decryptError: error instanceof Error ? error.message : 'Failed to decrypt PDF' 
+        } : f
+      ));
+    }
   };
 
   const formatFileSize = (bytes: number) => {
@@ -163,7 +256,13 @@ export default function FileUploader({
                           • Failed to count pages
                         </span>
                       )}
-                      {file.pageCount !== undefined && !file.countingError && (
+                      {file.needsPassword && (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium flex items-center gap-1">
+                          <Lock className="h-3 w-3" />
+                          • Password protected
+                        </span>
+                      )}
+                      {file.pageCount !== undefined && !file.countingError && !file.needsPassword && (
                         <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                           • {file.pageCount} {file.pageCount === 1 ? 'page' : 'pages'}
                         </span>
@@ -183,6 +282,48 @@ export default function FileUploader({
                   <X className="h-4 w-4" />
                 </Button>
               </div>
+              
+              {file.needsPassword && (
+                <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 text-sm mb-2">
+                    <Lock className="h-4 w-4" />
+                    <span className="font-medium">This PDF is password-protected</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Input
+                      type="password"
+                      placeholder="Enter PDF password"
+                      value={passwordInputs[index] || ''}
+                      onChange={(e) => handlePasswordChange(index, e.target.value)}
+                      className="h-9 text-sm"
+                      onKeyDown={(e) => e.key === 'Enter' && handleUnlockPdf(index)}
+                      disabled={file.isDecrypting}
+                    />
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => handleUnlockPdf(index)}
+                      disabled={file.isDecrypting || !passwordInputs[index]}
+                      className="h-9 px-3"
+                    >
+                      {file.isDecrypting ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Unlock className="h-4 w-4 mr-2" />
+                          Unlock
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {file.decryptError && (
+                    <p className="text-xs text-destructive mt-2 flex items-center gap-1">
+                      <AlertCircle className="h-3 w-3" />
+                      {file.decryptError}
+                    </p>
+                  )}
+                </div>
+              )}
             </Card>
           ))}
         </div>

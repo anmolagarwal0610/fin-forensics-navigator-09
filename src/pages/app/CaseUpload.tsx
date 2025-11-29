@@ -10,7 +10,8 @@ import { getCaseById, addFiles, addEvent, updateCaseStatus, type CaseRecord } fr
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
-import { ArrowLeft, Info, AlertCircle, Zap } from "lucide-react";
+import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
+import { ArrowLeft, Info, AlertCircle, Zap, Wrench } from "lucide-react";
 import { Link } from "react-router-dom";
 
 interface FileItem {
@@ -34,12 +35,13 @@ export default function CaseUpload() {
   const [submitting, setSubmitting] = useState(false);
   const [useHitl, setUseHitl] = useState(true);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
+  const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
 
   // Calculate total pages from files
   const totalPages = files.reduce((sum, f) => sum + (f.pageCount || 0), 0);
   const allPagesCounted = files.every(f => !f.isCountingPages && f.pageCount !== undefined);
   const hasLockedFiles = files.some(f => f.needsPassword && !f.passwordVerified);
-  const canSubmit = files.length > 0 && allPagesCounted && hasAccess && totalPages <= pagesRemaining && !hasLockedFiles;
+  const canSubmit = files.length > 0 && allPagesCounted && hasAccess && totalPages <= pagesRemaining && !hasLockedFiles && !isMaintenanceMode;
   useEffect(() => {
     if (!id) return;
     getCaseById(id).then(data => {
@@ -195,6 +197,17 @@ export default function CaseUpload() {
         </div>
       </div>
 
+      {isMaintenanceMode && (
+        <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+          <Wrench className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertTitle className="text-amber-900 dark:text-amber-100 font-semibold">Scheduled Maintenance</AlertTitle>
+          <AlertDescription className="text-amber-800 dark:text-amber-200">
+            <p className="mb-2">{maintenanceMessage}</p>
+            <p className="text-sm">File submission is temporarily disabled during maintenance.</p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {!hasAccess && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
@@ -278,6 +291,7 @@ export default function CaseUpload() {
                 size="lg"
               >
                 {submitting ? "Submitting..." : 
+                 isMaintenanceMode ? "Maintenance Mode Active" :
                  !allPagesCounted ? "Counting pages..." :
                  useHitl ? "Start Initial Parse" : "Start Analysis"}
               </Button>

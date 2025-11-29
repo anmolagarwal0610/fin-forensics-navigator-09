@@ -6,9 +6,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Download, Link as LinkIcon, Users } from "lucide-react";
+import { Download, Link as LinkIcon, Users, Settings } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useAdminCases } from "@/hooks/useAdminCases";
+import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
+import { useUpdateMaintenanceMode } from "@/hooks/useUpdateMaintenanceMode";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import AdminUsers from "./AdminUsers";
 import { Skeleton } from "@/components/ui/skeleton";
 import UpdateResultUrlDialog from "@/components/app/UpdateResultUrlDialog";
@@ -17,6 +22,8 @@ export default function AdminCases() {
   const navigate = useNavigate();
   const { isAdmin, loading: adminLoading } = useIsAdmin();
   const { data: cases, isLoading, refetch } = useAdminCases();
+  const { isMaintenanceMode, loading: maintenanceLoading } = useMaintenanceMode();
+  const { updateMaintenanceMode, isUpdating } = useUpdateMaintenanceMode();
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     caseId: string;
@@ -69,6 +76,10 @@ export default function AdminCases() {
           <TabsTrigger value="users">
             <Users className="h-4 w-4 mr-2" />
             Users
+          </TabsTrigger>
+          <TabsTrigger value="settings">
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
           </TabsTrigger>
         </TabsList>
 
@@ -165,6 +176,39 @@ export default function AdminCases() {
 
         <TabsContent value="users">
           <AdminUsers />
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-6">
+          <h1 className="text-2xl font-semibold">System Settings</h1>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Maintenance Mode</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center gap-3">
+                    <Label htmlFor="maintenance-toggle" className="text-base font-medium cursor-pointer">
+                      Maintenance Mode
+                    </Label>
+                    <Badge variant={isMaintenanceMode ? "error" : "secondary"}>
+                      {isMaintenanceMode ? "Active" : "Inactive"}
+                    </Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    When enabled, users will see a maintenance message and cannot submit files for analysis.
+                  </p>
+                </div>
+                <Switch
+                  id="maintenance-toggle"
+                  checked={isMaintenanceMode}
+                  onCheckedChange={updateMaintenanceMode}
+                  disabled={maintenanceLoading || isUpdating}
+                />
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

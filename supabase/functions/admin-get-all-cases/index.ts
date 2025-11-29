@@ -56,25 +56,29 @@ serve(async (req) => {
       });
     }
 
-    // Optimized: Get all cases with creator profiles in a single query using JOIN
+    // Get all cases (no JOIN due to missing foreign key)
     const { data: cases, error: casesError } = await supabase
       .from("cases")
-      .select(`
-        *,
-        profiles!cases_creator_id_fkey (
-          full_name,
-          organization_name,
-          user_id
-        )
-      `)
+      .select("*")
       .order("created_at", { ascending: false });
 
     if (casesError) {
       throw casesError;
     }
 
-    // Get all unique user IDs to batch fetch emails
+    // Get all unique user IDs
     const userIds = [...new Set(cases?.map(c => c.creator_id) || [])];
+    
+    // Batch fetch profiles
+    const profileMap = new Map<string, any>();
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name, organization_name")
+        .in("user_id", userIds);
+      
+      profiles?.forEach(p => profileMap.set(p.user_id, p));
+    }
     
     // Batch fetch user emails
     const userEmailMap = new Map<string, string>();
@@ -92,8 +96,8 @@ serve(async (req) => {
     const casesWithUserInfo = (cases || []).map(caseItem => ({
       ...caseItem,
       user_email: userEmailMap.get(caseItem.creator_id) || "Unknown",
-      user_name: (caseItem.profiles as any)?.full_name || "Unknown",
-      organization: (caseItem.profiles as any)?.organization_name || "Unknown",
+      user_name: profileMap.get(caseItem.creator_id)?.full_name || "Unknown",
+      organization: profileMap.get(caseItem.creator_id)?.organization_name || "Unknown",
     }));
 
     return new Response(JSON.stringify({ cases: casesWithUserInfo }), {

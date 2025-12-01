@@ -40,6 +40,18 @@ async function verifyWebhookSignature(
   return signature === expectedSig;
 }
 
+/**
+ * Sanitize filename to be compatible with Supabase Storage
+ * Replaces characters that are not allowed in storage keys
+ */
+function sanitizeFileName(fileName: string): string {
+  return fileName
+    .replace(/[[\]()]/g, '_')  // Replace brackets and parentheses with underscores
+    .replace(/\s+/g, '_')       // Replace spaces with underscores
+    .replace(/__+/g, '_')       // Replace multiple underscores with single underscore
+    .replace(/^_|_$/g, '');     // Trim leading/trailing underscores
+}
+
 async function extractAndUploadCsvs(
   supabase: any,
   zipUrl: string,
@@ -77,8 +89,11 @@ async function extractAndUploadCsvs(
         // Get CSV content as blob
         const csvContent = await zip.files[fileName].async('blob');
         
-        // Upload to Supabase Storage
-        const storagePath = `${userId}/${caseId}/csv/original/${fileName}`;
+        // Sanitize filename for storage (remove special characters)
+        const sanitizedFileName = sanitizeFileName(fileName);
+        
+        // Upload to Supabase Storage with sanitized name
+        const storagePath = `${userId}/${caseId}/csv/original/${sanitizedFileName}`;
         const { error: uploadError } = await supabase.storage
           .from('case-files')
           .upload(storagePath, csvContent, { 
@@ -101,11 +116,9 @@ async function extractAndUploadCsvs(
           continue;
         }
         
-        // Derive PDF filename from CSV name
-        // Example: "AL_Extract.csv" -> "AL Extract.pdf"
-        const pdfFileName = fileName
-          .replace('.csv', '.pdf')
-          .replace(/_/g, ' ');
+        // Derive PDF filename from original CSV name (for display)
+        // Keep original name for user recognition
+        const pdfFileName = fileName.replace('.csv', '.pdf');
         
         // Insert record into case_csv_files
         const { error: insertError } = await supabase
@@ -122,7 +135,7 @@ async function extractAndUploadCsvs(
           continue;
         }
         
-        console.log(`[CSV Extract] ✓ Successfully processed: ${fileName} -> ${pdfFileName}`);
+        console.log(`[CSV Extract] ✓ Successfully processed: ${fileName} (stored as ${sanitizedFileName}) -> ${pdfFileName}`);
         successCount++;
         
       } catch (fileError: any) {

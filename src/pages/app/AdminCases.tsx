@@ -59,14 +59,25 @@ export default function AdminCases() {
     }
   }, [adminLoading, isAdmin, navigate]);
 
-  const handleDownloadInput = async (storagePath: string, caseName: string) => {
+  const handleDownloadInput = async (storagePath: string | null, caseName: string) => {
     try {
+      // Handle cases where input_zip_url is null (old cases created before fix)
+      if (!storagePath) {
+        toast({ 
+          title: "No Files Available", 
+          description: "Input files were not stored for this case", 
+          variant: "destructive" 
+        });
+        return;
+      }
+
       // Generate fresh signed URL (valid for 1 hour)
       const { data: signedData, error } = await supabase.storage
         .from('case-files')
         .createSignedUrl(storagePath, 60 * 60);
 
       if (error || !signedData) {
+        console.error('Failed to generate signed URL:', error);
         toast({ title: "Error", description: "Failed to generate download URL", variant: "destructive" });
         return;
       }
@@ -74,6 +85,7 @@ export default function AdminCases() {
       window.open(signedData.signedUrl, '_blank');
       toast({ title: "Opening input ZIP", description: `Downloading files for ${caseName}` });
     } catch (err) {
+      console.error('Download error:', err);
       toast({ title: "Error", description: "Download failed", variant: "destructive" });
     }
   };

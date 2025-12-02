@@ -274,6 +274,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          bonus_pages: number
           created_at: string
           current_period_pages_used: number
           current_period_start: string | null
@@ -289,6 +290,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          bonus_pages?: number
           created_at?: string
           current_period_pages_used?: number
           current_period_start?: string | null
@@ -304,6 +306,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          bonus_pages?: number
           created_at?: string
           current_period_pages_used?: number
           current_period_start?: string | null

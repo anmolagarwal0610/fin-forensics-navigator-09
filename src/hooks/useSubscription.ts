@@ -9,6 +9,7 @@ export interface SubscriptionStatus {
   is_active: boolean;
   expires_at: string | null;
   pages_remaining: number;
+  bonus_pages: number;
 }
 
 export function useSubscription() {
@@ -19,28 +20,47 @@ export function useSubscription() {
     queryFn: async () => {
       if (!user) return null;
       
-      const { data, error } = await supabase.rpc('get_subscription_status', {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_subscription_status', {
         _user_id: user.id
       });
 
-      if (error) {
-        console.error('Error fetching subscription:', error);
-        throw error;
+      if (rpcError) {
+        console.error('Error fetching subscription:', rpcError);
+        throw rpcError;
       }
 
-      return data?.[0] as SubscriptionStatus | null;
+      // Fetch bonus_pages from profiles
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('bonus_pages')
+        .eq('user_id', user.id)
+        .single();
+
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+      }
+
+      const subscriptionStatus = rpcData?.[0];
+      return {
+        ...subscriptionStatus,
+        bonus_pages: profileData?.bonus_pages || 0,
+      } as SubscriptionStatus | null;
     },
     enabled: !!user,
     refetchInterval: 60000, // Refresh every minute
   });
   
+  const bonusPages = data?.bonus_pages || 0;
+  const totalPagesRemaining = (data?.pages_remaining || 0) + bonusPages;
+
   return {
     tier: data?.tier || 'free',
     isActive: data?.is_active || false,
     expiresAt: data?.expires_at,
-    pagesRemaining: data?.pages_remaining || 0,
+    pagesRemaining: totalPagesRemaining,
+    bonusPages,
     loading: isLoading,
-    hasAccess: (data?.is_active && (data?.pages_remaining || 0) > 0) || false,
+    hasAccess: (data?.is_active && totalPagesRemaining > 0) || false,
     refetch,
   };
 }

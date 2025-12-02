@@ -99,6 +99,7 @@ serve(async (req) => {
         subscription_tier: statusData?.[0]?.tier || profile.subscription_tier,
         subscription_expires_at: profile.subscription_expires_at,
         current_period_pages_used: profile.current_period_pages_used,
+        bonus_pages: profile.bonus_pages || 0,
         created_at: profile.created_at,
       });
     }

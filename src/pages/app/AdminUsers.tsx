@@ -7,9 +7,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SubscriptionBadge } from "@/components/app/SubscriptionBadge";
 import { GrantAccessDialog } from "@/components/app/GrantAccessDialog";
 import { RevokeAccessDialog } from "@/components/app/RevokeAccessDialog";
+import { AddPagesDialog } from "@/components/app/AddPagesDialog";
 import { useAdminUsers } from "@/hooks/useAdminUsers";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { Search, UserPlus, Shield } from "lucide-react";
+import { Search, UserPlus, Shield, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -22,7 +23,8 @@ export default function AdminUsers() {
   const { data: users, isLoading, refetch } = useAdminUsers(searchQuery);
   const [grantDialogOpen, setGrantDialogOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<{ id: string; email: string } | null>(null);
+  const [addPagesDialogOpen, setAddPagesDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
 
   // Redirect non-admins
   if (!adminLoading && !isAdmin) {
@@ -39,6 +41,11 @@ export default function AdminUsers() {
   const handleRevokeAccess = (userId: string, email: string) => {
     setSelectedUser({ id: userId, email });
     setRevokeDialogOpen(true);
+  };
+
+  const handleAddPages = (user: any) => {
+    setSelectedUser(user);
+    setAddPagesDialogOpen(true);
   };
 
   if (adminLoading || isLoading) {
@@ -119,7 +126,12 @@ export default function AdminUsers() {
                         </TableCell>
                         <TableCell>
                           <span className="text-sm">
-                            {user.current_period_pages_used.toLocaleString()} / {limit.toLocaleString()}
+                            {user.current_period_pages_used.toLocaleString()} / {(limit + (user.bonus_pages || 0)).toLocaleString()}
+                            {user.bonus_pages > 0 && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                (+{user.bonus_pages.toLocaleString()})
+                              </span>
+                            )}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -133,6 +145,14 @@ export default function AdminUsers() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleAddPages(user)}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Pages
+                            </Button>
                             <Button
                               variant="outline"
                               size="sm"
@@ -170,10 +190,16 @@ export default function AdminUsers() {
 
       {selectedUser && (
         <>
+          <AddPagesDialog
+            open={addPagesDialogOpen}
+            onOpenChange={setAddPagesDialogOpen}
+            user={selectedUser}
+            onSuccess={refetch}
+          />
           <GrantAccessDialog
             open={grantDialogOpen}
             onOpenChange={setGrantDialogOpen}
-            userId={selectedUser.id}
+            userId={selectedUser.id || selectedUser.user_id}
             userEmail={selectedUser.email}
             onSuccess={() => {
               refetch();
@@ -183,7 +209,7 @@ export default function AdminUsers() {
           <RevokeAccessDialog
             open={revokeDialogOpen}
             onOpenChange={setRevokeDialogOpen}
-            userId={selectedUser.id}
+            userId={selectedUser.id || selectedUser.user_id}
             userEmail={selectedUser.email}
             onSuccess={() => {
               refetch();

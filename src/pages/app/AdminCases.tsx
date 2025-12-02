@@ -18,6 +18,16 @@ import { Badge } from "@/components/ui/badge";
 import AdminUsers from "./AdminUsers";
 import { Skeleton } from "@/components/ui/skeleton";
 import UpdateResultUrlDialog from "@/components/app/UpdateResultUrlDialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export default function AdminCases() {
   const navigate = useNavigate();
@@ -25,6 +35,7 @@ export default function AdminCases() {
   const { data: cases, isLoading, refetch } = useAdminCases();
   const { isMaintenanceMode, loading: maintenanceLoading } = useMaintenanceMode();
   const { updateMaintenanceMode, isUpdating } = useUpdateMaintenanceMode();
+  const [showMaintenanceDialog, setShowMaintenanceDialog] = useState(false);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     caseId: string;
@@ -59,6 +70,21 @@ export default function AdminCases() {
       caseName,
       currentUrl,
     });
+  };
+
+  const handleMaintenanceToggle = (checked: boolean) => {
+    if (checked) {
+      // Show confirmation dialog when enabling maintenance mode
+      setShowMaintenanceDialog(true);
+    } else {
+      // Disable directly without confirmation
+      updateMaintenanceMode(false);
+    }
+  };
+
+  const confirmEnableMaintenance = () => {
+    updateMaintenanceMode(true);
+    setShowMaintenanceDialog(false);
   };
 
   return (
@@ -205,7 +231,7 @@ export default function AdminCases() {
                 <Switch
                   id="maintenance-toggle"
                   checked={isMaintenanceMode}
-                  onCheckedChange={updateMaintenanceMode}
+                  onCheckedChange={handleMaintenanceToggle}
                   disabled={maintenanceLoading || isUpdating}
                 />
               </div>
@@ -222,6 +248,28 @@ export default function AdminCases() {
           currentUrl={dialogState.currentUrl}
           onSuccess={refetch}
         />
+
+        <AlertDialog open={showMaintenanceDialog} onOpenChange={setShowMaintenanceDialog}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Enable Maintenance Mode?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will affect all users on the platform. When maintenance mode is enabled:
+                <ul className="list-disc pl-6 mt-2 space-y-1">
+                  <li>Users will see a maintenance message on the upload page</li>
+                  <li>File submission for analysis will be disabled</li>
+                  <li>Existing cases will remain accessible</li>
+                </ul>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmEnableMaintenance}>
+                Enable Maintenance Mode
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminPasswordGate>
   );

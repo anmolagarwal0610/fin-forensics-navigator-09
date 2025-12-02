@@ -9,6 +9,7 @@ export interface AdminUser {
   subscription_tier: string;
   subscription_expires_at: string | null;
   current_period_pages_used: number;
+  bonus_pages: number;
   created_at: string;
 }
 

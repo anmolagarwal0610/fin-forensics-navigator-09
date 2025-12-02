@@ -60,11 +60,29 @@ Deno.serve(async (req) => {
 
     console.log(`Admin ${user.id} adding ${pages_to_add} bonus pages to user ${target_user_id}`);
 
-    // Increment bonus_pages for target user
+    // Fetch current bonus_pages value
+    const { data: currentProfile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('bonus_pages')
+      .eq('user_id', target_user_id)
+      .single();
+
+    if (fetchError || !currentProfile) {
+      console.error('Failed to fetch current profile:', fetchError);
+      return new Response(JSON.stringify({ error: 'User profile not found' }), {
+        status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Calculate new bonus_pages value
+    const newBonusPages = (currentProfile.bonus_pages || 0) + pages_to_add;
+
+    // Update profile with new value
     const { data: updatedProfile, error: updateError } = await supabase
       .from('profiles')
       .update({
-        bonus_pages: supabase.raw('bonus_pages + ?', [pages_to_add]),
+        bonus_pages: newBonusPages,
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', target_user_id)

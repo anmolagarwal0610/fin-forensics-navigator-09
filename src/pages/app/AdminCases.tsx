@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
 import { Download, Link as LinkIcon, Users, Settings } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { supabase } from "@/integrations/supabase/client";
 import { useAdminCases } from "@/hooks/useAdminCases";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import { useUpdateMaintenanceMode } from "@/hooks/useUpdateMaintenanceMode";
@@ -58,9 +59,23 @@ export default function AdminCases() {
     }
   }, [adminLoading, isAdmin, navigate]);
 
-  const handleDownloadInput = (url: string, caseName: string) => {
-    window.open(url, '_blank');
-    toast({ title: "Opening input ZIP", description: `Downloading files for ${caseName}` });
+  const handleDownloadInput = async (storagePath: string, caseName: string) => {
+    try {
+      // Generate fresh signed URL (valid for 1 hour)
+      const { data: signedData, error } = await supabase.storage
+        .from('case-files')
+        .createSignedUrl(storagePath, 60 * 60);
+
+      if (error || !signedData) {
+        toast({ title: "Error", description: "Failed to generate download URL", variant: "destructive" });
+        return;
+      }
+
+      window.open(signedData.signedUrl, '_blank');
+      toast({ title: "Opening input ZIP", description: `Downloading files for ${caseName}` });
+    } catch (err) {
+      toast({ title: "Error", description: "Download failed", variant: "destructive" });
+    }
   };
 
   const handleUpdateResultUrl = (caseId: string, caseName: string, currentUrl: string | null) => {

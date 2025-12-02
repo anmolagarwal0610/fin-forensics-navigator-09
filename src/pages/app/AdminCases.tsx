@@ -71,7 +71,19 @@ export default function AdminCases() {
         return;
       }
 
-      // Generate fresh signed URL (valid for 1 hour)
+      // Check if storagePath is already a full signed URL (old cases) or a storage path
+      if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
+        // Old case with full signed URL - might be expired
+        console.warn('Using legacy signed URL - may be expired:', storagePath);
+        window.open(storagePath, '_blank');
+        toast({ 
+          title: "Opening input ZIP", 
+          description: "Note: This is a legacy URL and may be expired. Contact admin if download fails." 
+        });
+        return;
+      }
+
+      // Generate fresh signed URL from storage path (valid for 1 hour)
       const { data: signedData, error } = await supabase.storage
         .from('case-files')
         .createSignedUrl(storagePath, 60 * 60);

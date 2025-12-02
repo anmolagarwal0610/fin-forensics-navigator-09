@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import AdminPasswordGate from "@/components/auth/AdminPasswordGate";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,16 +62,17 @@ export default function AdminCases() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
-        <CardContent className="pt-6">
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            <strong>Note:</strong> Admin-only page
-          </p>
-        </CardContent>
-      </Card>
+    <AdminPasswordGate>
+      <div className="container mx-auto p-6 space-y-6">
+        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/20">
+          <CardContent className="pt-6">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <strong>Note:</strong> Admin-only page
+            </p>
+          </CardContent>
+        </Card>
 
-      <Tabs defaultValue="cases" className="space-y-6">
+        <Tabs defaultValue="cases" className="space-y-6">
         <TabsList>
           <TabsTrigger value="cases">Cases</TabsTrigger>
           <TabsTrigger value="users">
@@ -210,16 +212,17 @@ export default function AdminCases() {
             </CardContent>
           </Card>
         </TabsContent>
-      </Tabs>
+        </Tabs>
 
-      <UpdateResultUrlDialog
-        isOpen={dialogState.isOpen}
-        onClose={() => setDialogState({ ...dialogState, isOpen: false })}
-        caseId={dialogState.caseId}
-        caseName={dialogState.caseName}
-        currentUrl={dialogState.currentUrl}
-        onSuccess={refetch}
-      />
-    </div>
+        <UpdateResultUrlDialog
+          isOpen={dialogState.isOpen}
+          onClose={() => setDialogState({ ...dialogState, isOpen: false })}
+          caseId={dialogState.caseId}
+          caseName={dialogState.caseName}
+          currentUrl={dialogState.currentUrl}
+          onSuccess={refetch}
+        />
+      </div>
+    </AdminPasswordGate>
   );
 }

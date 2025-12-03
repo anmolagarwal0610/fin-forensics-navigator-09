@@ -33,13 +33,13 @@ export default function AdminUsers() {
     return null;
   }
 
-  const handleGrantAccess = (userId: string, email: string) => {
-    setSelectedUser({ id: userId, email });
+  const handleGrantAccess = (user: any) => {
+    setSelectedUser(user);
     setGrantDialogOpen(true);
   };
 
-  const handleRevokeAccess = (userId: string, email: string) => {
-    setSelectedUser({ id: userId, email });
+  const handleRevokeAccess = (user: any) => {
+    setSelectedUser(user);
     setRevokeDialogOpen(true);
   };
 
@@ -156,7 +156,7 @@ export default function AdminUsers() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => handleGrantAccess(user.user_id, user.email)}
+                              onClick={() => handleGrantAccess(user)}
                             >
                               <UserPlus className="h-4 w-4 mr-1" />
                               {user.subscription_tier === 'free' ? 'Grant' : 'Extend'}
@@ -165,7 +165,7 @@ export default function AdminUsers() {
                               <Button
                                 variant="error"
                                 size="sm"
-                                onClick={() => handleRevokeAccess(user.user_id, user.email)}
+                                onClick={() => handleRevokeAccess(user)}
                               >
                                 Revoke
                               </Button>
@@ -188,35 +188,39 @@ export default function AdminUsers() {
         </CardContent>
       </Card>
 
-      {selectedUser && (
-        <>
-          <AddPagesDialog
-            open={addPagesDialogOpen}
-            onOpenChange={setAddPagesDialogOpen}
-            user={selectedUser}
-            onSuccess={refetch}
-          />
-          <GrantAccessDialog
-            open={grantDialogOpen}
-            onOpenChange={setGrantDialogOpen}
-            userId={selectedUser.id || selectedUser.user_id}
-            userEmail={selectedUser.email}
-            onSuccess={() => {
-              refetch();
-              setSelectedUser(null);
-            }}
-          />
-          <RevokeAccessDialog
-            open={revokeDialogOpen}
-            onOpenChange={setRevokeDialogOpen}
-            userId={selectedUser.id || selectedUser.user_id}
-            userEmail={selectedUser.email}
-            onSuccess={() => {
-              refetch();
-              setSelectedUser(null);
-            }}
-          />
-        </>
+      {selectedUser && addPagesDialogOpen && (
+        <AddPagesDialog
+          open={addPagesDialogOpen}
+          onOpenChange={setAddPagesDialogOpen}
+          user={selectedUser}
+          onSuccess={refetch}
+        />
+      )}
+      
+      {selectedUser && grantDialogOpen && (
+        <GrantAccessDialog
+          open={grantDialogOpen}
+          onOpenChange={setGrantDialogOpen}
+          userId={selectedUser.user_id}
+          userEmail={selectedUser.email}
+          onSuccess={() => {
+            refetch();
+            setSelectedUser(null);
+          }}
+        />
+      )}
+      
+      {selectedUser && revokeDialogOpen && (
+        <RevokeAccessDialog
+          open={revokeDialogOpen}
+          onOpenChange={setRevokeDialogOpen}
+          userId={selectedUser.user_id}
+          userEmail={selectedUser.email}
+          onSuccess={() => {
+            refetch();
+            setSelectedUser(null);
+          }}
+        />
       )}
     </div>
   );

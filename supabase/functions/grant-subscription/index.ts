@@ -51,7 +51,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { userId, tier, expiresAt } = await req.json();
+    const { userId, tier, expiresAt, sendEmail = true } = await req.json();
 
     // Validate input
     if (!userId || !tier) {
@@ -129,26 +129,31 @@ serve(async (req) => {
 
     console.log(`Admin ${user.email} granted ${tier} subscription to user ${userId}`);
 
-    // Get target user email for notification
-    const { data: targetAuthData } = await supabase.auth.admin.getUserById(userId);
+    // Get target user email for notification (only if sendEmail is true)
+    if (sendEmail) {
+      const { data: targetAuthData } = await supabase.auth.admin.getUserById(userId);
 
-    if (targetAuthData?.user?.email) {
-      // Send email notification (non-blocking)
-      try {
-        await supabase.functions.invoke("send-subscription-email", {
-          body: {
-            to: targetAuthData.user.email,
-            type: "granted",
-            data: {
-              tier,
-              expiresAt,
+      if (targetAuthData?.user?.email) {
+        // Send email notification (non-blocking)
+        try {
+          await supabase.functions.invoke("send-subscription-email", {
+            body: {
+              to: targetAuthData.user.email,
+              type: "granted",
+              data: {
+                tier,
+                expiresAt,
+              },
             },
-          },
-        });
-      } catch (emailError) {
-        console.error("Failed to send notification email:", emailError);
-        // Don't fail the whole request if email fails
+          });
+          console.log(`Notification email sent to ${targetAuthData.user.email}`);
+        } catch (emailError) {
+          console.error("Failed to send notification email:", emailError);
+          // Don't fail the whole request if email fails
+        }
       }
+    } else {
+      console.log("Email notification skipped (sendEmail=false)");
     }
 
     return new Response(

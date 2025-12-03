@@ -61,32 +61,39 @@ export default function AdminCases() {
 
   const handleDownloadInput = async (storagePath: string | null, caseName: string) => {
     try {
-      // Handle cases where input_zip_url is null (old cases created before fix)
       if (!storagePath) {
         toast({ 
           title: "No Files Available", 
-          description: "Input files were not stored for this case", 
-          variant: "destructive" 
+          description: "Input files were not stored for this case (uploaded before storage tracking was implemented).",
+          variant: "default"
         });
         return;
       }
 
-      // Check if storagePath is already a full signed URL (old cases) or a storage path
+      let pathToSign = storagePath;
+
+      // Check if storagePath is already a full signed URL (old cases) - extract path from it
       if (storagePath.startsWith('http://') || storagePath.startsWith('https://')) {
-        // Old case with full signed URL - might be expired
-        console.warn('Using legacy signed URL - may be expired:', storagePath);
-        window.open(storagePath, '_blank');
-        toast({ 
-          title: "Opening input ZIP", 
-          description: "Note: This is a legacy URL and may be expired. Contact admin if download fails." 
-        });
-        return;
+        // Extract storage path from legacy URL: /storage/v1/object/sign/case-files/{path}?token=...
+        const match = storagePath.match(/\/case-files\/([^?]+)/);
+        if (match && match[1]) {
+          pathToSign = decodeURIComponent(match[1]);
+          console.log('Extracted path from legacy URL:', pathToSign);
+        } else {
+          console.error('Could not parse legacy URL:', storagePath);
+          toast({ 
+            title: "Error", 
+            description: "Could not parse legacy file URL. The file may not be available.",
+            variant: "destructive"
+          });
+          return;
+        }
       }
 
       // Generate fresh signed URL from storage path (valid for 1 hour)
       const { data: signedData, error } = await supabase.storage
         .from('case-files')
-        .createSignedUrl(storagePath, 60 * 60);
+        .createSignedUrl(pathToSign, 60 * 60);
 
       if (error || !signedData) {
         console.error('Failed to generate signed URL:', error);

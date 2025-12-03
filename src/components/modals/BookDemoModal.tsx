@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface BookDemoModalProps {
   isOpen: boolean;
@@ -24,10 +25,14 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
     setLoading(true);
 
     try {
-      // Here you would typically send the data to your backend
-      // For now, we'll just show a success message
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      
+      const response = await supabase.functions.invoke('send-book-demo', {
+        body: formData,
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || 'Failed to submit demo request');
+      }
+
       toast({
         title: "Demo Booked Successfully!",
         description: "We'll contact you within 24 hours to schedule your personalized demo.",
@@ -35,10 +40,11 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
       
       setFormData({ name: "", organization: "", email: "", phone: "" });
       onClose();
-    } catch (error) {
+    } catch (error: any) {
+      console.error('Book demo error:', error);
       toast({
         title: "Error",
-        description: "Failed to book demo. Please try again.",
+        description: error.message || "Failed to book demo. Please try again.",
         variant: "destructive",
       });
     } finally {

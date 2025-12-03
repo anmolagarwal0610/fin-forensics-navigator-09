@@ -41,3 +41,18 @@ verify_jwt = true
 
 [functions.admin-get-all-cases]
 verify_jwt = true
+
+[functions.add-bonus-pages]
+verify_jwt = true
+
+[functions.send-book-demo]
+verify_jwt = false
+
+[functions.admin-set-password]
+verify_jwt = true
+
+[functions.admin-verify-password]
+verify_jwt = true
+
+[functions.admin-check-password-status]
+verify_jwt = true

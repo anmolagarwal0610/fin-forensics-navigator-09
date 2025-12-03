@@ -36,8 +36,8 @@ export function AddPagesDialog({ user, open, onOpenChange, onSuccess }: AddPages
   const [pagesToAdd, setPagesToAdd] = useState<string>("");
   const queryClient = useQueryClient();
 
-  const tierLimit = TIER_LIMITS[user.subscription_tier as SubscriptionTier] || 0;
-  const currentBonus = user.bonus_pages || 0;
+  const tierLimit = TIER_LIMITS[user?.subscription_tier as SubscriptionTier] || 0;
+  const currentBonus = user?.bonus_pages || 0;
   const currentTotal = tierLimit + currentBonus;
   const newTotal = currentTotal + (parseInt(pagesToAdd) || 0);
 
@@ -113,16 +113,16 @@ export function AddPagesDialog({ user, open, onOpenChange, onSuccess }: AddPages
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">User</span>
-                <span className="text-sm text-muted-foreground">{user.email}</span>
+                <span className="text-sm text-muted-foreground">{user?.email || 'Unknown'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Organization</span>
-                <span className="text-sm text-muted-foreground">{user.organization_name}</span>
+                <span className="text-sm text-muted-foreground">{user?.organization_name || 'Unknown'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Current Tier</span>
                 <Badge variant="secondary">
-                  {TIER_LABELS[user.subscription_tier as SubscriptionTier]}
+                  {TIER_LABELS[user?.subscription_tier as SubscriptionTier] || 'Free'}
                 </Badge>
               </div>
             </div>
@@ -143,7 +143,7 @@ export function AddPagesDialog({ user, open, onOpenChange, onSuccess }: AddPages
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Pages Used</span>
-                <span>{user.current_period_pages_used.toLocaleString()} pages</span>
+                <span>{(user?.current_period_pages_used || 0).toLocaleString()} pages</span>
               </div>
             </div>
 

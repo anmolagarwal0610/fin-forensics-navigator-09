@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { Activity, Clock, CheckCircle, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import type { CaseRecord } from "@/api/cases";
 interface KPICardsProps {
   cases: CaseRecord[];

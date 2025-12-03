@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import DocumentHead from "@/components/common/DocumentHead";
 import BackToLanding from "@/components/auth/BackToLanding";
 import { Shield, Lock, ShieldCheck } from "lucide-react";

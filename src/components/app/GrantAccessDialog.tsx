@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { CalendarIcon, Mail } from "lucide-react";
 import { format, addMonths, addYears } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
   const [duration, setDuration] = useState<string>('1-month');
   const [customDate, setCustomDate] = useState<Date>();
   const [loading, setLoading] = useState(false);
+  const [sendEmail, setSendEmail] = useState(true);
 
   const calculateExpiry = () => {
     if (duration === 'custom' && customDate) return customDate;
@@ -52,6 +54,7 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
           userId,
           tier,
           expiresAt: expiryDate.toISOString(),
+          sendEmail,
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -63,7 +66,7 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
       }
 
       toast.success('Access Granted', {
-        description: `${userEmail} now has ${tier} access until ${format(expiryDate, 'PPP')}`,
+        description: `${userEmail} now has ${tier} access until ${format(expiryDate, 'PPP')}${sendEmail ? ' (email sent)' : ''}`,
       });
 
       onSuccess();
@@ -143,6 +146,20 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
             <p className="text-sm text-muted-foreground">
               Access will expire on {format(calculateExpiry(), 'PPP')}
             </p>
+          </div>
+
+          <div className="flex items-center justify-between p-3 border rounded-md">
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="send-email" className="text-sm font-normal cursor-pointer">
+                Send notification email to user
+              </Label>
+            </div>
+            <Switch
+              id="send-email"
+              checked={sendEmail}
+              onCheckedChange={setSendEmail}
+            />
           </div>
         </div>
 

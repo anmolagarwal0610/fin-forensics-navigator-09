@@ -1,14 +1,29 @@
+# FinNavigator AI - Robots.txt
+# https://finnavigatorai.com
+
 User-agent: Googlebot
 Allow: /
+Disallow: /app/
+Disallow: /signin
+Disallow: /signup
+Disallow: /reset
+Disallow: /reset-confirm
 
 User-agent: Bingbot
 Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+Disallow: /app/
+Disallow: /signin
+Disallow: /signup
+Disallow: /reset
+Disallow: /reset-confirm
 
 User-agent: *
 Allow: /
+Disallow: /app/
+Disallow: /signin
+Disallow: /signup
+Disallow: /reset
+Disallow: /reset-confirm
+
+# Sitemap location
+Sitemap: https://finnavigatorai.com/sitemap.xml

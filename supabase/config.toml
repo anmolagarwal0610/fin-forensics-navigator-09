@@ -36,9 +36,6 @@ verify_jwt = false
 [functions.check-expired-subscriptions]
 verify_jwt = false
 
-[functions.bootstrap-admin]
-verify_jwt = true
-
 [functions.admin-get-all-cases]
 verify_jwt = true
 

@@ -3,12 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FinNavigator - Your partner in financial forensics</title>
+    <title>FinNavigator AI — Financial Forensics Software</title>
     <meta
       name="description"
-      content="FinNavigator turns complex bank statements and ledgers into concise, actionable insights—highlighting persons of interest and money flow."
+      content="FinNavigator AI transforms complex bank statements and ledgers into actionable insights for financial investigations. AI-powered forensics software."
     />
     <meta name="author" content="Promarma Technologies" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://finnavigatorai.com/" />
 
     <!-- =================== FAVICONS =================== -->
     <link
@@ -37,21 +39,28 @@
     <link rel="manifest" href="/site.webmanifest?v=3" />
     <meta name="theme-color" content="#0f172a" />
 
-    <!-- =================== FONTS =================== -->
+    <!-- =================== FONTS (Optimized) =================== -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      rel="preload"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-      as="style"
-      onload="this.onload=null;this.rel='stylesheet'"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+      media="print"
+      onload="this.media='all'"
     />
     <noscript>
       <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
         rel="stylesheet"
       />
     </noscript>
+    
+    <!-- Critical font fallback -->
+    <style>
+      body {
+        font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+    </style>
 
     <!-- =================== SOCIAL META TAGS =================== -->
     <!-- Open Graph / WhatsApp / Facebook / LinkedIn -->
@@ -59,11 +68,11 @@
     <meta property="og:url" content="https://finnavigatorai.com/" />
     <meta
       property="og:title"
-      content="FinNavigator - Your partner in financial forensics"
+      content="FinNavigator AI — Financial Forensics Software"
     />
     <meta
       property="og:description"
-      content="FinNavigator turns complex bank statements and ledgers into concise, actionable insights—highlighting persons of interest and money flow."
+      content="AI-powered analysis of bank statements and ledgers for actionable financial investigations."
     />
     <meta
       property="og:image"
@@ -72,23 +81,61 @@
     <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="900" />
     <meta property="og:image:height" content="473" />
-    <meta property="og:site_name" content="FinNavigator" />
+    <meta property="og:site_name" content="FinNavigator AI" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:url" content="https://finnavigatorai.com/" />
     <meta
       name="twitter:title"
-      content="FinNavigator - Your partner in financial forensics"
+      content="FinNavigator AI — Financial Forensics Software"
     />
     <meta
       name="twitter:description"
-      content="FinNavigator turns complex bank statements and ledgers into concise, actionable insights—highlighting persons of interest and money flow."
+      content="AI-powered analysis of bank statements and ledgers for actionable financial investigations."
     />
     <meta
       name="twitter:image"
       content="https://finnavigatorai.com/WA-preview.png"
     />
+
+    <!-- =================== STRUCTURED DATA =================== -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "FinNavigator AI",
+      "alternateName": "FinNavigator",
+      "url": "https://finnavigatorai.com",
+      "logo": "https://finnavigatorai.com/logo.png",
+      "description": "AI-powered financial forensics software for bank statement and ledger analysis",
+      "foundingDate": "2024",
+      "founder": {
+        "@type": "Organization",
+        "name": "Promarma Technologies"
+      },
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "email": "hello@finnavigatorai.com",
+        "contactType": "sales",
+        "availableLanguage": "English"
+      },
+      "sameAs": []
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "FinNavigator AI",
+      "url": "https://finnavigatorai.com",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": "https://finnavigatorai.com/?q={search_term_string}",
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
 
   <body>

@@ -1,18 +1,25 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, FileSearch, TrendingUp, Shield, Users, Zap, Brain } from "lucide-react";
+import { Brain, FileSearch, TrendingUp, Shield, Users, Zap } from "lucide-react";
 import { motion } from "framer-motion";
 import DocumentHead from "@/components/common/DocumentHead";
 import ResponsiveDataFlowAnimation from "@/components/animations/ResponsiveDataFlowAnimation";
-import ProcessFlowAnimation from "@/components/animations/ProcessFlowAnimation";
-import DifferentiatorSection from "@/components/sections/DifferentiatorSection";
-import InteractiveStatsSection from "@/components/sections/InteractiveStatsSection";
-import EnhancedCTASection from "@/components/sections/EnhancedCTASection";
 import GeometricBackground from "@/components/animations/GeometricBackground";
 import BookDemoModal from "@/components/modals/BookDemoModal";
+
+// Lazy load below-the-fold sections for better LCP
+const ProcessFlowAnimation = lazy(() => import("@/components/animations/ProcessFlowAnimation"));
+const DifferentiatorSection = lazy(() => import("@/components/sections/DifferentiatorSection"));
+const InteractiveStatsSection = lazy(() => import("@/components/sections/InteractiveStatsSection"));
+const EnhancedCTASection = lazy(() => import("@/components/sections/EnhancedCTASection"));
+
+const SectionLoader = () => (
+  <div className="py-20 flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+  </div>
+);
 const Landing = () => {
   const [isBookDemoOpen, setIsBookDemoOpen] = useState(false);
   const features = [{
@@ -47,7 +54,11 @@ const Landing = () => {
     gradient: "from-primary to-success"
   }];
   return <>
-      <DocumentHead title="FinNavigator — AI-Powered Financial Forensics" description="Transform complex financial data into actionable insights with advanced ML algorithms. Accelerate investigations with automated document analysis and person-of-interest detection." />
+      <DocumentHead 
+        title="FinNavigator AI — Financial Forensics Software" 
+        description="Transform complex financial data into actionable insights with AI-powered analysis. Accelerate investigations with automated document analysis and person-of-interest detection."
+        canonicalPath="/"
+      />
       
       <div className="flex flex-col min-h-screen">
         {/* Hero Section - Enhanced with New Animation */}
@@ -185,22 +196,14 @@ const Landing = () => {
         </section>
 
         {/* Interactive Stats Section */}
-        <InteractiveStatsSection />
+        <Suspense fallback={<SectionLoader />}>
+          <InteractiveStatsSection />
+        </Suspense>
 
         {/* How it Works Section */}
         <section className="py-20 bg-muted/30 relative overflow-hidden">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-            <motion.div className="text-center mb-16" initial={{
-            y: 50,
-            opacity: 0
-          }} whileInView={{
-            y: 0,
-            opacity: 1
-          }} transition={{
-            duration: 0.8
-          }} viewport={{
-            once: true
-          }}>
+            <motion.div className="text-center mb-16" initial={{ y: 50, opacity: 0 }} whileInView={{ y: 0, opacity: 1 }} transition={{ duration: 0.8 }} viewport={{ once: true }}>
               <h2 className="text-4xl lg:text-5xl font-bold text-foreground mb-6">
                 Simple yet{" "}
                 <span className="bg-gradient-to-r from-accent to-primary bg-clip-text text-transparent">
@@ -213,16 +216,21 @@ const Landing = () => {
               </p>
             </motion.div>
             
-            <ProcessFlowAnimation />
+            <Suspense fallback={<SectionLoader />}>
+              <ProcessFlowAnimation />
+            </Suspense>
           </div>
         </section>
 
         {/* What Makes Us Different Section */}
-        <DifferentiatorSection />
-
+        <Suspense fallback={<SectionLoader />}>
+          <DifferentiatorSection />
+        </Suspense>
 
         {/* Enhanced CTA Section */}
-        <EnhancedCTASection />
+        <Suspense fallback={<SectionLoader />}>
+          <EnhancedCTASection />
+        </Suspense>
       </div>
       
       {/* Book Demo Modal */}

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type SubscriptionTier = 'free' | 'starter' | 'professional' | 'enterprise';
+export type SubscriptionTier = 'free' | 'starter' | 'professional' | 'enterprise' | 'monthly' | 'yearly_tier' | 'yearly_plan';
 
 export interface SubscriptionStatus {
   tier: SubscriptionTier;
@@ -70,6 +70,9 @@ export const TIER_LIMITS: Record<SubscriptionTier, number> = {
   starter: 500,
   professional: 2000,
   enterprise: 10000,
+  monthly: 22500,
+  yearly_tier: 200000,
+  yearly_plan: 250000,
 };
 
 export const TIER_LABELS: Record<SubscriptionTier, string> = {
@@ -77,4 +80,7 @@ export const TIER_LABELS: Record<SubscriptionTier, string> = {
   starter: 'Starter',
   professional: 'Professional',
   enterprise: 'Enterprise',
+  monthly: 'Monthly Tier',
+  yearly_tier: 'Yearly Tier',
+  yearly_plan: 'Yearly Plan',
 };

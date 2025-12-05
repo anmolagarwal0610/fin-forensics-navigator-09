@@ -62,9 +62,9 @@ serve(async (req) => {
     }
 
     // Validate tier
-    const validTiers = ["free", "starter", "professional", "enterprise"];
+    const validTiers = ["free", "starter", "professional", "enterprise", "monthly", "yearly_tier", "yearly_plan"];
     if (!validTiers.includes(tier)) {
-      return new Response(JSON.stringify({ error: "Invalid tier. Must be one of: free, starter, professional, enterprise" }), {
+      return new Response(JSON.stringify({ error: "Invalid tier. Must be one of: free, starter, professional, enterprise, monthly, yearly_tier, yearly_plan" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

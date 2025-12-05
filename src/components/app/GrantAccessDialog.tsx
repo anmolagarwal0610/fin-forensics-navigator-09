@@ -98,8 +98,11 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="starter">Starter (500 pages/month)</SelectItem>
-                <SelectItem value="professional">Professional (2000 pages/month)</SelectItem>
-                <SelectItem value="enterprise">Enterprise (10000 pages/month)</SelectItem>
+                <SelectItem value="professional">Professional (2,000 pages/month)</SelectItem>
+                <SelectItem value="enterprise">Enterprise (10,000 pages/month)</SelectItem>
+                <SelectItem value="monthly">Monthly Tier (22,500 pages/month)</SelectItem>
+                <SelectItem value="yearly_tier">Yearly Tier (200,000 pages/year)</SelectItem>
+                <SelectItem value="yearly_plan">Yearly Plan (250,000 pages/year)</SelectItem>
               </SelectContent>
             </Select>
           </div>

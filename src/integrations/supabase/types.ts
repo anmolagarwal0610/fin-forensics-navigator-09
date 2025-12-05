@@ -454,7 +454,14 @@ export type Database = {
         | "analysis_ready"
         | "note_added"
       file_type: "upload" | "result"
-      subscription_tier: "free" | "starter" | "professional" | "enterprise"
+      subscription_tier:
+        | "free"
+        | "starter"
+        | "professional"
+        | "enterprise"
+        | "monthly"
+        | "yearly_tier"
+        | "yearly_plan"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -600,7 +607,15 @@ export const Constants = {
         "note_added",
       ],
       file_type: ["upload", "result"],
-      subscription_tier: ["free", "starter", "professional", "enterprise"],
+      subscription_tier: [
+        "free",
+        "starter",
+        "professional",
+        "enterprise",
+        "monthly",
+        "yearly_tier",
+        "yearly_plan",
+      ],
     },
   },
 } as const

@@ -141,16 +141,6 @@ const handler = async (req: Request): Promise<Response> => {
       </html>
     `;
 
-    const adminEmailResponse = await resend.emails.send({
-      from: "FinNavigator <hello@finnavigatorai.com>",
-      to: ["hello@finnavigatorai.com"], 
-      subject: `[Contact Form] ${sanitizedName}`,
-      html: adminEmailHtml,
-      replyTo: sanitizedEmail,
-    });
-
-    console.log("Admin notification email sent:", adminEmailResponse);
-
     // Email 2: Send confirmation to user
     const userEmailHtml = `
       <!DOCTYPE html>

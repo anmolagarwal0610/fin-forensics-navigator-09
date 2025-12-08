@@ -4,15 +4,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign } from "lucide-react";
+import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
 import POIModal from "@/components/app/POIModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
-import { parseExcelFile } from "@/utils/excelParser";
+import SummaryTableViewer from "@/components/app/SummaryTableViewer";
+import { parseExcelFile, CellData } from "@/utils/excelParser";
+import { cn } from "@/lib/utils";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
 
@@ -35,6 +38,7 @@ interface ParsedAnalysisData {
     summaryFile: string | null;
   }>;
   zipData?: JSZip | null;
+  summaryDataMap: Map<string, CellData[][]>;
 }
 
 export default function CaseAnalysisResults() {
@@ -49,6 +53,19 @@ export default function CaseAnalysisResults() {
   const [selectedPOI, setSelectedPOI] = useState<typeof analysisData.poiHtmlFiles[0] | null>(null);
   const [poiModalOpen, setPOIModalOpen] = useState(false);
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
+  const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
+
+  const toggleSummary = (index: number) => {
+    setExpandedSummaries(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -103,7 +120,8 @@ export default function CaseAnalysisResults() {
         egoImages: [],
         poiHtmlFiles: [],
         poiFileCount: 0,
-        fileSummaries: []
+        fileSummaries: [],
+        summaryDataMap: new Map()
       };
 
       // Process beneficiaries_by_file.xlsx with enhanced formatting
@@ -265,7 +283,7 @@ export default function CaseAnalysisResults() {
         return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, '');
       };
 
-      originalFiles.forEach(originalFile => {
+      for (const originalFile of originalFiles) {
         const originalNormalized = normalizeString(originalFile.file_name);
 
         // Find Raw Transactions (Pattern: raw_transactions_[filename].xlsx)
@@ -294,7 +312,21 @@ export default function CaseAnalysisResults() {
           rawTransactionsFile: rawTransactionsFile || null,
           summaryFile: summaryFile || null
         });
-      });
+
+        // Parse summary file data for the collapsible table
+        if (summaryFile) {
+          const summaryFileObj = zipData.file(summaryFile);
+          if (summaryFileObj) {
+            try {
+              const summaryContent = await summaryFileObj.async("arraybuffer");
+              const summaryParsedData = await parseExcelFile(summaryContent);
+              parsedData.summaryDataMap.set(summaryFile, summaryParsedData);
+            } catch (error) {
+              console.error(`Failed to parse summary file ${summaryFile}:`, error);
+            }
+          }
+        }
+      }
       
       // --- FIX END ---
 
@@ -717,54 +749,81 @@ export default function CaseAnalysisResults() {
             <CardContent className="p-6">
               <div className="space-y-4">
                 {analysisData.fileSummaries.map((summary, index) => (
-                  <div key={index} className="border rounded-lg p-4 bg-gradient-to-r from-muted/30 to-muted/50 hover:from-muted/50 hover:to-muted/70 transition-all">
-                    <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
-                      <FileText className="h-4 w-4 text-primary" />
-                      Original File: <span className="text-primary font-mono">{summary.originalFile}</span>
-                    </h4>
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                       {summary.rawTransactionsFile && (
-                         <div className="flex items-center justify-between gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
-                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                             <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                             <span className="text-muted-foreground flex-shrink-0">Raw Transactions:</span>
-                             <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded truncate">
-                               {summary.rawTransactionsFile}
-                             </span>
-                           </div>
-                           <Button
-                             size="sm"
-                             variant="outline"
-                             onClick={() => downloadIndividualFile(summary.rawTransactionsFile!)}
-                             className="flex-shrink-0 ml-2"
-                           >
-                             <Download className="h-3 w-3 mr-1" />
-                             Download
-                           </Button>
-                         </div>
-                       )}
-                       {summary.summaryFile && (
-                         <div className="flex items-center justify-between gap-2 text-sm bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
-                           <div className="flex items-center gap-2 flex-1 min-w-0">
-                             <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                             <span className="text-muted-foreground flex-shrink-0">Summary:</span>
-                             <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded truncate">
-                               {summary.summaryFile}
-                             </span>
-                           </div>
-                           <Button
-                             size="sm"
-                             variant="outline"
-                             onClick={() => downloadIndividualFile(summary.summaryFile!)}
-                             className="flex-shrink-0 ml-2"
-                           >
-                             <Download className="h-3 w-3 mr-1" />
-                             Download
-                           </Button>
-                         </div>
-                       )}
-                     </div>
-                  </div>
+                  <Collapsible
+                    key={index}
+                    open={expandedSummaries.has(index)}
+                    onOpenChange={() => toggleSummary(index)}
+                  >
+                    <div className="border rounded-lg p-4 bg-gradient-to-r from-muted/30 to-muted/50 hover:from-muted/50 hover:to-muted/70 transition-all">
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                          Original File: <span className="text-primary font-mono">{summary.originalFile}</span>
+                        </h4>
+                        {summary.summaryFile && analysisData.summaryDataMap.get(summary.summaryFile) && (
+                          <CollapsibleTrigger asChild>
+                            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
+                              <span className="text-xs">View Summary</span>
+                              <ChevronDown className={cn(
+                                "h-4 w-4 transition-transform duration-200",
+                                expandedSummaries.has(index) && "rotate-180"
+                              )} />
+                            </Button>
+                          </CollapsibleTrigger>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {summary.rawTransactionsFile && (
+                          <div className="flex items-center justify-between gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                              <span className="text-muted-foreground flex-shrink-0">Raw Transactions:</span>
+                              <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded truncate">
+                                {summary.rawTransactionsFile}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadIndividualFile(summary.rawTransactionsFile!)}
+                              className="flex-shrink-0 ml-2"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        )}
+                        {summary.summaryFile && (
+                          <div className="flex items-center justify-between gap-2 text-sm bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                              <span className="text-muted-foreground flex-shrink-0">Summary:</span>
+                              <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded truncate">
+                                {summary.summaryFile}
+                              </span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadIndividualFile(summary.summaryFile!)}
+                              className="flex-shrink-0 ml-2"
+                            >
+                              <Download className="h-3 w-3 mr-1" />
+                              Download
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {summary.summaryFile && analysisData.summaryDataMap.get(summary.summaryFile) && (
+                      <CollapsibleContent className="pt-4 px-1">
+                        <SummaryTableViewer 
+                          data={analysisData.summaryDataMap.get(summary.summaryFile)}
+                          fileName={summary.summaryFile}
+                        />
+                      </CollapsibleContent>
+                    )}
+                  </Collapsible>
                 ))}
               </div>
             </CardContent>

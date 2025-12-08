@@ -274,5 +274,5 @@ async function createZipFromStorage(supabase: any, fileNames: string[], userId: 
 
   const zipContent = await zip.generateAsync({ type: 'uint8array' });
   console.log('ZIP generated successfully, size:', Math.round(zipContent.byteLength / 1024), 'KB');
-  return new Blob([new Uint8Array(zipContent.buffer)], { type: 'application/zip' });
+  return new Blob([new Uint8Array(zipContent.buffer as ArrayBuffer)], { type: 'application/zip' });
 }

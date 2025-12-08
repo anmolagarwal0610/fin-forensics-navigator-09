@@ -1,6 +1,6 @@
 import * as ExcelJS from 'exceljs';
 
-interface CellData {
+export interface CellData {
   value: any;
   style?: {
     backgroundColor?: string;

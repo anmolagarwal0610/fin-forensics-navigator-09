@@ -24,7 +24,7 @@ async function hashPassword(password: string, salt: Uint8Array): Promise<string>
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt: salt,
+      salt: new Uint8Array(salt.buffer),
       iterations: PBKDF2_ITERATIONS,
       hash: HASH_ALGORITHM,
     },
@@ -121,10 +121,11 @@ Deno.serve(async (req) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error('Error in admin-set-password:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

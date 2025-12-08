@@ -138,8 +138,9 @@ async function extractAndUploadCsvs(
         console.log(`[CSV Extract] ✓ Successfully processed: ${fileName} (stored as ${sanitizedFileName}) -> ${pdfFileName}`);
         successCount++;
         
-      } catch (fileError: any) {
-        console.error(`[CSV Extract] Error processing ${fileName}:`, fileError.message);
+      } catch (fileError: unknown) {
+        const errorMessage = fileError instanceof Error ? fileError.message : "Unknown error";
+        console.error(`[CSV Extract] Error processing ${fileName}:`, errorMessage);
       }
     }
     
@@ -149,8 +150,9 @@ async function extractAndUploadCsvs(
       throw new Error('Failed to process any CSV files from the ZIP');
     }
     
-  } catch (error: any) {
-    console.error('[CSV Extract] Fatal error:', error.message);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error('[CSV Extract] Fatal error:', errorMessage);
     throw error;
   }
 }
@@ -235,10 +237,11 @@ serve(async (req) => {
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("Webhook error:", error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -273,8 +276,9 @@ async function updateCaseStatus(supabase: any, payload: any) {
         console.log(`[CSV Extract] Starting extraction for case ${caseId} from ${payload.url}`);
         await extractAndUploadCsvs(supabase, payload.url, caseId, payload.user_id || payload.userId);
         console.log(`[CSV Extract] Successfully completed extraction for case ${caseId}`);
-      } catch (extractError: any) {
-        console.error("[CSV Extract] Extraction failed:", extractError.message);
+      } catch (extractError: unknown) {
+        const errorMessage = extractError instanceof Error ? extractError.message : "Unknown error";
+        console.error("[CSV Extract] Extraction failed:", errorMessage);
         // Mark case as failed since we can't proceed with review
         await supabase
           .from("cases")
@@ -378,25 +382,61 @@ async function updateCaseStatus(supabase: any, payload: any) {
         if (caseData) {
           // Fetch user email
           const { data: userData } = await supabase.auth.admin.getUserById(caseData.creator_id);
+          const currentYear = new Date().getFullYear();
+          const timestamp = new Date().toLocaleString("en-US", {
+            timeZone: "Asia/Kolkata",
+            dateStyle: "full",
+            timeStyle: "long",
+          }).replace("India Standard Time", "IST").replace("GMT+5:30", "IST");
           
           const emailHtml = `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2 style="color: #dc2626;">⚠️ Analysis Failed</h2>
-              <div style="background-color: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0;">
-                <p style="margin: 0;"><strong>Case:</strong> ${caseData.name}</p>
-                <p style="margin: 8px 0 0 0;"><strong>Case ID:</strong> ${caseId}</p>
-              </div>
-              <p><strong>Job ID:</strong> ${payload.job_id}</p>
-              <p><strong>Task:</strong> ${payload.task}</p>
-              <p><strong>Error:</strong></p>
-              <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; padding: 12px; border-radius: 4px; margin: 8px 0;">
-                <code style="color: #dc2626; font-size: 14px;">${payload.error || 'Unknown error'}</code>
-              </div>
-              <p><strong>User:</strong> ${userData?.user?.email || 'Unknown'}</p>
-              <p><strong>Timestamp:</strong> ${new Date().toLocaleString()}</p>
-              <hr style="margin: 24px 0; border: none; border-top: 1px solid #e5e7eb;" />
-              <p style="color: #6b7280; font-size: 12px;">This is an automated notification from FinNavigator AI.</p>
-            </div>
+            <!DOCTYPE html>
+            <html>
+              <head>
+                <meta charset="utf-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <style>
+                  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
+                  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                  .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+                  .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+                  .error-box { background: #fef2f2; border-left: 4px solid #dc2626; padding: 16px; margin: 16px 0; border-radius: 4px; }
+                  .details-box { background: white; padding: 20px; border-radius: 4px; margin: 16px 0; border: 1px solid #e5e7eb; }
+                  .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
+                </style>
+              </head>
+              <body>
+                <div class="container">
+                  <div class="header">
+                    <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
+                    <h1 style="margin: 0; font-size: 24px;">⚠️ Analysis Failed</h1>
+                    <p style="margin: 10px 0 0; opacity: 0.9;">Case Processing Error</p>
+                  </div>
+                  
+                  <div class="content">
+                    <div class="error-box">
+                      <p style="margin: 0;"><strong>Case:</strong> ${caseData.name}</p>
+                      <p style="margin: 8px 0 0 0;"><strong>Case ID:</strong> ${caseId}</p>
+                    </div>
+                    
+                    <div class="details-box">
+                      <p style="margin: 0 0 8px;"><strong>Job ID:</strong> ${payload.job_id}</p>
+                      <p style="margin: 0 0 8px;"><strong>Task:</strong> ${payload.task}</p>
+                      <p style="margin: 0 0 8px;"><strong>Error:</strong></p>
+                      <code style="display: block; background: #f9fafb; padding: 12px; border-radius: 4px; color: #dc2626; font-size: 13px; word-break: break-word;">${payload.error || 'Unknown error'}</code>
+                    </div>
+                    
+                    <p style="margin: 16px 0 8px;"><strong>User:</strong> ${userData?.user?.email || 'Unknown'}</p>
+                    <p style="margin: 0;"><strong>Timestamp:</strong> ${timestamp}</p>
+                  </div>
+                  
+                  <div class="footer">
+                    <p style="margin: 0;">This is an automated notification from FinNavigator AI</p>
+                    <p style="margin: 10px 0 0; color: #94a3b8; font-size: 12px;">© ${currentYear} FinNavigator AI. All rights reserved.</p>
+                  </div>
+                </div>
+              </body>
+            </html>
           `;
           
           const emailResponse = await fetch("https://api.resend.com/emails", {
@@ -421,8 +461,9 @@ async function updateCaseStatus(supabase: any, payload: any) {
           }
         }
       }
-    } catch (emailError: any) {
-      console.error("Failed to send failure notification email:", emailError.message);
+    } catch (emailError: unknown) {
+      const errorMessage = emailError instanceof Error ? emailError.message : "Unknown error";
+      console.error("Failed to send failure notification email:", errorMessage);
       // Don't throw - email failure shouldn't block webhook
     }
 

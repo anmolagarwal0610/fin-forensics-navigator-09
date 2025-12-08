@@ -392,7 +392,28 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
                           const span = getCellSpan(cell);
                           const style = getCellStyle(cell, rowIndex, colIndex);
-                          const cellContent = truncateText(String(cell.value || ''));
+                          // ⬇️ REPLACE WITH THIS ENHANCED LOGIC ⬇️
+                          const rawValue = cell.value;
+                          let displayValue = String(rawValue || '');
+                          
+                          // Check if the value is a number that needs formatting
+                          if (typeof rawValue === 'number') {
+                              // Apply robust, locale-aware number formatting
+                              try {
+                                  displayValue = new Intl.NumberFormat('en-US', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                  }).format(rawValue);
+                              } catch (e) {
+                                  // Fallback for extreme cases
+                                  displayValue = rawValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                              }
+                          } else if (typeof rawValue === 'string') {
+                              // Check for and remove the invisible character if it was used
+                              displayValue = rawValue.replace('\u200B', '').trim();
+                          }
+                          
+                          const cellContent = truncateText(displayValue);
 
                           return (
                             <td

@@ -189,7 +189,8 @@ export default function CaseAnalysisResults() {
               }
               
               obj[header] = {
-                value: row[index] || '',
+                // value: row[index] || '',
+                value: cell?.w || row[index] || '',
                 style: backgroundColor || color ? { backgroundColor, color } : undefined
               };
             });

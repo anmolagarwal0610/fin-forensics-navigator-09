@@ -24,7 +24,7 @@ async function hashPassword(password: string, salt: Uint8Array): Promise<string>
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt: new Uint8Array(salt.buffer),
+      salt: new Uint8Array(salt.buffer as ArrayBuffer),
       iterations: PBKDF2_ITERATIONS,
       hash: HASH_ALGORITHM,
     },

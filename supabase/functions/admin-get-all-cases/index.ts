@@ -103,11 +103,10 @@ serve(async (req) => {
     return new Response(JSON.stringify({ cases: casesWithUserInfo }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    console.error("[admin-get-all-cases] Error:", errorMessage);
+  } catch (error) {
+    console.error("[admin-get-all-cases] Error:", error.message);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

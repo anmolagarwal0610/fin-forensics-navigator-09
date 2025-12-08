@@ -26,7 +26,7 @@ async function hashPassword(password: string, salt: Uint8Array): Promise<string>
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt: new Uint8Array(salt.buffer),
+      salt: salt,
       iterations: PBKDF2_ITERATIONS,
       hash: HASH_ALGORITHM,
     },
@@ -190,11 +190,10 @@ Deno.serve(async (req) => {
       );
     }
 
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+  } catch (error: any) {
     console.error('Error in admin-verify-password:', error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

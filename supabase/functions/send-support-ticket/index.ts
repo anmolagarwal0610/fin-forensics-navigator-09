@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,14 +76,13 @@ serve(async (req) => {
 
     // Use provided ticket ID or generate new one
     const ticketId = providedTicketId || `TKT-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-    const currentYear = new Date().getFullYear();
 
     // Format timestamp in IST
-    const timestamp = new Date().toLocaleString("en-US", {
+    const timestamp = new Date().toLocaleString("en-IN", {
       timeZone: "Asia/Kolkata",
-      dateStyle: "full",
-      timeStyle: "long",
-    }).replace("India Standard Time", "IST").replace("GMT+5:30", "IST");
+      dateStyle: "long",
+      timeStyle: "long"
+    }).replace("India Standard Time", "IST");
 
     // Build email HTML with escaped user inputs
     const emailSubject = ticketType === 'auto' 
@@ -94,25 +94,24 @@ serve(async (req) => {
       <html>
         <head>
           <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+            .header { background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+            .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; }
             .section { margin-bottom: 25px; }
-            .section-title { font-weight: 600; color: #374151; margin-bottom: 8px; border-bottom: 2px solid #667eea; padding-bottom: 4px; }
+            .section-title { font-weight: 600; color: #1f2937; margin-bottom: 8px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; }
             .info-row { padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
             .label { font-weight: 500; color: #6b7280; }
             .value { color: #1f2937; }
-            .error-box { background: #fef2f2; border-left: 4px solid #dc2626; padding: 15px; margin: 15px 0; border-radius: 4px; }
-            .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
+            .error-box { background: #fee2e2; border-left: 4px solid #dc2626; padding: 15px; margin: 15px 0; border-radius: 4px; }
+            .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+            .logo { width: 100px; margin-top: 15px; }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
               <h1 style="margin: 0; font-size: 24px;">⚠️ AUTOMATIC SUPPORT TICKET</h1>
               <p style="margin: 10px 0 0 0; opacity: 0.9;">Backend Failure Detected</p>
             </div>
@@ -146,7 +145,7 @@ serve(async (req) => {
                 <div class="section-title">FILES SUBMITTED</div>
                 <div class="info-row">
                   <span class="label">ZIP Download:</span><br>
-                  <a href="${escapeHtml(zipUrl)}" style="color: #667eea; word-break: break-all;">${escapeHtml(zipUrl)}</a><br>
+                  <a href="${escapeHtml(zipUrl)}" style="color: #3b82f6; word-break: break-all;">${escapeHtml(zipUrl)}</a><br>
                   <small style="color: #6b7280;">Link valid for 1 hour</small>
                 </div>
               </div>
@@ -168,13 +167,10 @@ serve(async (req) => {
 
               <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">
                 <p style="margin: 5px 0;">Detected: ${timestamp}</p>
-                <p style="margin: 5px 0 0 0; font-weight: 500;">Automated Alert - FinNavigator System</p>
+                <p style="margin: 5px 0; font-size: 12px;">Automated Alert - FinNavigator System</p>
+                <img src="https://raw.githubusercontent.com/finnavigatorai/finnavigator/main/public/logo.png" alt="FinNavigator" class="logo">
+                <p style="margin: 10px 0 0 0; font-weight: 500;">The FinNavigator Team</p>
               </div>
-            </div>
-            
-            <div class="footer">
-              <p style="margin: 0;">This is an automated notification from FinNavigator AI</p>
-              <p style="margin: 10px 0 0; color: #94a3b8; font-size: 12px;">© ${currentYear} FinNavigator AI. All rights reserved.</p>
             </div>
           </div>
         </body>
@@ -184,24 +180,23 @@ serve(async (req) => {
       <html>
         <head>
           <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
-            .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
+            .header { background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+            .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; }
             .section { margin-bottom: 25px; }
-            .section-title { font-weight: 600; color: #374151; margin-bottom: 8px; border-bottom: 2px solid #667eea; padding-bottom: 4px; }
+            .section-title { font-weight: 600; color: #1f2937; margin-bottom: 8px; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; }
             .info-row { padding: 8px 0; border-bottom: 1px solid #e5e7eb; }
             .label { font-weight: 500; color: #6b7280; }
             .value { color: #1f2937; }
-            .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
+            .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 12px; }
+            .logo { width: 100px; margin-top: 15px; }
           </style>
         </head>
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
               <h1 style="margin: 0; font-size: 24px;">📋 SUPPORT TICKET</h1>
               <p style="margin: 10px 0 0 0; opacity: 0.9;">Manual Submission</p>
             </div>
@@ -241,7 +236,7 @@ serve(async (req) => {
                 ${attachments.map(att => `
                   <div style="background: white; padding: 12px; border-radius: 6px; margin-bottom: 10px; border: 1px solid #e5e7eb;">
                     <div style="font-weight: 500; color: #374151; margin-bottom: 5px;">📄 ${escapeHtml(att.name)}</div>
-                    <a href="${att.url}" style="color: #667eea; text-decoration: underline; font-size: 14px;" target="_blank">Download File</a>
+                    <a href="${att.url}" style="color: #3b82f6; text-decoration: underline; font-size: 14px;" target="_blank">Download File</a>
                     <span style="color: #6b7280; font-size: 12px; margin-left: 10px;">(${formatFileSize(att.size)})</span>
                   </div>
                 `).join('')}
@@ -253,13 +248,9 @@ serve(async (req) => {
 
               <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb; text-align: center; color: #6b7280;">
                 <p style="margin: 5px 0;">Submitted: ${timestamp}</p>
+                <img src="https://raw.githubusercontent.com/finnavigatorai/finnavigator/main/public/logo.png" alt="FinNavigator" class="logo">
                 <p style="margin: 10px 0 0 0; font-weight: 500;">The FinNavigator Team</p>
               </div>
-            </div>
-            
-            <div class="footer">
-              <p style="margin: 0;">This is an automated notification from FinNavigator AI</p>
-              <p style="margin: 10px 0 0; color: #94a3b8; font-size: 12px;">© ${currentYear} FinNavigator AI. All rights reserved.</p>
             </div>
           </div>
         </body>
@@ -304,11 +295,10 @@ serve(async (req) => {
       }
     );
 
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+  } catch (error: any) {
     console.error('Error in send-support-ticket:', error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error.message }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -92,12 +92,11 @@ const handler = async (req: Request): Promise<Response> => {
       <!DOCTYPE html>
       <html>
         <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .logo { width: 60px; height: 60px; margin-bottom: 15px; }
             .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; }
             .field { margin-bottom: 20px; }
             .field-label { font-weight: bold; color: #374151; margin-bottom: 5px; }
@@ -109,7 +108,6 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
               <h1 style="margin: 0; font-size: 24px;">New Contact Form Submission</h1>
             </div>
             <div class="content">
@@ -136,7 +134,7 @@ const handler = async (req: Request): Promise<Response> => {
             </div>
             <div class="footer">
               <p style="margin: 0 0 10px 0;">FinNavigator AI - Contact Form System</p>
-              <p style="margin: 0; color: #94a3b8; font-size: 12px;">© ${new Date().getFullYear()} FinNavigator AI. All rights reserved.</p>
+              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 40px; height: 40px; margin-top: 10px;" />
             </div>
           </div>
         </body>
@@ -148,12 +146,11 @@ const handler = async (req: Request): Promise<Response> => {
       <!DOCTYPE html>
       <html>
         <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
+            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
             .container { max-width: 600px; margin: 0 auto; padding: 20px; }
             .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
+            .logo { width: 60px; height: 60px; margin-bottom: 15px; }
             .content { background: white; padding: 30px; border: 1px solid #e5e7eb; }
             .summary { background: #f9fafb; padding: 20px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #667eea; }
             .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
@@ -162,7 +159,6 @@ const handler = async (req: Request): Promise<Response> => {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
               <h1 style="margin: 0; font-size: 24px;">Thank You for Contacting FinNavigator</h1>
             </div>
             <div class="content">
@@ -182,12 +178,12 @@ const handler = async (req: Request): Promise<Response> => {
               <p>We appreciate your interest in FinNavigator AI and look forward to connecting with you.</p>
               <div style="margin-top: 30px; text-align: left;">
                 <p style="margin: 0;">Best regards,<br><strong>The FinNavigator Team</strong></p>
+                <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 50px; height: 50px; margin-top: 1px;" />
               </div>
             </div>
             <div class="footer">
               <p style="margin: 0;">FinNavigator AI - Advanced Financial Forensics Platform</p>
               <p style="margin: 5px 0;">This is an automated confirmation email. Please do not reply to this message.</p>
-              <p style="margin: 10px 0 0 0; color: #94a3b8; font-size: 12px;">© ${new Date().getFullYear()} FinNavigator AI. All rights reserved.</p>
             </div>
           </div>
         </body>
@@ -251,11 +247,10 @@ const handler = async (req: Request): Promise<Response> => {
         },
       }
     );
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Failed to send emails";
+  } catch (error: any) {
     console.error("Error in send-contact-email function:", error);
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: error.message || "Failed to send emails" }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

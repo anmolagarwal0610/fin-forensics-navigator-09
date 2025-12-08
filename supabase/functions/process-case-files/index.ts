@@ -161,8 +161,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error: unknown) {
-    const err = error as Error;
+  } catch (error) {
     console.error('Error in process-case-files:', error);
     
     // Get caseId for error handling
@@ -182,10 +181,10 @@ serve(async (req) => {
         const supabase = createClient(supabaseUrl, supabaseServiceKey);
         
         let status = 'Failed';
-        let errorMessage = err.message;
+        let errorMessage = error.message;
         
         // Check if it's a timeout error
-        if (err.name === 'AbortError' || errorMessage.includes('timeout')) {
+        if (error.name === 'AbortError' || errorMessage.includes('timeout')) {
           status = 'Timeout';
           errorMessage = 'Analysis timed out. Consider reducing the number of files.';
         }
@@ -215,7 +214,7 @@ serve(async (req) => {
     }
     
     return new Response(JSON.stringify({ 
-      error: err.message 
+      error: error.message 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -274,5 +273,5 @@ async function createZipFromStorage(supabase: any, fileNames: string[], userId: 
 
   const zipContent = await zip.generateAsync({ type: 'uint8array' });
   console.log('ZIP generated successfully, size:', Math.round(zipContent.byteLength / 1024), 'KB');
-  return new Blob([new Uint8Array(zipContent.buffer)], { type: 'application/zip' });
+  return new Blob([zipContent], { type: 'application/zip' });
 }

@@ -21,9 +21,6 @@ const getTierDisplayName = (tier: string) => {
     professional: "Professional",
     enterprise: "Enterprise",
     free: "Free",
-    monthly: "Monthly",
-    yearly_tier: "Yearly Tier",
-    yearly_plan: "Yearly Plan",
   };
   return names[tier] || tier;
 };
@@ -34,9 +31,6 @@ const getTierPageLimit = (tier: string) => {
     professional: "2,000",
     enterprise: "10,000",
     free: "50",
-    monthly: "22,500",
-    yearly_tier: "200,000",
-    yearly_plan: "250,000",
   };
   return limits[tier] || "50";
 };
@@ -50,18 +44,28 @@ const getEmailTemplate = (type: string, data: EmailRequest["data"]) => {
     month: "long",
     day: "numeric",
   }) : "";
-  const currentYear = new Date().getFullYear();
 
   const baseStyles = `
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f9fafb; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 8px 8px 0 0; }
-    .content { background: white; padding: 30px; border: 1px solid #e5e7eb; }
-    .details-box { background: #f9fafb; padding: 20px; border-radius: 4px; margin: 20px 0; border-left: 4px solid #667eea; }
-    .warning-box { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 20px; margin: 20px 0; }
-    .danger-box { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin: 20px 0; }
-    .button { display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px; }
-    .footer { background: #f3f4f6; padding: 20px; text-align: center; font-size: 12px; color: #6b7280; border-radius: 0 0 8px 8px; }
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    </style>
+  `;
+
+  const header = `
+    <div style="background: linear-gradient(135deg, #1e3a5f 0%, #0f1f33 100%); padding: 40px 20px; text-align: center; border-radius: 12px 12px 0 0;">
+      <img src="https://app.finnavigatorai.com/email-logo.png" alt="FinNavigator AI" style="height: 50px; margin-bottom: 16px;" />
+    </div>
+  `;
+
+  const footer = `
+    <div style="background: #f8fafc; padding: 32px 40px; text-align: center; border-radius: 0 0 12px 12px; border-top: 1px solid #e2e8f0;">
+      <p style="margin: 0 0 12px 0; color: #64748b; font-size: 14px;">
+        Need help? Contact us at <a href="mailto:hello@finnavigatorai.com" style="color: #1e3a5f; text-decoration: none;">hello@finnavigatorai.com</a>
+      </p>
+      <p style="margin: 0; color: #94a3b8; font-size: 12px;">
+        © ${new Date().getFullYear()} FinNavigator AI. All rights reserved.
+      </p>
+    </div>
   `;
 
   switch (type) {
@@ -74,52 +78,63 @@ const getEmailTemplate = (type: string, data: EmailRequest["data"]) => {
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>${baseStyles}</style>
+            ${baseStyles}
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
-                <div style="width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
-                  <span style="font-size: 32px;">✓</span>
-                </div>
-                <h1 style="margin: 0 0 8px 0; font-size: 24px;">Welcome to ${tierName}!</h1>
-                <p style="margin: 0; opacity: 0.9; font-size: 14px;">Your premium subscription has been activated</p>
-              </div>
-              
-              <div class="content">
-                <div class="details-box">
-                  <h3 style="margin: 0 0 16px 0; color: #374151; font-size: 16px; font-weight: 600;">Subscription Details</h3>
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Plan</td>
-                      <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600; text-align: right;">
-                        <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">${tierName}</span>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e5e7eb;">Monthly Pages</td>
-                      <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">${pageLimit} pages</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e5e7eb;">Valid Until</td>
-                      <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600; text-align: right; border-top: 1px solid #e5e7eb;">${expiryDate}</td>
-                    </tr>
-                  </table>
+          <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+              <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); overflow: hidden;">
+                ${header}
+                
+                <div style="padding: 40px;">
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                      <span style="font-size: 32px;">✓</span>
+                    </div>
+                    <h1 style="margin: 0 0 8px 0; color: #0f172a; font-size: 24px; font-weight: 700;">
+                      Welcome to ${tierName}!
+                    </h1>
+                    <p style="margin: 0; color: #64748b; font-size: 16px;">
+                      Your premium subscription has been activated
+                    </p>
+                  </div>
+
+                  <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; padding: 24px; margin-bottom: 24px; border: 1px solid #e2e8f0;">
+                    <h3 style="margin: 0 0 16px 0; color: #0f172a; font-size: 16px; font-weight: 600;">
+                      Subscription Details
+                    </h3>
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Plan</td>
+                        <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600; text-align: right;">
+                          <span style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px;">
+                            ${tierName}
+                          </span>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0;">Monthly Pages</td>
+                        <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600; text-align: right; border-top: 1px solid #e2e8f0;">${pageLimit} pages</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #64748b; font-size: 14px; border-top: 1px solid #e2e8f0;">Valid Until</td>
+                        <td style="padding: 8px 0; color: #0f172a; font-size: 14px; font-weight: 600; text-align: right; border-top: 1px solid #e2e8f0;">${expiryDate}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <div style="text-align: center; margin-bottom: 24px;">
+                    <a href="https://app.finnavigatorai.com/app/dashboard" 
+                       style="display: inline-block; background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 14px 0 rgba(30, 58, 95, 0.39);">
+                      Go to Dashboard →
+                    </a>
+                  </div>
+
+                  <p style="margin: 0; color: #64748b; font-size: 14px; text-align: center; line-height: 1.6;">
+                    You now have access to all premium features. Start analyzing your financial documents with enhanced capabilities!
+                  </p>
                 </div>
 
-                <div style="text-align: center; margin-bottom: 24px;">
-                  <a href="https://app.finnavigatorai.com/app/dashboard" class="button">Go to Dashboard →</a>
-                </div>
-
-                <p style="margin: 0; color: #64748b; font-size: 14px; text-align: center; line-height: 1.6;">
-                  You now have access to all premium features. Start analyzing your financial documents with enhanced capabilities!
-                </p>
-              </div>
-
-              <div class="footer">
-                <p style="margin: 0 0 12px 0;">Need help? Contact us at <a href="mailto:hello@finnavigatorai.com" style="color: #667eea; text-decoration: none;">hello@finnavigatorai.com</a></p>
-                <p style="margin: 0; color: #94a3b8; font-size: 12px;">© ${currentYear} FinNavigator AI. All rights reserved.</p>
+                ${footer}
               </div>
             </div>
           </body>
@@ -136,38 +151,45 @@ const getEmailTemplate = (type: string, data: EmailRequest["data"]) => {
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>${baseStyles}</style>
+            ${baseStyles}
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
-                <div style="width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
-                  <span style="font-size: 32px;">⚠</span>
-                </div>
-                <h1 style="margin: 0 0 8px 0; font-size: 24px;">Subscription Update</h1>
-                <p style="margin: 0; opacity: 0.9; font-size: 14px;">Your account has been downgraded to the Free plan</p>
-              </div>
-              
-              <div class="content">
-                <div class="warning-box">
-                  <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">
-                    Your premium subscription has been revoked. You now have access to the Free tier with 50 pages per month.
+          <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+              <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); overflow: hidden;">
+                ${header}
+                
+                <div style="padding: 40px;">
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                      <span style="font-size: 32px;">⚠</span>
+                    </div>
+                    <h1 style="margin: 0 0 8px 0; color: #0f172a; font-size: 24px; font-weight: 700;">
+                      Subscription Update
+                    </h1>
+                    <p style="margin: 0; color: #64748b; font-size: 16px;">
+                      Your account has been downgraded to the Free plan
+                    </p>
+                  </div>
+
+                  <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                    <p style="margin: 0; color: #92400e; font-size: 14px; line-height: 1.6;">
+                      Your premium subscription has been revoked. You now have access to the Free tier with 50 pages per month.
+                    </p>
+                  </div>
+
+                  <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px; text-align: center; line-height: 1.6;">
+                    If you believe this is a mistake or would like to upgrade again, please contact our support team.
                   </p>
+
+                  <div style="text-align: center;">
+                    <a href="mailto:hello@finnavigatorai.com" 
+                       style="display: inline-block; background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                      Contact Support
+                    </a>
+                  </div>
                 </div>
 
-                <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px; text-align: center; line-height: 1.6;">
-                  If you believe this is a mistake or would like to upgrade again, please contact our support team.
-                </p>
-
-                <div style="text-align: center;">
-                  <a href="mailto:hello@finnavigatorai.com" class="button">Contact Support</a>
-                </div>
-              </div>
-
-              <div class="footer">
-                <p style="margin: 0 0 12px 0;">Need help? Contact us at <a href="mailto:hello@finnavigatorai.com" style="color: #667eea; text-decoration: none;">hello@finnavigatorai.com</a></p>
-                <p style="margin: 0; color: #94a3b8; font-size: 12px;">© ${currentYear} FinNavigator AI. All rights reserved.</p>
+                ${footer}
               </div>
             </div>
           </body>
@@ -184,45 +206,52 @@ const getEmailTemplate = (type: string, data: EmailRequest["data"]) => {
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>${baseStyles}</style>
+            ${baseStyles}
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <img src="https://finnavigatorai.com/logo.png" alt="FinNavigator Logo" style="width: 162px; height: 71px; margin-bottom: 15px;" />
-                <div style="width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
-                  <span style="font-size: 32px;">⏰</span>
-                </div>
-                <h1 style="margin: 0 0 8px 0; font-size: 24px;">Subscription Expiring Soon</h1>
-                <p style="margin: 0; opacity: 0.9; font-size: 14px;">Your ${tierName} plan expires in <strong>${data.daysUntilExpiry} days</strong></p>
-              </div>
-              
-              <div class="content">
-                <div class="danger-box">
-                  <table style="width: 100%; border-collapse: collapse;">
-                    <tr>
-                      <td style="padding: 8px 0; color: #991b1b; font-size: 14px;">Current Plan</td>
-                      <td style="padding: 8px 0; color: #991b1b; font-size: 14px; font-weight: 600; text-align: right;">${tierName}</td>
-                    </tr>
-                    <tr>
-                      <td style="padding: 8px 0; color: #991b1b; font-size: 14px; border-top: 1px solid #fecaca;">Expiry Date</td>
-                      <td style="padding: 8px 0; color: #991b1b; font-size: 14px; font-weight: 600; text-align: right;">${expiryDate}</td>
-                    </tr>
-                  </table>
+          <body style="margin: 0; padding: 0; background-color: #f1f5f9; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+              <div style="background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); overflow: hidden;">
+                ${header}
+                
+                <div style="padding: 40px;">
+                  <div style="text-align: center; margin-bottom: 32px;">
+                    <div style="width: 64px; height: 64px; background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center;">
+                      <span style="font-size: 32px;">⏰</span>
+                    </div>
+                    <h1 style="margin: 0 0 8px 0; color: #0f172a; font-size: 24px; font-weight: 700;">
+                      Subscription Expiring Soon
+                    </h1>
+                    <p style="margin: 0; color: #64748b; font-size: 16px;">
+                      Your ${tierName} plan expires in <strong style="color: #ef4444;">${data.daysUntilExpiry} days</strong>
+                    </p>
+                  </div>
+
+                  <div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                      <tr>
+                        <td style="padding: 8px 0; color: #991b1b; font-size: 14px;">Current Plan</td>
+                        <td style="padding: 8px 0; color: #991b1b; font-size: 14px; font-weight: 600; text-align: right;">${tierName}</td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 8px 0; color: #991b1b; font-size: 14px; border-top: 1px solid #fecaca;">Expiry Date</td>
+                        <td style="padding: 8px 0; color: #991b1b; font-size: 14px; font-weight: 600; text-align: right;">${expiryDate}</td>
+                      </tr>
+                    </table>
+                  </div>
+
+                  <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px; text-align: center; line-height: 1.6;">
+                    To continue enjoying premium features without interruption, please contact our team to renew your subscription.
+                  </p>
+
+                  <div style="text-align: center;">
+                    <a href="mailto:hello@finnavigatorai.com?subject=Subscription%20Renewal%20Request" 
+                       style="display: inline-block; background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 14px; box-shadow: 0 4px 14px 0 rgba(30, 58, 95, 0.39);">
+                      Renew Subscription
+                    </a>
+                  </div>
                 </div>
 
-                <p style="margin: 0 0 24px 0; color: #64748b; font-size: 14px; text-align: center; line-height: 1.6;">
-                  To continue enjoying premium features without interruption, please contact our team to renew your subscription.
-                </p>
-
-                <div style="text-align: center;">
-                  <a href="mailto:hello@finnavigatorai.com?subject=Subscription%20Renewal%20Request" class="button">Renew Subscription</a>
-                </div>
-              </div>
-
-              <div class="footer">
-                <p style="margin: 0 0 12px 0;">Need help? Contact us at <a href="mailto:hello@finnavigatorai.com" style="color: #667eea; text-decoration: none;">hello@finnavigatorai.com</a></p>
-                <p style="margin: 0; color: #94a3b8; font-size: 12px;">© ${currentYear} FinNavigator AI. All rights reserved.</p>
+                ${footer}
               </div>
             </div>
           </body>
@@ -287,10 +316,9 @@ serve(async (req) => {
     return new Response(JSON.stringify({ success: true, emailId: result.id }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+  } catch (error: any) {
     console.error("Error in send-subscription-email:", error);
-    return new Response(JSON.stringify({ error: errorMessage }), {
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

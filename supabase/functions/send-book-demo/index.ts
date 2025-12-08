@@ -10,6 +10,17 @@ interface DemoRequest {
   phone: string;
 }
 
+// HTML escape function to prevent XSS
+function escapeHtml(text: string): string {
+  if (!text) return '';
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -34,7 +45,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Processing demo request from ${name} (${email})`);
+    // Sanitize all user inputs
+    const safeName = escapeHtml(name);
+    const safeOrg = escapeHtml(organization);
+    const safeEmail = escapeHtml(email);
+    const safePhone = escapeHtml(phone);
+
+    console.log(`Processing demo request from ${safeName} (${safeEmail})`);
 
     const timestamp = new Date().toLocaleString("en-US", {
       timeZone: "Asia/Kolkata",
@@ -67,7 +84,7 @@ Deno.serve(async (req) => {
     </div>
     
     <div class="content">
-      <p>Dear ${name},</p>
+      <p>Dear ${safeName},</p>
       
       <p>We've received your request for a personalized demo of FinNavigator AI. Our team is excited to show you how our platform can transform your financial document analysis workflow.</p>
       
@@ -76,19 +93,19 @@ Deno.serve(async (req) => {
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Name:</td>
-            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${name}</td>
+            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${safeName}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Organization:</td>
-            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${organization}</td>
+            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${safeOrg}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Email:</td>
-            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${email}</td>
+            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${safeEmail}</td>
           </tr>
           <tr>
             <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Phone:</td>
-            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${phone}</td>
+            <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 500;">${safePhone}</td>
           </tr>
         </table>
       </div>
@@ -149,22 +166,22 @@ Deno.serve(async (req) => {
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr>
             <td style="padding: 10px 0; color: #64748b; font-size: 14px; width: 120px; vertical-align: top;">Full Name:</td>
-            <td style="padding: 10px 0; color: #1e293b; font-size: 15px; font-weight: 600;">${name}</td>
+            <td style="padding: 10px 0; color: #1e293b; font-size: 15px; font-weight: 600;">${safeName}</td>
           </tr>
           <tr>
             <td style="padding: 10px 0; color: #64748b; font-size: 14px; vertical-align: top;">Organization:</td>
-            <td style="padding: 10px 0; color: #1e293b; font-size: 15px; font-weight: 600;">${organization}</td>
+            <td style="padding: 10px 0; color: #1e293b; font-size: 15px; font-weight: 600;">${safeOrg}</td>
           </tr>
           <tr>
             <td style="padding: 10px 0; color: #64748b; font-size: 14px; vertical-align: top;">Email:</td>
             <td style="padding: 10px 0;">
-              <a href="mailto:${email}" style="color: #667eea; font-size: 15px; font-weight: 500; text-decoration: none;">${email}</a>
+              <a href="mailto:${email}" style="color: #667eea; font-size: 15px; font-weight: 500; text-decoration: none;">${safeEmail}</a>
             </td>
           </tr>
           <tr>
             <td style="padding: 10px 0; color: #64748b; font-size: 14px; vertical-align: top;">Phone:</td>
             <td style="padding: 10px 0;">
-              <a href="tel:${phone}" style="color: #667eea; font-size: 15px; font-weight: 500; text-decoration: none;">${phone}</a>
+              <a href="tel:${phone}" style="color: #667eea; font-size: 15px; font-weight: 500; text-decoration: none;">${safePhone}</a>
             </td>
           </tr>
           <tr>
@@ -223,7 +240,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: 'FinNavigator AI <hello@finnavigatorai.com>',
         to: ['hello@finnavigatorai.com'],
-        subject: `New Demo Request: ${name} from ${organization}`,
+        subject: `New Demo Request: ${safeName} from ${safeOrg}`,
         html: adminEmailHtml,
       }),
     });

@@ -146,21 +146,14 @@ export default function CaseAnalysisResults() {
         const workbook = XLSX.read(content, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        // const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-
-        // Set header: 1 (to get an array of arrays) AND raw: false (to get formatted strings)
-        const formattedJsonData = XLSX.utils.sheet_to_json(worksheet, { 
-            header: 1, 
-            raw: false // <--- THIS IS THE KEY CHANGE
-        }) as any[][];
-        // formattedJsonData[row][col] will now contain the string "1,000,000.00"
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
         
-        if (formattedJsonData.length > 2) {
-          parsedData.beneficiaryHeaders = formattedJsonData[0] as string[];
-          const totalBeneficiaries = formattedJsonData.length - 2; 
+        if (jsonData.length > 2) {
+          parsedData.beneficiaryHeaders = jsonData[0] as string[];
+          const totalBeneficiaries = jsonData.length - 2; 
           parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
           
-          parsedData.beneficiaries = formattedJsonData.slice(2, 27).map((row, rowIndex) => {
+          parsedData.beneficiaries = jsonData.slice(2, 27).map((row, rowIndex) => {
             const obj: { [key: string]: any } = {};
             parsedData.beneficiaryHeaders.forEach((header, index) => {
               const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 2, c: index });
@@ -188,31 +181,10 @@ export default function CaseAnalysisResults() {
                 }
               }
               
-              // obj[header] = {
-              //   // value: row[index] || '',
-              //   value: cell?.w || row[index] || '',
-              //   style: backgroundColor || color ? { backgroundColor, color } : undefined
-              // };
-              let formattedValue = '';
-              if (cell) {
-                  // 1. Check if the cell has a numeric value
-                  if (cell.t === 'n') {
-                      // 2. Format the cell using the cell's internal formatting rule (cell.z)
-                      formattedValue = XLSX.utils.format_cell(cell); 
-                  } else {
-                      // 3. For text/other cells, fall back to the raw value or 'row[index]'
-                      formattedValue = cell.v || row[index] || '';
-                  }
-              } else {
-                  formattedValue = row[index] || '';
-              }
-              // ----------------------------------------------------
-              
               obj[header] = {
-                  // Use the value reliably formatted by SheetJS
-                  value: formattedValue, 
-                  style: backgroundColor || color ? { backgroundColor, color } : undefined
-              };   
+                value: row[index] || '',
+                style: backgroundColor || color ? { backgroundColor, color } : undefined
+              };
             });
             return obj;
           });

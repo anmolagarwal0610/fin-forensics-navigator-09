@@ -146,14 +146,21 @@ export default function CaseAnalysisResults() {
         const workbook = XLSX.read(content, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+        // const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
+
+        // Set header: 1 (to get an array of arrays) AND raw: false (to get formatted strings)
+        const formattedJsonData = XLSX.utils.sheet_to_json(worksheet, { 
+            header: 1, 
+            raw: false // <--- THIS IS THE KEY CHANGE
+        }) as any[][];
+        // formattedJsonData[row][col] will now contain the string "1,000,000.00"
         
-        if (jsonData.length > 2) {
-          parsedData.beneficiaryHeaders = jsonData[0] as string[];
-          const totalBeneficiaries = jsonData.length - 2; 
+        if (formattedJsonData.length > 2) {
+          parsedData.beneficiaryHeaders = formattedJsonData[0] as string[];
+          const totalBeneficiaries = formattedJsonData.length - 2; 
           parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
           
-          parsedData.beneficiaries = jsonData.slice(2, 27).map((row, rowIndex) => {
+          parsedData.beneficiaries = formattedJsonData.slice(2, 27).map((row, rowIndex) => {
             const obj: { [key: string]: any } = {};
             parsedData.beneficiaryHeaders.forEach((header, index) => {
               const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 2, c: index });

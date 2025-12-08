@@ -188,11 +188,31 @@ export default function CaseAnalysisResults() {
                 }
               }
               
+              // obj[header] = {
+              //   // value: row[index] || '',
+              //   value: cell?.w || row[index] || '',
+              //   style: backgroundColor || color ? { backgroundColor, color } : undefined
+              // };
+              let formattedValue = '';
+              if (cell) {
+                  // 1. Check if the cell has a numeric value
+                  if (cell.t === 'n') {
+                      // 2. Format the cell using the cell's internal formatting rule (cell.z)
+                      formattedValue = XLSX.utils.format_cell(cell); 
+                  } else {
+                      // 3. For text/other cells, fall back to the raw value or 'row[index]'
+                      formattedValue = cell.v || row[index] || '';
+                  }
+              } else {
+                  formattedValue = row[index] || '';
+              }
+              // ----------------------------------------------------
+              
               obj[header] = {
-                // value: row[index] || '',
-                value: cell?.w || row[index] || '',
-                style: backgroundColor || color ? { backgroundColor, color } : undefined
-              };
+                  // Use the value reliably formatted by SheetJS
+                  value: formattedValue, 
+                  style: backgroundColor || color ? { backgroundColor, color } : undefined
+              };   
             });
             return obj;
           });

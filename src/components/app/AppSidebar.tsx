@@ -15,6 +15,7 @@ import {
 import { LayoutDashboard, FolderGit2, UserCog, Ticket, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import navArrow from "@/assets/nav-arrow.png";
 const items = [
   {
     title: "Dashboard",
@@ -66,11 +67,7 @@ export default function AppSidebar() {
             {state !== "collapsed" && (
               <SidebarGroupLabel className="text-2xl font-bold text-primary">Fin</SidebarGroupLabel>
             )}
-            <img
-              src="@/assets/nav-arrow.png"
-              alt="FinNavigator"
-              className="h-7 w-auto flex-shrink-0 mt-[-12px] ml-[-8px]"
-            />
+            <img src={navArrow} alt="FinNavigator" className="h-7 w-auto flex-shrink-0 mt-[-12px] ml-[-8px]" />
           </div>
           <SidebarGroupContent>
             <SidebarMenu>

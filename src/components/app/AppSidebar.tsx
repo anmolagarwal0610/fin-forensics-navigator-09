@@ -50,17 +50,17 @@ export default function AppSidebar() {
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <div className="flex items-center justify-center p-4 gap-2">
-            <img 
-              src="/logo.png" 
-              alt="FinNavigator" 
-              className="h-8 w-auto flex-shrink-0"
-            />
+          <div className="flex items-center justify-center p-4 gap-0">
             {state !== "collapsed" && (
-              <SidebarGroupLabel className="text-lg font-bold text-primary">
-                FinNavigator
+              <SidebarGroupLabel className="text-2xl font-bold text-primary">
+                Fin
               </SidebarGroupLabel>
             )}
+            <img 
+              src="/src/assets/nav-arrow.png" 
+              alt="FinNavigator" 
+              className="h-7 w-auto flex-shrink-0 mt-[-12px] ml-[-8px]"
+            />
           </div>
           <SidebarGroupContent>
             <SidebarMenu>

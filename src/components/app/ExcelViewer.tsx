@@ -1,27 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { CellData } from '@/utils/excelParser';
+import JSZip from 'jszip';
+import { parseExcelFile } from '@/utils/excelParser';
+import BeneficiaryTransactionsDialog, { TransactionRow } from './BeneficiaryTransactionsDialog';
+import POITransactionsDialog, { POITransactionRow } from './POITransactionsDialog';
 
 interface MergedRange {
   startRow: number;
   endRow: number;
   startCol: number;
   endCol: number;
-}
-
-interface CellData {
-  value: any;
-  style?: {
-    backgroundColor?: string;
-    fontColor?: string;
-    fontWeight?: string;
-    border?: boolean;
-  };
-  merged?: MergedRange;
-  isHidden?: boolean;
 }
 
 interface PreviewData {
@@ -42,13 +35,254 @@ interface ExcelViewerProps {
   onDownload?: () => void;
   maxRows?: number;
   fileUrl?: string;
+  // New props for beneficiary drill-down
+  enableBeneficiaryClick?: boolean;
+  zipData?: JSZip | null;
+  rawDataCache?: Map<string, CellData[][]>;
+  poiDataCache?: Map<string, CellData[][]>;
+  onCacheRawData?: (fileName: string, data: CellData[][]) => void;
+  onCachePOIData?: (fileName: string, data: CellData[][]) => void;
 }
 
-export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fileUrl }: ExcelViewerProps) {
+export default function ExcelViewer({ 
+  title, 
+  data, 
+  onDownload, 
+  maxRows = 25, 
+  fileUrl,
+  enableBeneficiaryClick = false,
+  zipData,
+  rawDataCache,
+  poiDataCache,
+  onCacheRawData,
+  onCachePOIData,
+}: ExcelViewerProps) {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [processedData, setProcessedData] = useState<CellData[][]>([]);
   // State to store column indices that should be formatted as currency (INR)
   const [currencyColumnIndices, setCurrencyColumnIndices] = useState<number[]>([]);
+  
+  // Beneficiary drill-down state
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [poiDialogOpen, setPOIDialogOpen] = useState(false);
+  const [selectedBeneficiary, setSelectedBeneficiary] = useState<string>("");
+  const [filteredTransactions, setFilteredTransactions] = useState<TransactionRow[]>([]);
+  const [poiTransactions, setPOITransactions] = useState<POITransactionRow[]>([]);
+  const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+
+  // Find column indices from Row 2 (index 1) headers for beneficiary drill-down
+  const columnIndices = useMemo(() => {
+    if (!enableBeneficiaryClick || processedData.length < 2) return null;
+    
+    const headerRow = processedData[1]; // Row 2 is index 1
+    const fileRow = processedData[0]; // Row 1 is index 0 (file names)
+    
+    let filesPresentIdx = -1;
+    let similarNamesIdx = -1;
+    const totalCreditDebitIndices: number[] = [];
+    
+    headerRow.forEach((cell, idx) => {
+      const headerText = String(cell?.value || '').toLowerCase().trim();
+      if (headerText === 'files present') {
+        filesPresentIdx = idx;
+      }
+      if (headerText === 'similar names') {
+        similarNamesIdx = idx;
+      }
+      if (headerText.includes('total credit') || headerText.includes('total debit')) {
+        totalCreditDebitIndices.push(idx);
+      }
+    });
+    
+    return { filesPresentIdx, similarNamesIdx, totalCreditDebitIndices, fileRow };
+  }, [enableBeneficiaryClick, processedData]);
+
+  // Find source file for single-file beneficiary (Files Present = 1)
+  const findSourceFile = useCallback((row: CellData[]): string | null => {
+    if (!columnIndices) return null;
+    
+    const { totalCreditDebitIndices, fileRow } = columnIndices;
+    
+    for (const colIdx of totalCreditDebitIndices) {
+      const cellValue = row[colIdx]?.value;
+      const numValue = typeof cellValue === 'number' ? cellValue : parseFloat(String(cellValue || '0').replace(/[₹$€£,\s]/g, ''));
+      
+      if (!isNaN(numValue) && numValue > 0) {
+        // Found non-zero value, get source file name from row 1
+        const sourceFileName = String(fileRow[colIdx]?.value || '');
+        
+        // Skip aggregate columns
+        if (sourceFileName && 
+            sourceFileName.toUpperCase() !== 'TOTAL' && 
+            sourceFileName.toUpperCase() !== 'FEATURES') {
+          // Remove extension (.pdf, .csv, .xlsx)
+          return sourceFileName.replace(/\.(pdf|csv|xlsx?)$/i, '');
+        }
+      }
+    }
+    return null;
+  }, [columnIndices]);
+
+  // Handle beneficiary click
+  const handleBeneficiaryClick = useCallback(async (rowIndex: number) => {
+    if (!enableBeneficiaryClick || !zipData || !columnIndices || rowIndex < 2) return;
+    
+    const row = processedData[rowIndex];
+    const beneficiaryName = String(row[0]?.value || '').trim();
+    if (!beneficiaryName) return;
+    
+    setSelectedBeneficiary(beneficiaryName);
+    setIsLoadingTransactions(true);
+    
+    const filesPresent = parseInt(String(row[columnIndices.filesPresentIdx]?.value || '0'));
+    
+    try {
+      if (filesPresent > 1) {
+        // Multi-file: Load POI file
+        setPOIDialogOpen(true);
+        
+        // Construct POI filename: replace spaces with underscores
+        const poiFileName = `POI_${beneficiaryName.replace(/\s+/g, '_')}.xlsx`;
+        
+        let poiData: CellData[][] | null = null;
+        
+        // Check cache first
+        if (poiDataCache?.has(poiFileName)) {
+          poiData = poiDataCache.get(poiFileName)!;
+        } else {
+          // Load from ZIP
+          const poiFile = zipData.file(poiFileName);
+          if (poiFile) {
+            const content = await poiFile.async("arraybuffer");
+            poiData = await parseExcelFile(content);
+            onCachePOIData?.(poiFileName, poiData);
+          }
+        }
+        
+        if (poiData && poiData.length > 1) {
+          // Find column indices from POI file header (row 0)
+          const poiHeader = poiData[0];
+          const colMap: Record<string, number> = {};
+          poiHeader.forEach((cell, idx) => {
+            const header = String(cell?.value || '').toLowerCase().trim();
+            colMap[header] = idx;
+          });
+          
+          // Extract transactions (skip header row)
+          const transactions: POITransactionRow[] = [];
+          for (let i = 1; i < poiData.length; i++) {
+            const txRow = poiData[i];
+            transactions.push({
+              description: String(txRow[colMap['description']]?.value || ''),
+              suspicious_reason: String(txRow[colMap['suspicious_reason']]?.value || ''),
+              debit: txRow[colMap['debit']]?.value ?? '',
+              credit: txRow[colMap['credit']]?.value ?? '',
+              balance: txRow[colMap['balance']]?.value ?? '',
+              date: String(txRow[colMap['date']]?.value || ''),
+              beneficiary: String(txRow[colMap['beneficiary']]?.value || ''),
+              source_file: String(txRow[colMap['source_file']]?.value || ''),
+            });
+          }
+          setPOITransactions(transactions);
+        } else {
+          setPOITransactions([]);
+        }
+      } else {
+        // Single-file: Load from raw_transactions file
+        setDialogOpen(true);
+        
+        const sourceFile = findSourceFile(row);
+        if (!sourceFile) {
+          setFilteredTransactions([]);
+          setIsLoadingTransactions(false);
+          return;
+        }
+        
+        // Raw transactions filename: no underscore for spaces
+        const rawFileName = `raw_transactions_${sourceFile}.xlsx`;
+        
+        let rawData: CellData[][] | null = null;
+        
+        // Check cache first
+        if (rawDataCache?.has(rawFileName)) {
+          rawData = rawDataCache.get(rawFileName)!;
+        } else {
+          // Load from ZIP
+          const rawFile = zipData.file(rawFileName);
+          if (rawFile) {
+            const content = await rawFile.async("arraybuffer");
+            rawData = await parseExcelFile(content);
+            onCacheRawData?.(rawFileName, rawData);
+          }
+        }
+        
+        if (rawData && rawData.length > 1) {
+          // Find column indices from raw file header (row 0)
+          const rawHeader = rawData[0];
+          const colMap: Record<string, number> = {};
+          rawHeader.forEach((cell, idx) => {
+            const header = String(cell?.value || '').toLowerCase().trim();
+            colMap[header] = idx;
+          });
+          
+          const beneficiaryColIdx = colMap['beneficiary'];
+          if (beneficiaryColIdx === undefined) {
+            setFilteredTransactions([]);
+            setIsLoadingTransactions(false);
+            return;
+          }
+          
+          // Build search names set (beneficiary + similar names)
+          const searchNames = new Set<string>();
+          searchNames.add(beneficiaryName.toLowerCase().trim());
+          
+          // Get Similar Names from column
+          const similarNamesValue = row[columnIndices.similarNamesIdx]?.value;
+          if (similarNamesValue) {
+            const aliases = String(similarNamesValue)
+              .split(',')
+              .map(a => a.trim().toLowerCase())
+              .filter(a => a.length > 0);
+            aliases.forEach(a => searchNames.add(a));
+          }
+          
+          // Filter transactions matching any of the search names
+          const transactions: TransactionRow[] = [];
+          for (let i = 1; i < rawData.length; i++) {
+            const txRow = rawData[i];
+            const txBeneficiary = String(txRow[beneficiaryColIdx]?.value || '').toLowerCase().trim();
+            
+            if (searchNames.has(txBeneficiary)) {
+              transactions.push({
+                description: String(txRow[colMap['description']]?.value || ''),
+                debit: txRow[colMap['debit']]?.value ?? '',
+                credit: txRow[colMap['credit']]?.value ?? '',
+                balance: txRow[colMap['balance']]?.value ?? '',
+                beneficiary: String(txRow[beneficiaryColIdx]?.value || ''),
+                date: String(txRow[colMap['date']]?.value || ''),
+              });
+            }
+          }
+          setFilteredTransactions(transactions);
+        } else {
+          setFilteredTransactions([]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load beneficiary transactions:', error);
+      setFilteredTransactions([]);
+      setPOITransactions([]);
+    } finally {
+      setIsLoadingTransactions(false);
+    }
+  }, [enableBeneficiaryClick, zipData, columnIndices, processedData, findSourceFile, rawDataCache, poiDataCache, onCacheRawData, onCachePOIData]);
+
+  // Check if a cell should be clickable (beneficiary column)
+  const isBeneficiaryCell = useCallback((rowIndex: number, colIndex: number): boolean => {
+    if (!enableBeneficiaryClick || !zipData || rowIndex < 2) return false;
+    // First column (index 0) contains beneficiary names, starting from row 2 (index 2)
+    return colIndex === 0;
+  }, [enableBeneficiaryClick, zipData]);
 
   // Helper function to convert 0-based array indices to 1-based A1 notation
   const toA1 = (col: number, row: number): string => {
@@ -456,6 +690,8 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                             
                             const cellContent = truncateText(displayValue);
 
+                            const isClickable = isBeneficiaryCell(rowIndex, colIndex);
+
                             return (
                               <td
                                 key={colIndex}
@@ -464,7 +700,33 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                                 // Ensure left alignment
                                 className="p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left"
                               >
-                                {cellContent.truncated ? (
+                                {isClickable ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleBeneficiaryClick(rowIndex)}
+                                    className="text-primary hover:underline cursor-pointer font-medium text-left w-full transition-colors hover:text-primary/80"
+                                    title={`View transactions for ${displayValue}`}
+                                  >
+                                    {cellContent.truncated ? (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="block truncate overflow-hidden text-ellipsis">
+                                            {cellContent.text}
+                                          </span>
+                                        </TooltipTrigger>
+                                        <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                          <p className="whitespace-pre-wrap break-words text-xs">
+                                            {cellContent.original}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    ) : (
+                                      <span className="block truncate overflow-hidden text-ellipsis">
+                                        {cellContent.text}
+                                      </span>
+                                    )}
+                                  </button>
+                                ) : cellContent.truncated ? (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="cursor-help block truncate overflow-hidden text-ellipsis">
@@ -500,6 +762,29 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
           </p>
         )}
       </CardContent>
+      
+      {/* Dialogs for beneficiary drill-down */}
+      <BeneficiaryTransactionsDialog
+        open={dialogOpen}
+        onClose={() => {
+          setDialogOpen(false);
+          setFilteredTransactions([]);
+        }}
+        beneficiaryName={selectedBeneficiary}
+        transactions={filteredTransactions}
+        isLoading={isLoadingTransactions}
+      />
+      
+      <POITransactionsDialog
+        open={poiDialogOpen}
+        onClose={() => {
+          setPOIDialogOpen(false);
+          setPOITransactions([]);
+        }}
+        beneficiaryName={selectedBeneficiary}
+        transactions={poiTransactions}
+        isLoading={isLoadingTransactions}
+      />
     </Card>
   );
 }

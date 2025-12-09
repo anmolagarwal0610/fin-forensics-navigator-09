@@ -14,6 +14,7 @@ import HTMLViewer from "@/components/app/HTMLViewer";
 import POIModal from "@/components/app/POIModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
+import FilePreviewModal from "@/components/app/FilePreviewModal";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
 import JSZip from "jszip";
@@ -56,6 +57,7 @@ export default function CaseAnalysisResults() {
   const [poiModalOpen, setPOIModalOpen] = useState(false);
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
+  const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
 
   const toggleSummary = (index: number) => {
     setExpandedSummaries(prev => {
@@ -802,6 +804,22 @@ export default function CaseAnalysisResults() {
                         <h4 className="font-semibold text-sm flex items-center gap-2">
                           <FileText className="h-4 w-4 text-primary" />
                           Original File: <span className="text-primary font-mono">{summary.originalFile}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 ml-1 hover:bg-primary/10"
+                            onClick={() => {
+                              const file = files.find(f => f.file_name === summary.originalFile);
+                              if (file?.file_url) {
+                                setPreviewFile({ name: summary.originalFile, url: file.file_url });
+                              } else {
+                                toast({ title: "Preview not available", description: "Source file URL not found", variant: "destructive" });
+                              }
+                            }}
+                            title="Preview file"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
                         </h4>
                         {summary.summaryFile && analysisData.summaryDataMap.get(summary.summaryFile) && (
                           <CollapsibleTrigger asChild>
@@ -898,6 +916,23 @@ export default function CaseAnalysisResults() {
         onPrevious={navigateToPreviousPOI}
         currentIndex={currentPOIIndex}
         totalCount={analysisData?.poiHtmlFiles.length || 0}
+      />
+
+      {/* File Preview Modal */}
+      <FilePreviewModal
+        isOpen={!!previewFile}
+        onClose={() => setPreviewFile(null)}
+        fileName={previewFile?.name || ""}
+        fileUrl={previewFile?.url || ""}
+        onDownload={() => {
+          if (previewFile?.url) {
+            const link = document.createElement('a');
+            link.href = previewFile.url;
+            link.download = previewFile.name;
+            link.click();
+            toast({ title: `Downloading ${previewFile.name}` });
+          }
+        }}
       />
     </>
   );

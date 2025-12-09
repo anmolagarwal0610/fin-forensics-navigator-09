@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Activity, Clock, CheckCircle, FileText } from "lucide-react";
+import { FileSearch, Clock, CheckCircle, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -10,7 +10,7 @@ interface KPICardsProps {
 export default function KPICards({
   cases
 }: KPICardsProps) {
-  const activeCount = cases.filter(c => c.status === "Active").length;
+  const reviewCount = cases.filter(c => c.status === "Review").length;
   const processingCount = cases.filter(c => c.status === "Processing").length;
   const readyCount = cases.filter(c => c.status === "Ready").length;
 
@@ -43,9 +43,9 @@ export default function KPICards({
     trend: "+8%",
     color: "text-green-600 dark:text-green-400"
   }, {
-    icon: Activity,
-    value: activeCount,
-    label: "Active",
+    icon: FileSearch,
+    value: reviewCount,
+    label: "Review",
     trend: "+12%",
     color: "text-blue-600 dark:text-blue-400"
   }, {
@@ -57,7 +57,7 @@ export default function KPICards({
   }, {
     icon: FileText,
     value: fileCount,
-    label: "Files",
+    label: "Files analyzed",
     trend: "+24%",
     color: "text-purple-600 dark:text-purple-400"
   }];

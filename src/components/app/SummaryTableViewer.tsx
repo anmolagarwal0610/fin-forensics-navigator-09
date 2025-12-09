@@ -128,7 +128,7 @@ export default function SummaryTableViewer({ data, fileName }: SummaryTableViewe
                 "transition-all duration-150"
               )}
             >
-              Total Transactions
+              No. of Transactions (High to Low)
             </TabsTrigger>
           )}
           {hasCredit && (
@@ -142,7 +142,7 @@ export default function SummaryTableViewer({ data, fileName }: SummaryTableViewe
                 "transition-all duration-150"
               )}
             >
-              Total Credit
+              Total Credit (High to Low)
             </TabsTrigger>
           )}
           {hasDebit && (
@@ -156,7 +156,7 @@ export default function SummaryTableViewer({ data, fileName }: SummaryTableViewe
                 "transition-all duration-150"
               )}
             >
-              Total Debit
+              Total Debit (High to Low)
             </TabsTrigger>
           )}
         </TabsList>

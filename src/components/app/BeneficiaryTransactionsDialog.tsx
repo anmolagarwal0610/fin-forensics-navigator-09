@@ -1,6 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -86,8 +86,9 @@ export default function BeneficiaryTransactionsDialog({
             </div>
           ) : (
             <ScrollArea className="h-[400px] rounded-md border">
-              <table className="w-full text-sm">
-                <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm table-auto min-w-[700px]">
+                  <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
                   <tr className="border-b">
                     <th className="px-3 py-3 text-left font-semibold w-[35%]">Description</th>
                     <th className="px-3 py-3 text-right font-semibold w-[12%]">Debit</th>
@@ -144,7 +145,9 @@ export default function BeneficiaryTransactionsDialog({
                     </tr>
                   ))}
                 </tbody>
-              </table>
+                </table>
+              </div>
+              <ScrollBar orientation="horizontal" /> {/* Add the horizontal scroll bar */}
             </ScrollArea>
           )}
         </div>

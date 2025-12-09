@@ -46,7 +46,24 @@ export default function POITransactionsDialog({
 
   const formatDate = (value: string): string => {
     if (!value) return "-";
-    return String(value).trim();
+    const str = String(value).trim();
+    
+    // If it contains timestamp info (GMT, 00:00:00), extract just the date
+    if (str.includes('GMT') || str.includes('00:00:00') || str.includes(':')) {
+      try {
+        const date = new Date(str);
+        if (!isNaN(date.getTime())) {
+          const day = String(date.getDate()).padStart(2, '0');
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const year = String(date.getFullYear()).slice(-2);
+          return `${day}/${month}/${year}`;
+        }
+      } catch {
+        // Fall back to original string
+      }
+    }
+    
+    return str;
   };
 
   return (
@@ -112,18 +129,12 @@ export default function POITransactionsDialog({
                         )}
                       >
                         <td className="px-3 py-2.5">
-                          <span 
-                            className="text-xs leading-relaxed line-clamp-2" 
-                            title={tx.description}
-                          >
+                          <span className="text-xs leading-relaxed whitespace-normal break-words">
                             {tx.description || "-"}
                           </span>
                         </td>
                         <td className="px-3 py-2.5">
-                          <span 
-                            className="text-xs leading-relaxed text-amber-700 dark:text-amber-400 line-clamp-2" 
-                            title={tx.suspicious_reason}
-                          >
+                          <span className="text-xs leading-relaxed text-amber-700 dark:text-amber-400 whitespace-normal break-words">
                             {tx.suspicious_reason || "-"}
                           </span>
                         </td>
@@ -151,11 +162,11 @@ export default function POITransactionsDialog({
                         <td className="px-3 py-2.5 text-xs text-muted-foreground">
                           {formatDate(tx.date)}
                         </td>
-                        <td className="px-3 py-2.5 text-xs" title={tx.beneficiary}>
-                          <span className="line-clamp-1">{tx.beneficiary || "-"}</span>
+                        <td className="px-3 py-2.5 text-xs">
+                          <span className="whitespace-normal break-words">{tx.beneficiary || "-"}</span>
                         </td>
-                        <td className="px-3 py-2.5 text-xs text-muted-foreground" title={tx.source_file}>
-                          <span className="line-clamp-1">{tx.source_file || "-"}</span>
+                        <td className="px-3 py-2.5 text-xs text-muted-foreground">
+                          <span className="whitespace-normal break-words">{tx.source_file || "-"}</span>
                         </td>
                       </tr>
                     ))}

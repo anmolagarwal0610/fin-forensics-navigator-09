@@ -704,7 +704,8 @@ export default function ExcelViewer({
                                   <button
                                     type="button"
                                     onClick={() => handleBeneficiaryClick(rowIndex)}
-                                    className="text-primary hover:underline cursor-pointer font-medium text-left w-full transition-colors hover:text-primary/80"
+                                    className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
+                                    style={{ color: style.color || 'inherit' }}
                                     title={`View transactions for ${displayValue}`}
                                   >
                                     {cellContent.truncated ? (

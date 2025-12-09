@@ -39,6 +39,7 @@ interface ParsedAnalysisData {
   }>;
   zipData?: JSZip | null;
   summaryDataMap: Map<string, CellData[][]>;
+  rawDataMap: Map<string, CellData[][]>; // Cache for raw transaction data (lazy loaded)
 }
 
 export default function CaseAnalysisResults() {
@@ -121,7 +122,8 @@ export default function CaseAnalysisResults() {
         poiHtmlFiles: [],
         poiFileCount: 0,
         fileSummaries: [],
-        summaryDataMap: new Map()
+        summaryDataMap: new Map(),
+        rawDataMap: new Map(), // Initialize empty - will be lazily populated
       };
 
       // Process beneficiaries_by_file.xlsx with enhanced formatting
@@ -423,6 +425,35 @@ export default function CaseAnalysisResults() {
     if (analysisData?.mainGraphPngUrl) {
       handleDownload(analysisData.mainGraphPngUrl, 'poi_flows.png');
       toast({ title: "Downloading poi_flows.png" });
+    }
+  };
+
+  // Lazy load raw transaction data for a specific file
+  const loadRawTransactionsData = async (rawFileName: string): Promise<CellData[][] | null> => {
+    if (!analysisData?.zipData || !rawFileName) return null;
+    
+    // Check if already cached in analysisData
+    if (analysisData.rawDataMap.has(rawFileName)) {
+      return analysisData.rawDataMap.get(rawFileName)!;
+    }
+    
+    try {
+      const rawFile = analysisData.zipData.file(rawFileName);
+      if (!rawFile) {
+        console.warn(`Raw file not found in ZIP: ${rawFileName}`);
+        return null;
+      }
+      
+      const content = await rawFile.async("arraybuffer");
+      const parsed = await parseExcelFile(content);
+      
+      // Cache the parsed data
+      analysisData.rawDataMap.set(rawFileName, parsed);
+      
+      return parsed;
+    } catch (error) {
+      console.error(`Failed to parse raw file ${rawFileName}:`, error);
+      return null;
     }
   };
 
@@ -820,6 +851,11 @@ export default function CaseAnalysisResults() {
                         <SummaryTableViewer 
                           data={analysisData.summaryDataMap.get(summary.summaryFile)}
                           fileName={summary.summaryFile}
+                          rawTransactionsFileName={summary.rawTransactionsFile}
+                          onLoadRawData={summary.rawTransactionsFile 
+                            ? () => loadRawTransactionsData(summary.rawTransactionsFile!)
+                            : undefined
+                          }
                         />
                       </CollapsibleContent>
                     )}

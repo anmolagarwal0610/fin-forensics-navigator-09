@@ -108,7 +108,7 @@ export default function BeneficiaryTransactionsDialog({
                     >
                       <td className="px-3 py-2.5">
                         <span 
-                          className="line-clamp-2 text-xs leading-relaxed" 
+                          className="text-xs leading-relaxed whitespace-normal" 
                           title={tx.description}
                         >
                           {tx.description || "-"}
@@ -135,7 +135,7 @@ export default function BeneficiaryTransactionsDialog({
                       <td className="px-3 py-2.5 text-right font-mono text-xs font-medium">
                         {formatAmount(tx.balance)}
                       </td>
-                      <td className="px-3 py-2.5 text-xs truncate" title={tx.beneficiary}>
+                      <td className="px-3 py-2.5 text-xs whitespace-normal" title={tx.beneficiary}>
                         {tx.beneficiary || "-"}
                       </td>
                       <td className="px-3 py-2.5 text-xs text-muted-foreground">

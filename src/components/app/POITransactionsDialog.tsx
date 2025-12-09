@@ -2,8 +2,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "@/hooks/use-toast";
 
 export interface POITransactionRow {
   description: string;
@@ -64,6 +65,35 @@ export default function POITransactionsDialog({
     }
     
     return str;
+  };
+
+  const downloadAsCSV = () => {
+    if (transactions.length === 0) return;
+    
+    const headers = ['Description', 'Suspicious Reason', 'Debit', 'Credit', 'Balance', 'Date', 'Beneficiary', 'Source File'];
+    const rows = transactions.map(tx => [
+      tx.description || '',
+      tx.suspicious_reason || '',
+      tx.debit || '',
+      tx.credit || '',
+      tx.balance || '',
+      tx.date || '',
+      tx.beneficiary || '',
+      tx.source_file || ''
+    ]);
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `poi_transactions_${beneficiaryName.replace(/\s+/g, '_')}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    toast({ title: "CSV downloaded successfully" });
   };
 
   return (
@@ -179,7 +209,16 @@ export default function POITransactionsDialog({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="px-6 py-4 border-t bg-muted/30">
+        <DialogFooter className="px-6 py-4 border-t bg-muted/30 flex justify-between sm:justify-between">
+          <Button 
+            variant="outline" 
+            onClick={downloadAsCSV} 
+            className="gap-2"
+            disabled={transactions.length === 0}
+          >
+            <Download className="h-4 w-4" />
+            Download CSV
+          </Button>
           <Button variant="outline" onClick={onClose} className="gap-2">
             <X className="h-4 w-4" />
             Close

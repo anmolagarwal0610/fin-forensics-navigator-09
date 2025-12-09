@@ -1,4 +1,3 @@
-
 import { useState, useMemo, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -131,12 +130,24 @@ export default function SummaryTableViewer({
   const formatCellValue = (value: any): string => {
     if (value === null || value === undefined) return "";
     if (typeof value === "number") {
+      // Use Indian locale formatting for numbers
       try {
-        return new Intl.NumberFormat("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
+        // If the number is large, treat it as currency (Debit/Credit)
+        if (Math.abs(value) > 100) { 
+          return new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }).format(value);
+        }
+        // Otherwise, treat it as a simple count (e.g., No. of Transactions)
+        return new Intl.NumberFormat("en-IN", {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
         }).format(value);
       } catch {
+        // Fallback for browsers without Intl support
         return value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       }
     }
@@ -333,10 +344,23 @@ export default function SummaryTableViewer({
                           const isClickable = isBeneficiaryCell(colIdx);
                           const cellValue = formatCellValue(cell?.value);
 
+                          // --- NEW COLOR LOGIC ---
+                          const isCreditColumn = colIdx === columnIndices.credit;
+                          const isDebitColumn = colIdx === columnIndices.debit;
+                          
+                          // Determine the color class based on column index
+                          const colorClass = cn({
+                            "text-green-600 dark:text-green-400 font-medium": isCreditColumn,
+                            "text-red-600 dark:text-red-400 font-medium": isDebitColumn,
+                            "text-left": isCreditColumn || isDebitColumn || colIdx === columnIndices.transactions
+                          });
+                          // -----------------------
+
                           return (
                             <td
                               key={colIdx}
-                              className="px-3 py-2 break-words"
+                              // Apply the calculated color class
+                              className={cn("px-3 py-2 break-words", colorClass)} 
                               style={{
                                 ...getCellStyle(cell),
                                 minWidth: "120px",

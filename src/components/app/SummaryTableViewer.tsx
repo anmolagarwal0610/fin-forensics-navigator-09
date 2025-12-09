@@ -162,7 +162,7 @@ export default function SummaryTableViewer({ data, fileName }: SummaryTableViewe
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-0 pt-4">
-          <ScrollArea className="w-full max-h-[400px] rounded-md border">
+          <ScrollArea className="w-full h-[400px] rounded-md border">
             <div className="overflow-x-auto">
               <table className="w-full text-sm table-fixed">
                 <thead className="sticky top-0 z-10">

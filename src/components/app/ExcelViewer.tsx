@@ -47,6 +47,8 @@ interface ExcelViewerProps {
 export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fileUrl }: ExcelViewerProps) {
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [processedData, setProcessedData] = useState<CellData[][]>([]);
+  // State to store column indices that should be formatted as currency (INR)
+  const [currencyColumnIndices, setCurrencyColumnIndices] = useState<number[]>([]);
 
   // Helper function to convert 0-based array indices to 1-based A1 notation
   const toA1 = (col: number, row: number): string => {
@@ -122,6 +124,31 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
     setProcessedData(processed);
   }, [data, previewData]);
+  
+  // 🔥 FIXED useEffect to identify currency columns based on header text in ROW 2 (index 1)
+  useEffect(() => {
+    if (processedData.length < 2) { // Need at least 2 rows for header check
+      setCurrencyColumnIndices([]);
+      return;
+    }
+    
+    // Check the second row (index 1) for currency headers.
+    const headerRow = processedData[1]; 
+    const currencyColumns: number[] = [];
+    
+    headerRow.forEach((cell, colIndex) => {
+      // Use the raw cell value's content, if available, to check for keywords.
+      const headerText = String(cell.value || '').toLowerCase();
+      
+      // Identify columns containing Credit, Debit, or Amount in their header
+      if (headerText.includes('credit') || headerText.includes('debit') || headerText.includes('amount')) {
+        currencyColumns.push(colIndex);
+      }
+    });
+    
+    console.log('💰 Identified currency columns:', currencyColumns);
+    setCurrencyColumnIndices(currencyColumns);
+  }, [processedData]);
 
   // Load preview JSON if fileUrl is provided
   useEffect(() => {
@@ -136,11 +163,11 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
           // Try to determine if this is a JSON blob by checking if we can fetch JSON from it
           console.log('🔍 Detected blob URL, attempting to fetch content to determine type');
           previewUrl = fileUrl;
-        } 
+        }
         // For test files, use static path
         else if (fileUrl.includes('test-files')) {
           previewUrl = '/test-files/beneficiaries_by_file.preview.json';
-        } 
+        }
         // For regular file URLs, try to construct preview URL
         else {
           previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
@@ -205,6 +232,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
 
     loadPreview();
   }, [fileUrl]);
+  
   if (!data || data.length === 0) {
     return (
       <Card>
@@ -245,7 +273,7 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
       if (cleanHex.length !== 6) return 0.5;
       const rgb = parseInt(cleanHex, 16);
       const r = (rgb >> 16) & 0xff;
-      const g = (rgb >> 8) & 0xff;
+      const g = (rgb >> 8) & 0xff; 
       const b = (rgb >> 0) & 0xff;
       return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
     };
@@ -383,67 +411,81 @@ export default function ExcelViewer({ title, data, onDownload, maxRows = 25, fil
                   <tbody>
                     {displayData.map((row, rowIndex) => (
                       <tr key={rowIndex}>
-                      {row
-                        .map((cell, colIndex) => {
-                          // Skip rendering cells that are part of a merged range but not the top-left cell
-                          if (cell.isHidden) {
-                            return null;
-                          }
+                        {row
+                          .map((cell, colIndex) => {
+                            // Skip rendering cells that are part of a merged range but not the top-left cell
+                            if (cell.isHidden) {
+                              return null;
+                            }
 
-                          const span = getCellSpan(cell);
-                          const style = getCellStyle(cell, rowIndex, colIndex);
-                          // ⬇️ REPLACE WITH THIS ENHANCED LOGIC ⬇️
-                          const rawValue = cell.value;
-                          let displayValue = String(rawValue || '');
-                          
-                          // Check if the value is a number that needs formatting
-                          if (typeof rawValue === 'number') {
-                              // Apply robust, locale-aware number formatting
+                            const span = getCellSpan(cell);
+                            const style = getCellStyle(cell, rowIndex, colIndex);
+                            
+                            // ⬇️ ENHANCED LOGIC FOR INR SYSTEM ⬇️
+                            const rawValue = cell.value;
+                            let displayValue = String(rawValue || '');
+
+                            // Use the calculated indices to determine if this is a currency column
+                            const isCurrencyColumn = currencyColumnIndices.includes(colIndex);
+                            
+                            // Apply formatting only to number values that belong to a currency column
+                            if (typeof rawValue === 'number' && isCurrencyColumn) {
+                              // Apply Indian Rupee formatting (en-IN)
                               try {
-                                  displayValue = new Intl.NumberFormat('en-US', {
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2,
-                                  }).format(rawValue);
+                                displayValue = new Intl.NumberFormat('en-IN', {
+                                  style: 'currency',
+                                  currency: 'INR',
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                }).format(rawValue);
                               } catch (e) {
-                                  // Fallback for extreme cases
-                                  displayValue = rawValue.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                                console.error("Failed to format INR:", e);
+                                // Simple INR fallback
+                                displayValue = `₹${rawValue.toFixed(2)}`;
                               }
-                          } else if (typeof rawValue === 'string') {
+                            } else if (typeof rawValue === 'number') {
+                              // If it's a number but not a currency column, use standard formatting
+                              displayValue = new Intl.NumberFormat('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              }).format(rawValue);
+                            } else if (typeof rawValue === 'string') {
                               // Check for and remove the invisible character if it was used
                               displayValue = rawValue.replace('\u200B', '').trim();
-                          }
-                          
-                          const cellContent = truncateText(displayValue);
+                            }
+                            
+                            const cellContent = truncateText(displayValue);
 
-                          return (
-                            <td
-                              key={colIndex}
-                              {...span}
-                              style={style}
-                              className="p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px]"
-                            >
-                              {cellContent.truncated ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="cursor-help block truncate overflow-hidden text-ellipsis">
-                                      {cellContent.text}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
-                                    <p className="whitespace-pre-wrap break-words text-xs">
-                                      {cellContent.original}
-                                    </p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <span className="block truncate overflow-hidden text-ellipsis">
-                                  {cellContent.text}
-                                </span>
-                              )}
-                            </td>
-                          );
-                        })
-                        .filter(Boolean)}
+                            return (
+                              <td
+                                key={colIndex}
+                                {...span}
+                                style={style}
+                                // Ensure left alignment
+                                className="p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left"
+                              >
+                                {cellContent.truncated ? (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="cursor-help block truncate overflow-hidden text-ellipsis">
+                                        {cellContent.text}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                      <p className="whitespace-pre-wrap break-words text-xs">
+                                        {cellContent.original}
+                                      </p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ) : (
+                                  <span className="block truncate overflow-hidden text-ellipsis">
+                                    {cellContent.text}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })
+                          .filter(Boolean)}
                       </tr>
                     ))}
                   </tbody>

@@ -1,3 +1,4 @@
+
 import { useState, useMemo, useCallback } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -14,11 +15,11 @@ interface SummaryTableViewerProps {
 
 type SortColumn = "transactions" | "credit" | "debit";
 
-export default function SummaryTableViewer({ 
-  data, 
+export default function SummaryTableViewer({
+  data,
   fileName,
   rawTransactionsFileName,
-  onLoadRawData 
+  onLoadRawData
 }: SummaryTableViewerProps) {
   const [activeTab, setActiveTab] = useState<SortColumn>("transactions");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -30,7 +31,7 @@ export default function SummaryTableViewer({
   // Find column indices for sorting
   const columnIndices = useMemo(() => {
     if (!data || data.length === 0) return { transactions: -1, credit: -1, debit: -1 };
-    
+
     const headerRow = data[0];
     let transactionsIdx = -1;
     let creditIdx = -1;
@@ -53,11 +54,26 @@ export default function SummaryTableViewer({
   // Find the beneficiary/alias column index
   const beneficiaryColumnIndex = useMemo(() => {
     if (!data || data.length === 0) return -1;
-    
+
     const headerRow = data[0];
     for (let idx = 0; idx < headerRow.length; idx++) {
       const value = String(headerRow[idx]?.value || "").toLowerCase().trim();
       if (value === "alias" || value === "beneficiary") {
+        return idx;
+      }
+    }
+    return -1;
+  }, [data]);
+
+  // Find the alias/alias members column index
+  const aliasColumnIndex = useMemo(() => {
+    if (!data || data.length === 0) return -1;
+
+    const headerRow = data[0];
+    for (let idx = 0; idx < headerRow.length; idx++) {
+      const value = String(headerRow[idx]?.value || "").toLowerCase().trim();
+      // NOTE: Ensure your header matches "alias members" or "alias" exactly
+      if (value === "alias members") {
         return idx;
       }
     }
@@ -128,16 +144,34 @@ export default function SummaryTableViewer({
   };
 
   // Handle beneficiary click - fetch raw data and filter
-  const handleBeneficiaryClick = useCallback(async (beneficiaryName: string) => {
+  const handleBeneficiaryClick = useCallback(async (summaryRow: CellData[], beneficiaryName: string) => {
     if (!beneficiaryName || !rawTransactionsFileName) return;
-    
+
     setSelectedBeneficiary(beneficiaryName);
     setDialogOpen(true);
     setIsLoadingTransactions(true);
     setFilteredTransactions([]);
-    
+
     try {
-      // Use cached data or load fresh
+      // 1. BUILD SEARCH CRITERIA (Beneficiary Name + Aliases)
+      const searchNames = new Set<string>();
+      searchNames.add(beneficiaryName.toLowerCase().trim());
+
+      // Add Alias Members from the summary table row
+      const aliasCell = summaryRow[aliasColumnIndex];
+      if (aliasColumnIndex !== -1 && aliasCell?.value) {
+        // Process the comma-separated alias string: split, trim, filter empty, and convert to lower case
+        const aliasString = String(aliasCell.value).trim();
+        if (aliasString.length > 0) {
+          const aliases = aliasString
+            .split(',')
+            .map(a => a.trim().toLowerCase())
+            .filter(a => a.length > 0);
+          aliases.forEach(a => searchNames.add(a));
+        }
+      }
+
+      // 2. LOAD RAW DATA
       let rawData = cachedRawData;
       if (!rawData && onLoadRawData) {
         rawData = await onLoadRawData();
@@ -145,21 +179,21 @@ export default function SummaryTableViewer({
           setCachedRawData(rawData);
         }
       }
-      
+
       if (!rawData || rawData.length <= 1) {
         setFilteredTransactions([]);
         return;
       }
-      
+
       // Find column indices in raw data
       const headerRow = rawData[0];
       const columnMap: Record<string, number> = {};
-      
+
       headerRow.forEach((cell, idx) => {
         const headerName = String(cell?.value || "").toLowerCase().trim();
         columnMap[headerName] = idx;
       });
-      
+
       // Get the beneficiary column index in raw data
       const rawBeneficiaryIdx = columnMap["beneficiary"];
       if (rawBeneficiaryIdx === undefined) {
@@ -167,16 +201,16 @@ export default function SummaryTableViewer({
         setFilteredTransactions([]);
         return;
       }
-      
-      // Filter rows that match the beneficiary name (case-insensitive exact match)
-      const normalizedSearchName = beneficiaryName.toLowerCase().trim();
+
+      // 3. FILTER RAW TRANSACTIONS USING SEARCH SET
       const matchingRows: TransactionRow[] = [];
-      
+
       for (let i = 1; i < rawData.length; i++) {
         const row = rawData[i];
         const rowBeneficiary = String(row[rawBeneficiaryIdx]?.value || "").toLowerCase().trim();
-        
-        if (rowBeneficiary === normalizedSearchName) {
+
+        // Check if the raw beneficiary is in the searchNames Set
+        if (searchNames.has(rowBeneficiary)) {
           // Extract the 6 required columns
           const transaction: TransactionRow = {
             description: String(row[columnMap["description"]]?.value || ""),
@@ -189,7 +223,7 @@ export default function SummaryTableViewer({
           matchingRows.push(transaction);
         }
       }
-      
+
       setFilteredTransactions(matchingRows);
     } catch (error) {
       console.error("Error loading raw transactions:", error);
@@ -197,7 +231,7 @@ export default function SummaryTableViewer({
     } finally {
       setIsLoadingTransactions(false);
     }
-  }, [cachedRawData, onLoadRawData, rawTransactionsFileName]);
+  }, [cachedRawData, onLoadRawData, rawTransactionsFileName, aliasColumnIndex]);
 
   // Check if a cell is in the beneficiary column and can be clicked
   const isBeneficiaryCell = useCallback((colIdx: number) => {
@@ -298,7 +332,7 @@ export default function SummaryTableViewer({
                         {row.map((cell, colIdx) => {
                           const isClickable = isBeneficiaryCell(colIdx);
                           const cellValue = formatCellValue(cell?.value);
-                          
+
                           return (
                             <td
                               key={colIdx}
@@ -310,7 +344,7 @@ export default function SummaryTableViewer({
                             >
                               {isClickable && cellValue ? (
                                 <button
-                                  onClick={() => handleBeneficiaryClick(cellValue)}
+                                  onClick={() => handleBeneficiaryClick(row, cellValue)}
                                   className={cn(
                                     "text-left text-primary hover:text-primary/80",
                                     "hover:underline underline-offset-2",

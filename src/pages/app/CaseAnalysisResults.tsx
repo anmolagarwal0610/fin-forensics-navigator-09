@@ -40,6 +40,7 @@ interface ParsedAnalysisData {
   zipData?: JSZip | null;
   summaryDataMap: Map<string, CellData[][]>;
   rawDataMap: Map<string, CellData[][]>; // Cache for raw transaction data (lazy loaded)
+  poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
 }
 
 export default function CaseAnalysisResults() {
@@ -124,6 +125,7 @@ export default function CaseAnalysisResults() {
         fileSummaries: [],
         summaryDataMap: new Map(),
         rawDataMap: new Map(), // Initialize empty - will be lazily populated
+        poiDataMap: new Map(), // Initialize empty - will be lazily populated
       };
 
       // Process beneficiaries_by_file.xlsx with enhanced formatting
@@ -583,11 +585,21 @@ export default function CaseAnalysisResults() {
         {/* Enhanced Beneficiaries Preview */}
         {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
           <ExcelViewer
-            title="Top 25 Beneficiaries"
+            title={`Top ${Math.min(50, analysisData.totalBeneficiaryCount)} Beneficiaries`}
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
-            maxRows={25}
+            maxRows={52}
             fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
+            enableBeneficiaryClick={true}
+            zipData={analysisData.zipData}
+            rawDataCache={analysisData.rawDataMap}
+            poiDataCache={analysisData.poiDataMap}
+            onCacheRawData={(fileName, data) => {
+              analysisData.rawDataMap.set(fileName, data);
+            }}
+            onCachePOIData={(fileName, data) => {
+              analysisData.poiDataMap.set(fileName, data);
+            }}
           />
         )}
 

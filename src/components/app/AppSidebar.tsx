@@ -1,5 +1,17 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarFooter, SidebarSeparator, useSidebar } from "@/components/ui/sidebar";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarFooter,
+  SidebarSeparator,
+  useSidebar,
+} from "@/components/ui/sidebar";
 import { LayoutDashboard, FolderGit2, UserCog, Ticket, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
@@ -7,30 +19,30 @@ const items = [
   {
     title: "Dashboard",
     url: "/app/dashboard",
-    icon: LayoutDashboard
+    icon: LayoutDashboard,
   },
   {
     title: "Cases",
     url: "/app/cases",
-    icon: FolderGit2
+    icon: FolderGit2,
   },
   {
     title: "Raise a Ticket",
     url: "/app/support/raise-ticket",
-    icon: Ticket
+    icon: Ticket,
   },
   {
     title: "Account",
     url: "/app/account",
-    icon: UserCog
-  }
+    icon: UserCog,
+  },
 ];
 export default function AppSidebar() {
   const { state } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
   const currentPath = location.pathname;
-  
+
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
 
@@ -52,19 +64,17 @@ export default function AppSidebar() {
         <SidebarGroup>
           <div className="flex items-center justify-center p-4 gap-0">
             {state !== "collapsed" && (
-              <SidebarGroupLabel className="text-2xl font-bold text-primary">
-                Fin
-              </SidebarGroupLabel>
+              <SidebarGroupLabel className="text-2xl font-bold text-primary">Fin</SidebarGroupLabel>
             )}
-            <img 
-              src="/src/assets/nav-arrow.png" 
-              alt="FinNavigator" 
+            <img
+              src="@/assets/nav-arrow.png"
+              alt="FinNavigator"
               className="h-7 w-auto flex-shrink-0 mt-[-12px] ml-[-8px]"
             />
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map(item => (
+              {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavCls}>
@@ -80,7 +90,7 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarSeparator />
-      
+
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>

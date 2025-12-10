@@ -155,6 +155,7 @@ export type Database = {
           input_zip_url: string | null
           name: string
           org_id: string | null
+          previous_result_zip_url: string | null
           result_zip_url: string | null
           status: Database["public"]["Enums"]["case_status"]
           tags: string[] | null
@@ -173,6 +174,7 @@ export type Database = {
           input_zip_url?: string | null
           name: string
           org_id?: string | null
+          previous_result_zip_url?: string | null
           result_zip_url?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           tags?: string[] | null
@@ -191,6 +193,7 @@ export type Database = {
           input_zip_url?: string | null
           name?: string
           org_id?: string | null
+          previous_result_zip_url?: string | null
           result_zip_url?: string | null
           status?: Database["public"]["Enums"]["case_status"]
           tags?: string[] | null

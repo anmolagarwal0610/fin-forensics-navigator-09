@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,16 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { createCase } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useSubscription } from "@/hooks/useSubscription";
-import { AlertCircle, Zap } from "lucide-react";
+import { AlertCircle, Zap, Info } from "lucide-react";
 
 export default function NewCase() {
+  const [searchParams] = useSearchParams();
+  const sourceCaseId = searchParams.get('sourceCaseId');
+  const sourceCaseName = searchParams.get('sourceCaseName');
+  const sourceResultUrl = searchParams.get('sourceResultUrl');
+  
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -21,6 +26,13 @@ export default function NewCase() {
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
+
+  // Pre-fill name if creating from existing case
+  useEffect(() => {
+    if (sourceCaseName) {
+      setName(`${sourceCaseName} (Extended)`);
+    }
+  }, [sourceCaseName]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,7 +55,17 @@ export default function NewCase() {
     createCase({ name: name.trim(), description: desc.trim() || undefined, color_hex: color, tags })
       .then((c) => {
         toast({ title: "Case created." });
-        navigate(`/app/cases/${c.id}/upload`);
+        
+        // If we have a source result URL, navigate to upload with add files mode
+        if (sourceResultUrl) {
+          const params = new URLSearchParams({
+            addFiles: 'true',
+            sourceResultUrl: sourceResultUrl
+          });
+          navigate(`/app/cases/${c.id}/upload?${params.toString()}`);
+        } else {
+          navigate(`/app/cases/${c.id}/upload`);
+        }
       })
       .catch((e) => {
         console.error(e);
@@ -76,9 +98,19 @@ export default function NewCase() {
         </Alert>
       )}
 
+      {sourceCaseName && sourceResultUrl && (
+        <Alert className="mb-6 border-primary/50 bg-primary/5">
+          <Info className="h-4 w-4 text-primary" />
+          <AlertTitle className="text-primary font-semibold">Creating from Existing Case</AlertTitle>
+          <AlertDescription className="text-muted-foreground">
+            <p>This new case will include files from "{sourceCaseName}". After creating the case, you can add or remove files before running the analysis.</p>
+          </AlertDescription>
+        </Alert>
+      )}
+
       <Card>
         <CardHeader>
-          <CardTitle>New Case</CardTitle>
+          <CardTitle>{sourceCaseName ? "New Case from Existing" : "New Case"}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">

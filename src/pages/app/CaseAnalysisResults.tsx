@@ -527,11 +527,25 @@ export default function CaseAnalysisResults() {
       <DocumentHead title={`Analysis Results - ${case_.name} - FinNavigator`} />
       <div className="container mx-auto p-6 space-y-8">
         {/* Back to Case Button */}
-        <div className="flex items-center">
+        <div className="flex items-center justify-between">
           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
+          {(case_ as any).previous_result_zip_url && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Open previous results in new tab with the previous URL
+                window.open((case_ as any).previous_result_zip_url, '_blank');
+              }}
+              className="gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              View Previous Results
+            </Button>
+          )}
         </div>
 
         {/* Header */}

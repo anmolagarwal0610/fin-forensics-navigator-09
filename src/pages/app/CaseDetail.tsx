@@ -8,13 +8,14 @@ import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck, FilePlus } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import { getCaseCsvFiles } from "@/api/cases";
+import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 export default function CaseDetail() {
   const {
     id
@@ -29,6 +30,8 @@ export default function CaseDetail() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [csvFileCount, setCsvFileCount] = useState(0);
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
+  const [addFilesDialogOpen, setAddFilesDialogOpen] = useState(false);
+  
   useEffect(() => {
     if (!id) return;
     Promise.all([
@@ -270,9 +273,31 @@ export default function CaseDetail() {
           {/* Files */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Files ({files.length})
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Files ({files.length})
+                </div>
+                {case_.status === 'Ready' && case_.result_zip_url && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAddFilesDialogOpen(true)}
+                          className="gap-2"
+                        >
+                          <FilePlus className="h-4 w-4" />
+                          Add More Files
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add more files to this case or create a new case</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -424,6 +449,16 @@ export default function CaseDetail() {
             const file = files.find(f => f.file_name === previewFile.name);
             if (file) handleDownloadFile(file);
           }}
+        />
+      )}
+
+      {case_.result_zip_url && (
+        <AddFilesDialog
+          open={addFilesDialogOpen}
+          onClose={() => setAddFilesDialogOpen(false)}
+          caseId={case_.id}
+          caseName={case_.name}
+          resultZipUrl={case_.result_zip_url}
         />
       )}
     </>;

@@ -172,7 +172,7 @@ export default function RaiseTicket() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3 }}
-      className="max-w-4xl"
+      className="w-full max-w-4xl mx-auto"
     >
       <motion.div
         initial={{ opacity: 0, y: -20 }}

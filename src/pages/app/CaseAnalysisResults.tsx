@@ -1,13 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from "@/api/cases";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown } from "lucide-react";
+import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
@@ -47,13 +49,9 @@ interface ParsedAnalysisData {
 export default function CaseAnalysisResults() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [case_, setCase] = useState<CaseRecord | null>(null);
-  const [files, setFiles] = useState<CaseFileRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [analysisData, setAnalysisData] = useState<ParsedAnalysisData | null>(null);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
-  const [selectedPOI, setSelectedPOI] = useState<typeof analysisData.poiHtmlFiles[0] | null>(null);
+  const [selectedPOI, setSelectedPOI] = useState<ParsedAnalysisData["poiHtmlFiles"][0] | null>(null);
   const [poiModalOpen, setPOIModalOpen] = useState(false);
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
@@ -71,40 +69,45 @@ export default function CaseAnalysisResults() {
     });
   };
 
-  useEffect(() => {
-    if (!id) return;
-    loadCaseAndResults();
-  }, [id]);
-
-  const loadCaseAndResults = async () => {
-    try {
-      const [caseData, filesData] = await Promise.all([
+  // Fetch case and files with caching
+  const { data: caseData, isLoading: caseLoading, error: caseError } = useQuery({
+    queryKey: ['case-results', id],
+    queryFn: async () => {
+      const [caseResult, filesResult] = await Promise.all([
         getCaseById(id!),
         getCaseFiles(id!)
       ]);
+      if (!caseResult) throw new Error("Case not found");
+      return { case_: caseResult, files: filesResult };
+    },
+    enabled: !!id,
+    staleTime: 30 * 60 * 1000, // 30 minutes
+    gcTime: 60 * 60 * 1000, // 1 hour
+  });
 
-      if (!caseData) {
-        toast({ title: "Case not found", variant: "destructive" });
-        navigate("/app/dashboard");
-        return;
-      }
+  const case_ = caseData?.case_ || null;
+  const files = caseData?.files || [];
 
-      setCase(caseData);
-      setFiles(filesData);
+  // Fetch and parse analysis data with caching
+  const { data: analysisData, isLoading: analysisLoading } = useQuery({
+    queryKey: ['analysis-data', id, case_?.result_zip_url],
+    queryFn: () => loadAnalysisFiles(case_!.result_zip_url!, files),
+    enabled: !!case_?.result_zip_url && case_?.status === 'Ready' && files.length >= 0,
+    staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
+    gcTime: 60 * 60 * 1000, // 1 hour
+  });
 
-      if (caseData.status === 'Ready' && caseData.result_zip_url) {
-        await loadAnalysisFiles(caseData.result_zip_url, filesData);
-      }
-    } catch (error) {
-      console.error("Failed to load case:", error);
-      toast({ title: "Failed to load case", variant: "destructive" });
+  const loading = caseLoading || analysisLoading;
+
+  // Handle case not found error
+  useEffect(() => {
+    if (caseError) {
+      toast({ title: "Case not found", variant: "destructive" });
       navigate("/app/dashboard");
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [caseError, navigate]);
 
-  const loadAnalysisFiles = async (zipUrl: string, originalFiles: CaseFileRecord[]) => {
+  const loadAnalysisFiles = async (zipUrl: string, originalFiles: CaseFileRecord[]): Promise<ParsedAnalysisData | null> => {
     try {
       const response = await fetch(zipUrl);
       if (!response.ok) throw new Error('Failed to fetch ZIP file');
@@ -337,10 +340,11 @@ export default function CaseAnalysisResults() {
       // --- FIX END ---
 
       parsedData.zipData = zip;
-      setAnalysisData(parsedData);
+      return parsedData;
     } catch (error) {
       console.error("Failed to parse ZIP file:", error);
       toast({ title: "Failed to parse analysis results", variant: "destructive" });
+      return null;
     }
   };
 
@@ -822,10 +826,34 @@ export default function CaseAnalysisResults() {
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 ml-1 hover:bg-primary/10"
-                            onClick={() => {
+                            onClick={async () => {
                               const file = files.find(f => f.file_name === summary.originalFile);
                               if (file?.file_url) {
-                                setPreviewFile({ name: summary.originalFile, url: file.file_url });
+                                try {
+                                  // Extract storage path from the stored URL
+                                  const url = new URL(file.file_url);
+                                  const pathMatch = url.pathname.match(/\/case-files\/(.+)$/);
+                                  
+                                  if (pathMatch) {
+                                    const storagePath = decodeURIComponent(pathMatch[1]);
+                                    // Generate fresh signed URL
+                                    const { data: signedData, error } = await supabase.storage
+                                      .from('case-files')
+                                      .createSignedUrl(storagePath, 3600);
+                                    
+                                    if (signedData?.signedUrl) {
+                                      setPreviewFile({ name: summary.originalFile, url: signedData.signedUrl });
+                                    } else {
+                                      throw new Error(error?.message || "Failed to generate signed URL");
+                                    }
+                                  } else {
+                                    // Fallback: try using URL directly (for external URLs)
+                                    setPreviewFile({ name: summary.originalFile, url: file.file_url });
+                                  }
+                                } catch (error) {
+                                  console.error("Preview error:", error);
+                                  toast({ title: "Preview not available", description: "Could not load file", variant: "destructive" });
+                                }
                               } else {
                                 toast({ title: "Preview not available", description: "Source file URL not found", variant: "destructive" });
                               }

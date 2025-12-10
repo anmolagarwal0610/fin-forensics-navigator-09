@@ -22,6 +22,7 @@ interface FileItem {
   passwordVerified?: boolean;
   isVerifying?: boolean;
   verifyError?: string;
+  isPreExisting?: boolean;
 }
 
 interface FileUploaderProps {
@@ -29,13 +30,15 @@ interface FileUploaderProps {
   onFilesChange: (files: FileItem[] | ((prevFiles: FileItem[]) => FileItem[])) => void;
   maxFileSize?: number;
   acceptedTypes?: string[];
+  renderFileExtra?: (file: FileItem) => React.ReactNode;
 }
 
 export default function FileUploader({ 
   files, 
   onFilesChange, 
   maxFileSize = 250 * 1024 * 1024, // 250MB
-  acceptedTypes = ['.pdf', '.zip']
+  acceptedTypes = ['.pdf', '.zip'],
+  renderFileExtra
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});
@@ -270,6 +273,7 @@ export default function FileUploader({
                           • {file.pageCount} {file.pageCount === 1 ? 'page' : 'pages'}
                         </span>
                       )}
+                      {renderFileExtra && renderFileExtra(file)}
                     </div>
                   </div>
                 </div>

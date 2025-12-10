@@ -310,13 +310,28 @@ async function updateCaseStatus(supabase: any, payload: any) {
       }
       
     } else if (payload.task === "final-analysis" || payload.task === "parse-statements") {
+      // Check if case already has a result - if so, this is an "add files" scenario
+      const { data: existingCase } = await supabase
+        .from("cases")
+        .select("result_zip_url")
+        .eq("id", caseId)
+        .single();
+      
+      const updateData: any = { 
+        status: "Ready",
+        result_zip_url: payload.url,
+        hitl_stage: null
+      };
+      
+      // If there's an existing result, move it to previous_result_zip_url
+      if (existingCase?.result_zip_url) {
+        updateData.previous_result_zip_url = existingCase.result_zip_url;
+        console.log(`[Add Files] Moving previous result to previous_result_zip_url`);
+      }
+      
       const { error: caseError } = await supabase
         .from("cases")
-        .update({ 
-          status: "Ready",
-          result_zip_url: payload.url,
-          hitl_stage: null
-        })
+        .update(updateData)
         .eq("id", caseId);
       
       if (caseError) {

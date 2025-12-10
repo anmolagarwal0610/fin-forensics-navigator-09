@@ -16,10 +16,12 @@ export interface CaseRecord {
   created_at: string;
   updated_at: string;
   result_zip_url?: string;
+  previous_result_zip_url?: string;
   analysis_status?: 'pending' | 'processing' | 'completed' | 'failed';
   analysis_mode?: AnalysisMode;
   hitl_stage?: HitlStage;
   csv_zip_url?: string;
+  input_zip_url?: string;
 }
 
 export interface CaseCsvFileRecord {
@@ -270,4 +272,32 @@ export const updateCaseHitlStage = async (caseId: string, stage: HitlStage, csvZ
     .eq('id', caseId);
 
   if (error) throw error;
+};
+
+// Update case with new results while preserving previous result URL
+export const updateCaseResultWithHistory = async (caseId: string, newResultZipUrl: string) => {
+  // First, get the current result URL to move to previous
+  const { data: currentCase, error: fetchError } = await supabase
+    .from('cases')
+    .select('result_zip_url')
+    .eq('id', caseId)
+    .maybeSingle();
+
+  if (fetchError) throw fetchError;
+
+  // Update: move current result to previous, set new result
+  const { data, error } = await supabase
+    .from('cases')
+    .update({
+      previous_result_zip_url: currentCase?.result_zip_url || null,
+      result_zip_url: newResultZipUrl,
+      status: 'Ready' as CaseStatus,
+      analysis_status: 'completed'
+    })
+    .eq('id', caseId)
+    .select()
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as CaseRecord | null;
 };

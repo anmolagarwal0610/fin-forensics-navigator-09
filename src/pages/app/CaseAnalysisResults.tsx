@@ -827,35 +827,39 @@ export default function CaseAnalysisResults() {
                             size="icon"
                             className="h-6 w-6 ml-1 hover:bg-primary/10"
                             onClick={async () => {
-                              const file = files.find(f => f.file_name === summary.originalFile);
-                              if (file?.file_url) {
+                              // Find matching file by name (with flexible matching)
+                              const file = files.find(f => 
+                                f.file_name === summary.originalFile || 
+                                f.file_name.replace(/\s+/g, '_') === summary.originalFile ||
+                                summary.originalFile.replace(/\s+/g, '_') === f.file_name
+                              );
+                              
+                              if (file) {
                                 try {
-                                  // Extract storage path from the stored URL
-                                  const url = new URL(file.file_url);
-                                  const pathMatch = url.pathname.match(/\/case-files\/(.+)$/);
+                                  // Get current user and construct path like CaseDetail does
+                                  const { data: { user }, error: authError } = await supabase.auth.getUser();
+                                  if (authError || !user) {
+                                    throw new Error("Authentication required");
+                                  }
                                   
-                                  if (pathMatch) {
-                                    const storagePath = decodeURIComponent(pathMatch[1]);
-                                    // Generate fresh signed URL
-                                    const { data: signedData, error } = await supabase.storage
-                                      .from('case-files')
-                                      .createSignedUrl(storagePath, 3600);
-                                    
-                                    if (signedData?.signedUrl) {
-                                      setPreviewFile({ name: summary.originalFile, url: signedData.signedUrl });
-                                    } else {
-                                      throw new Error(error?.message || "Failed to generate signed URL");
-                                    }
+                                  // Construct path: userId/caseId/filename
+                                  const filePath = `${user.id}/${id}/${file.file_name}`;
+                                  
+                                  const { data: signedData, error } = await supabase.storage
+                                    .from('case-files')
+                                    .createSignedUrl(filePath, 3600);
+                                  
+                                  if (signedData?.signedUrl) {
+                                    setPreviewFile({ name: summary.originalFile, url: signedData.signedUrl });
                                   } else {
-                                    // Fallback: try using URL directly (for external URLs)
-                                    setPreviewFile({ name: summary.originalFile, url: file.file_url });
+                                    throw new Error(error?.message || "Failed to generate signed URL");
                                   }
                                 } catch (error) {
                                   console.error("Preview error:", error);
                                   toast({ title: "Preview not available", description: "Could not load file", variant: "destructive" });
                                 }
                               } else {
-                                toast({ title: "Preview not available", description: "Source file URL not found", variant: "destructive" });
+                                toast({ title: "Preview not available", description: "Source file not found in case files", variant: "destructive" });
                               }
                             }}
                             title="Preview file"

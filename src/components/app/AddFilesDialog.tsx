@@ -31,7 +31,7 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
       sourceCaseName: caseName,
       sourceResultUrl: resultZipUrl
     });
-    navigate(`/app/new-case?${params.toString()}`);
+    navigate(`/app/cases/new?${params.toString()}`);
     onClose();
   };
 

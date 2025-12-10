@@ -17,13 +17,33 @@ export default function SignIn() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    
+    // Add timeout to prevent indefinite loading state
+    const timeoutId = setTimeout(() => {
+      setLoading(false);
+      toast({
+        title: "Sign in is taking longer than expected",
+        description: "Please try again.",
+        variant: "destructive"
+      });
+    }, 15000); // 15 second timeout
+    
     try {
-      const {
-        error
-      } = await supabase.auth.signInWithPassword({
+      // Check for existing session first
+      const { data: { session: existingSession } } = await supabase.auth.getSession();
+      if (existingSession) {
+        clearTimeout(timeoutId);
+        navigate("/app/dashboard");
+        return;
+      }
+      
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
+      
+      clearTimeout(timeoutId);
+      
       if (error) {
         toast({
           title: "Error signing in",
@@ -38,6 +58,7 @@ export default function SignIn() {
         navigate("/app/dashboard");
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       toast({
         title: "Error signing in",
         description: "An unexpected error occurred.",

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
 import { UpgradeBanner } from "@/components/app/UpgradeBanner";
+import DocumentHead from "@/components/common/DocumentHead";
 
 // Components
 import KPICards from "@/components/app/KPICards";
@@ -36,8 +37,10 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-6">
-      <UpgradeBanner />
+    <>
+      <DocumentHead title="Dashboard - FinNavigator" description="Overview of your case management system" />
+      <div className="w-full max-w-7xl mx-auto space-y-6">
+        <UpgradeBanner />
       
       <motion.div
         initial={{ opacity: 0 }}
@@ -69,6 +72,7 @@ export default function Dashboard() {
           </div>
         </div>
       </motion.div>
-    </div>
+      </div>
+    </>
   );
 }

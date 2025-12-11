@@ -450,6 +450,7 @@ export type Database = {
         | "Failed"
         | "Timeout"
         | "Review"
+        | "Draft"
       event_type:
         | "created"
         | "files_uploaded"
@@ -601,6 +602,7 @@ export const Constants = {
         "Failed",
         "Timeout",
         "Review",
+        "Draft",
       ],
       event_type: [
         "created",

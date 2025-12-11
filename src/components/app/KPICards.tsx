@@ -1,65 +1,39 @@
 import { motion } from "framer-motion";
-import { FileSearch, Clock, CheckCircle, FileText } from "lucide-react";
+import { FileSearch, Clock, CheckCircle, FileText, FileEdit } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import type { CaseRecord } from "@/api/cases";
+
 interface KPICardsProps {
   cases: CaseRecord[];
 }
+
 export default function KPICards({
   cases
 }: KPICardsProps) {
+  const draftCount = cases.filter(c => c.status === "Draft").length;
   const reviewCount = cases.filter(c => c.status === "Review").length;
   const processingCount = cases.filter(c => c.status === "Processing").length;
   const readyCount = cases.filter(c => c.status === "Ready").length;
-
-  // Fetch actual file count from the database
-  const {
-    data: fileCount = 0
-  } = useQuery({
-    queryKey: ['file-count', cases.map(c => c.id)],
-    queryFn: async () => {
-      if (cases.length === 0) return 0;
-      const {
-        count,
-        error
-      } = await supabase.from('case_files').select('*', {
-        count: 'exact',
-        head: true
-      }).in('case_id', cases.map(c => c.id));
-      if (error) {
-        console.error('Error fetching file count:', error);
-        return 0;
-      }
-      return count || 0;
-    },
-    enabled: cases.length > 0
-  });
   const kpis = [{
     icon: CheckCircle,
     value: readyCount,
     label: "Ready",
-    trend: "+8%",
     color: "text-green-600 dark:text-green-400"
   }, {
     icon: FileSearch,
     value: reviewCount,
     label: "Review",
-    trend: "+12%",
-    color: "text-blue-600 dark:text-blue-400"
+    color: "text-purple-600 dark:text-purple-400"
   }, {
     icon: Clock,
     value: processingCount,
     label: "Processing",
-    trend: "+5%",
     color: "text-orange-600 dark:text-orange-400"
   }, {
-    icon: FileText,
-    value: fileCount,
-    label: "Files analyzed",
-    trend: "+24%",
-    color: "text-purple-600 dark:text-purple-400"
+    icon: FileEdit,
+    value: draftCount,
+    label: "Draft",
+    color: "text-blue-600 dark:text-blue-400"
   }];
   return <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
       {kpis.map((kpi, index) => <motion.div key={kpi.label} initial={{

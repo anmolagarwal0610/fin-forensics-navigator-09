@@ -75,7 +75,7 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                Add Files to New Case
+                Start a new Case
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
                 Create a new case with existing files plus new documents. Original case remains unchanged.

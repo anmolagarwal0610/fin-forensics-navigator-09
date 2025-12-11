@@ -268,7 +268,7 @@ export default function FileUploader({
                           • Password verified
                         </span>
                       )}
-                      {file.pageCount !== undefined && !file.countingError && (!file.needsPassword || file.passwordVerified) && (
+                      {file.pageCount !== undefined && !file.countingError && (!file.needsPassword || file.passwordVerified) && !file.isPreExisting && (
                         <span className="text-emerald-600 dark:text-emerald-400 font-medium">
                           • {file.pageCount} {file.pageCount === 1 ? 'page' : 'pages'}
                         </span>

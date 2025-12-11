@@ -7,12 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import FileUploader from "@/components/app/FileUploader";
-import { getCaseById, addFiles, addEvent, updateCaseStatus, type CaseRecord } from "@/api/cases";
+import { getCaseById, getCaseFiles, addFiles, addEvent, updateCaseStatus, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
-import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import JSZip from "jszip";
 
@@ -38,6 +38,7 @@ export default function CaseUpload() {
   const [loading, setLoading] = useState(true);
   const [loadingPreExisting, setLoadingPreExisting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [savingForLater, setSavingForLater] = useState(false);
   const [useHitl, setUseHitl] = useState(true);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
@@ -54,12 +55,26 @@ export default function CaseUpload() {
 
   useEffect(() => {
     if (!id) return;
-    getCaseById(id).then(data => {
+    getCaseById(id).then(async data => {
       if (!data) {
         navigate("/app/dashboard");
         return;
       }
       setCase(data);
+      
+      // For Draft cases (not in add files mode), load existing files from database
+      if (data.status === 'Draft' && !isAddFilesMode) {
+        try {
+          const existingFiles = await getCaseFiles(id);
+          if (existingFiles.length > 0) {
+            // Load files from storage and convert to FileItem
+            const loadedFiles = await loadExistingCaseFiles(existingFiles);
+            setFiles(loadedFiles);
+          }
+        } catch (error) {
+          console.error("Failed to load existing files:", error);
+        }
+      }
     }).catch(error => {
       console.error("Failed to load case:", error);
       toast({
@@ -68,7 +83,51 @@ export default function CaseUpload() {
       });
       navigate("/app/dashboard");
     }).finally(() => setLoading(false));
-  }, [id, navigate]);
+  }, [id, navigate, isAddFilesMode]);
+
+  // Load existing case files from storage for Draft cases
+  const loadExistingCaseFiles = async (fileRecords: CaseFileRecord[]): Promise<FileItem[]> => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    
+    const loadedFiles: FileItem[] = [];
+    
+    for (const fileRecord of fileRecords) {
+      try {
+        const filePath = `${user.id}/${id}/${fileRecord.file_name}`;
+        const { data, error } = await supabase.storage
+          .from('case-files')
+          .download(filePath);
+        
+        if (error || !data) {
+          console.error(`Failed to download ${fileRecord.file_name}:`, error);
+          continue;
+        }
+        
+        const file = new File([data], fileRecord.file_name, { type: data.type });
+        
+        loadedFiles.push({
+          name: fileRecord.file_name,
+          size: file.size,
+          file: file,
+          pageCount: 0, // Existing files don't need re-counting for page limits
+          isCountingPages: false,
+          isPreExisting: true
+        });
+      } catch (error) {
+        console.error(`Failed to load file ${fileRecord.file_name}:`, error);
+      }
+    }
+    
+    if (loadedFiles.length > 0) {
+      toast({
+        title: "Previous files loaded",
+        description: `${loadedFiles.length} file(s) from your draft are ready.`
+      });
+    }
+    
+    return loadedFiles;
+  };
 
   // Load pre-existing files from result ZIP when in add files mode
   useEffect(() => {
@@ -257,6 +316,72 @@ export default function CaseUpload() {
     }
   };
 
+  // Save files for later without starting analysis
+  const handleSaveForLater = async () => {
+    if (!case_ || files.length === 0) return;
+    
+    const newFiles = files.filter(f => !f.isPreExisting);
+    if (newFiles.length === 0) {
+      toast({
+        title: "No new files to save",
+        description: "Add new files before saving.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSavingForLater(true);
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Authentication required");
+      }
+
+      // Import uploadInput to save files to storage
+      const { uploadInput } = await import('@/lib/uploadInput');
+      
+      // Extract passwords for protected files
+      const passwords = newFiles
+        .filter(f => f.needsPassword && f.passwordVerified && f.password)
+        .map(f => ({
+          filename: f.name,
+          password: f.password!
+        }));
+
+      // Upload files without starting analysis (skipFileInsertion: false to save file records)
+      await uploadInput(
+        newFiles.map(f => f.file),
+        user.id,
+        case_.id,
+        false, // Don't skip file insertion - we want to save the files
+        passwords
+      );
+
+      // Add event for tracking
+      await addEvent(case_.id, "files_uploaded", {
+        file_count: newFiles.length,
+        saved_for_later: true
+      });
+
+      toast({
+        title: "Files saved successfully",
+        description: `${newFiles.length} file(s) saved. You can continue analysis later.`
+      });
+
+      navigate(`/app/cases/${case_.id}`);
+
+    } catch (error) {
+      console.error("Failed to save files:", error);
+      toast({
+        title: "Failed to save files",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingForLater(false);
+    }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center py-12">
         <div className="text-center">
@@ -417,10 +542,23 @@ export default function CaseUpload() {
           {files.length === 0 && !loadingPreExisting ? <div className="text-center py-8 text-muted-foreground">
               <p>No files uploaded yet.</p>
               <p className="text-sm mt-1">Upload files to begin analysis</p>
-            </div> : <div className="flex justify-end">
+            </div> : <div className="flex justify-end gap-3">
+              {/* Save for Later button - only show for Draft cases (not add files mode) */}
+              {!isAddFilesMode && case_.status === 'Draft' && files.some(f => !f.isPreExisting) && (
+                <Button 
+                  variant="outline"
+                  onClick={handleSaveForLater} 
+                  disabled={savingForLater || submitting || loadingPreExisting} 
+                  size="lg"
+                  className="gap-2"
+                >
+                  <Save className="h-4 w-4" />
+                  {savingForLater ? "Saving..." : "Save for Later"}
+                </Button>
+              )}
               <Button 
                 onClick={handleStartAnalysis} 
-                disabled={!canSubmit || submitting || loadingPreExisting} 
+                disabled={!canSubmit || submitting || savingForLater || loadingPreExisting} 
                 size="lg"
               >
                 {submitting ? "Submitting..." : 

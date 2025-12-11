@@ -6,7 +6,7 @@ import { type CaseStatus } from "@/api/cases";
 
 export default function StatusBadge({ status }: { status: CaseStatus }) {
   const map: Record<string, string> = {
-    Active: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
+    Draft: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
     Processing: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
     Review: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
     Ready: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",

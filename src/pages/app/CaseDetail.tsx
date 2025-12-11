@@ -278,6 +278,7 @@ export default function CaseDetail() {
                   <FileText className="h-5 w-5" />
                   Files ({files.length})
                 </div>
+                {/* Add More Files for Ready cases */}
                 {case_.status === 'Ready' && case_.result_zip_url && (
                   <TooltipProvider>
                     <Tooltip>
@@ -298,14 +299,27 @@ export default function CaseDetail() {
                     </Tooltip>
                   </TooltipProvider>
                 )}
+                {/* Continue Analysis for Draft cases with files */}
+                {case_.status === 'Draft' && files.length > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
+                    className="gap-2"
+                  >
+                    <Upload className="h-4 w-4" />
+                    Continue Analysis
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p className="mb-2">No files uploaded yet.</p>
-                  <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}/upload`)}>
-                    Upload Files
+                  <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}/upload`)} className="gap-2">
+                    <FilePlus className="h-4 w-4" />
+                    Add Files
                   </Button>
                 </div> : <div className="space-y-2">
                   {files.map(file => <div key={file.id} className="flex items-center justify-between p-2 rounded border">

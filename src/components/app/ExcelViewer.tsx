@@ -642,29 +642,21 @@ export default function ExcelViewer({
               <ScrollBar orientation="horizontal" />
               <div className="overflow-x-auto">
                 <table className="border-collapse min-w-full">
-                  <tbody>
-                    {displayData.map((row, rowIndex) => (
-                      <tr key={rowIndex}>
+                  {/* Sticky header for first 2 rows */}
+                  <thead className="sticky top-0 z-20">
+                    {displayData.slice(0, 2).map((row, rowIndex) => (
+                      <tr key={rowIndex} className="bg-background">
                         {row
                           .map((cell, colIndex) => {
-                            // Skip rendering cells that are part of a merged range but not the top-left cell
-                            if (cell.isHidden) {
-                              return null;
-                            }
+                            if (cell.isHidden) return null;
 
                             const span = getCellSpan(cell);
                             const style = getCellStyle(cell, rowIndex, colIndex);
-                            
-                            // ⬇️ ENHANCED LOGIC FOR INR SYSTEM ⬇️
                             const rawValue = cell.value;
                             let displayValue = String(rawValue || '');
 
-                            // Use the calculated indices to determine if this is a currency column
                             const isCurrencyColumn = currencyColumnIndices.includes(colIndex);
-                            
-                            // Apply formatting only to number values that belong to a currency column
                             if (typeof rawValue === 'number' && isCurrencyColumn) {
-                              // Apply Indian Rupee formatting (en-IN)
                               try {
                                 displayValue = new Intl.NumberFormat('en-IN', {
                                   style: 'currency',
@@ -672,65 +664,31 @@ export default function ExcelViewer({
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 }).format(rawValue);
-                              } catch (e) {
-                                console.error("Failed to format INR:", e);
-                                // Simple INR fallback
+                              } catch {
                                 displayValue = `₹${rawValue.toFixed(2)}`;
                               }
                             } else if (typeof rawValue === 'number') {
-                              // If it's a number but not a currency column, use standard formatting
                               displayValue = new Intl.NumberFormat('en-US', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               }).format(rawValue);
                             } else if (typeof rawValue === 'string') {
-                              // Check for and remove the invisible character if it was used
                               displayValue = rawValue.replace('\u200B', '').trim();
                             }
-                            
+
                             const cellContent = truncateText(displayValue);
 
-                            const isClickable = isBeneficiaryCell(rowIndex, colIndex);
-
                             return (
-                              <td
+                              <th
                                 key={colIndex}
                                 {...span}
-                                style={style}
-                                // Ensure left alignment
-                                className="p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left"
+                                style={{ ...style, backgroundColor: style.backgroundColor || 'hsl(var(--background))' }}
+                                className={`p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left font-semibold ${colIndex === 0 ? 'sticky left-0 z-30 bg-background' : ''}`}
                               >
-                                {isClickable ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleBeneficiaryClick(rowIndex)}
-                                    className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
-                                    style={{ color: style.color || 'inherit' }}
-                                    title={`View transactions for ${displayValue}`}
-                                  >
-                                    {cellContent.truncated ? (
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="block truncate overflow-hidden text-ellipsis">
-                                            {cellContent.text}
-                                          </span>
-                                        </TooltipTrigger>
-                                        <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
-                                          <p className="whitespace-pre-wrap break-words text-xs">
-                                            {cellContent.original}
-                                          </p>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    ) : (
-                                      <span className="block truncate overflow-hidden text-ellipsis">
-                                        {cellContent.text}
-                                      </span>
-                                    )}
-                                  </button>
-                                ) : cellContent.truncated ? (
+                                {cellContent.truncated ? (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
-                                      <span className="cursor-help block truncate overflow-hidden text-ellipsis">
+                                      <span className="block truncate overflow-hidden text-ellipsis">
                                         {cellContent.text}
                                       </span>
                                     </TooltipTrigger>
@@ -745,12 +703,110 @@ export default function ExcelViewer({
                                     {cellContent.text}
                                   </span>
                                 )}
-                              </td>
+                              </th>
                             );
                           })
                           .filter(Boolean)}
                       </tr>
                     ))}
+                  </thead>
+                  <tbody>
+                    {displayData.slice(2).map((row, idx) => {
+                      const rowIndex = idx + 2; // Adjust for actual row index
+                      return (
+                        <tr key={rowIndex}>
+                          {row
+                            .map((cell, colIndex) => {
+                              if (cell.isHidden) return null;
+
+                              const span = getCellSpan(cell);
+                              const style = getCellStyle(cell, rowIndex, colIndex);
+                              const rawValue = cell.value;
+                              let displayValue = String(rawValue || '');
+
+                              const isCurrencyColumn = currencyColumnIndices.includes(colIndex);
+                              if (typeof rawValue === 'number' && isCurrencyColumn) {
+                                try {
+                                  displayValue = new Intl.NumberFormat('en-IN', {
+                                    style: 'currency',
+                                    currency: 'INR',
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  }).format(rawValue);
+                                } catch {
+                                  displayValue = `₹${rawValue.toFixed(2)}`;
+                                }
+                              } else if (typeof rawValue === 'number') {
+                                displayValue = new Intl.NumberFormat('en-US', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                }).format(rawValue);
+                              } else if (typeof rawValue === 'string') {
+                                displayValue = rawValue.replace('\u200B', '').trim();
+                              }
+
+                              const cellContent = truncateText(displayValue);
+                              const isClickable = isBeneficiaryCell(rowIndex, colIndex);
+
+                              return (
+                                <td
+                                  key={colIndex}
+                                  {...span}
+                                  style={style}
+                                  className={`p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left ${colIndex === 0 ? 'sticky left-0 z-10 bg-background' : ''}`}
+                                >
+                                  {isClickable ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleBeneficiaryClick(rowIndex)}
+                                      className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
+                                      style={{ color: style.color || 'inherit' }}
+                                      title={`View transactions for ${displayValue}`}
+                                    >
+                                      {cellContent.truncated ? (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className="block truncate overflow-hidden text-ellipsis">
+                                              {cellContent.text}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                            <p className="whitespace-pre-wrap break-words text-xs">
+                                              {cellContent.original}
+                                            </p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      ) : (
+                                        <span className="block truncate overflow-hidden text-ellipsis">
+                                          {cellContent.text}
+                                        </span>
+                                      )}
+                                    </button>
+                                  ) : cellContent.truncated ? (
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="cursor-help block truncate overflow-hidden text-ellipsis">
+                                          {cellContent.text}
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                        <p className="whitespace-pre-wrap break-words text-xs">
+                                          {cellContent.original}
+                                        </p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  ) : (
+                                    <span className="block truncate overflow-hidden text-ellipsis">
+                                      {cellContent.text}
+                                    </span>
+                                  )}
+                                </td>
+                              );
+                            })
+                            .filter(Boolean)}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

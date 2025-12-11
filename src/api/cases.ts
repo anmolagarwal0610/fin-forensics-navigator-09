@@ -1,6 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 
-export type CaseStatus = 'Active' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout' | 'Review';
+export type CaseStatus = 'Draft' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout' | 'Review';
 export type AnalysisMode = 'hitl' | 'direct';
 export type HitlStage = 'initial_parse' | 'review' | 'final_analysis' | null;
 
@@ -103,7 +103,7 @@ export const createCase = async (payload: {
       description: payload.description || null,
       color_hex: payload.color_hex,
       tags: payload.tags ?? [],
-      status: "Active",
+      status: "Draft" as any, // Cast to bypass type until DB types regenerate
       creator_id,
       org_id: null,
     })
@@ -117,7 +117,7 @@ export const createCase = async (payload: {
 export const updateCaseStatus = async (caseId: string, status: CaseStatus) => {
   const { data, error } = await supabase
     .from("cases")
-    .update({ status })
+    .update({ status: status as any }) // Cast to bypass type until DB types regenerate
     .eq("id", caseId)
     .select()
     .maybeSingle();
@@ -130,7 +130,7 @@ export const updateCaseWithResults = async (caseId: string, resultZipUrl: string
     .from("cases")
     .update({ 
       result_zip_url: resultZipUrl, 
-      status: 'Ready' as CaseStatus,
+      status: 'Ready' as any, // Cast to bypass type until DB types regenerate
       analysis_status: 'completed'
     })
     .eq("id", caseId)
@@ -291,7 +291,7 @@ export const updateCaseResultWithHistory = async (caseId: string, newResultZipUr
     .update({
       previous_result_zip_url: currentCase?.result_zip_url || null,
       result_zip_url: newResultZipUrl,
-      status: 'Ready' as CaseStatus,
+      status: 'Ready' as any, // Cast to bypass type until DB types regenerate
       analysis_status: 'completed'
     })
     .eq('id', caseId)

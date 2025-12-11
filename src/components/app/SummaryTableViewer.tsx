@@ -312,10 +312,9 @@ export default function SummaryTableViewer({
           </TabsList>
 
           <TabsContent value={activeTab} className="mt-0 pt-4">
-            <ScrollArea className="w-full h-[400px] rounded-md border">
-              <div className="overflow-x-auto">
+            <div className="overflow-auto h-[400px] w-full rounded-md border">
                 <table className="w-full text-sm table-fixed">
-                  <thead className="sticky top-0 z-10">
+                  <thead className="sticky top-0 z-10 bg-muted/95">
                     <tr>
                       {sortedData[0]?.map((cell, colIdx) => (
                         <th
@@ -389,9 +388,7 @@ export default function SummaryTableViewer({
                     ))}
                   </tbody>
                 </table>
-              </div>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

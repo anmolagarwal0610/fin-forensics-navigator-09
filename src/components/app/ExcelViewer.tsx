@@ -636,11 +636,8 @@ export default function ExcelViewer({
         <p className="text-xs text-muted-foreground mb-4">
           Credit and Debit amounts are with respect to bank statements. Any amount appearing under Total Credit means that the bank account owner received that amount from the beneficiary. Any amount under Total Debit means the bank account owner paid that amount to the beneficiary.
         </p>
-        <div className="relative">
+        <div className="relative overflow-auto h-[600px] w-full border rounded-md">
           <TooltipProvider>
-            <ScrollArea className="h-[600px] w-full">
-              <ScrollBar orientation="horizontal" />
-              <div className="overflow-x-auto">
                 <table className="border-collapse min-w-full">
                   {/* Sticky header for first 2 rows */}
                   <thead className="sticky top-0 z-20">
@@ -809,8 +806,6 @@ export default function ExcelViewer({
                     })}
                   </tbody>
                 </table>
-              </div>
-            </ScrollArea>
           </TooltipProvider>
         </div>
         {processedData.length > maxRows && (

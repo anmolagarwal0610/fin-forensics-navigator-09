@@ -110,9 +110,9 @@ export default function CaseUpload() {
           name: fileRecord.file_name,
           size: file.size,
           file: file,
-          pageCount: 0, // Existing files don't need re-counting for page limits
           isCountingPages: false,
-          isPreExisting: true
+          needsPassword: false,
+          isPreExisting: false // Draft files need page counting - not yet processed
         });
       } catch (error) {
         console.error(`Failed to load file ${fileRecord.file_name}:`, error);

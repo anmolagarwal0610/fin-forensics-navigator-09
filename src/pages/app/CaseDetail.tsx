@@ -311,16 +311,24 @@ export default function CaseDetail() {
                     Continue Analysis
                   </Button>
                 )}
+                {/* Add Files for Draft cases with no files */}
+                {case_.status === 'Draft' && files.length === 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
+                    className="gap-2"
+                  >
+                    <FilePlus className="h-4 w-4" />
+                    Add Files
+                  </Button>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent>
               {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="mb-2">No files uploaded yet.</p>
-                  <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}/upload`)} className="gap-2">
-                    <FilePlus className="h-4 w-4" />
-                    Add Files
-                  </Button>
+                  <p>No files uploaded yet.</p>
                 </div> : <div className="space-y-2">
                   {files.map(file => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
                       <div className="flex items-center gap-2 flex-1 min-w-0">

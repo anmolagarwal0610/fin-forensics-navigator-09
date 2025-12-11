@@ -15,6 +15,7 @@ import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import JSZip from "jszip";
+import { countFilePages } from "@/utils/pageCounter";
 
 interface FileItem {
   name: string;
@@ -70,6 +71,33 @@ export default function CaseUpload() {
             // Load files from storage and convert to FileItem
             const loadedFiles = await loadExistingCaseFiles(existingFiles);
             setFiles(loadedFiles);
+            
+            // Trigger page counting for each loaded draft file
+            for (const loadedFile of loadedFiles) {
+              countFilePages(loadedFile.file).then(result => {
+                setFiles(prevFiles => 
+                  prevFiles.map(f => 
+                    f.file === loadedFile.file 
+                      ? { 
+                          ...f, 
+                          pageCount: result.pages, 
+                          isCountingPages: false, 
+                          needsPassword: result.needsPassword || false
+                        }
+                      : f
+                  )
+                );
+              }).catch(error => {
+                console.error(`Failed to count pages for ${loadedFile.name}:`, error);
+                setFiles(prevFiles => 
+                  prevFiles.map(f => 
+                    f.file === loadedFile.file 
+                      ? { ...f, isCountingPages: false, pageCount: 0 }
+                      : f
+                  )
+                );
+              });
+            }
           }
         } catch (error) {
           console.error("Failed to load existing files:", error);
@@ -110,7 +138,7 @@ export default function CaseUpload() {
           name: fileRecord.file_name,
           size: file.size,
           file: file,
-          isCountingPages: false,
+          isCountingPages: true, // Will be counted after loading
           needsPassword: false,
           isPreExisting: false // Draft files need page counting - not yet processed
         });

@@ -508,7 +508,7 @@ export default function CaseAnalysisResults() {
 
   if (!analysisData) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -529,9 +529,9 @@ export default function CaseAnalysisResults() {
   return (
     <>
       <DocumentHead title={`Analysis Results - ${case_.name} - FinNavigator`} />
-      <div className="container mx-auto p-6 space-y-8">
+      <div className="p-4 md:p-6 space-y-6 md:space-y-8">
         {/* Back to Case Button */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
@@ -553,16 +553,16 @@ export default function CaseAnalysisResults() {
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
               Analysis Results
             </h1>
-            <p className="text-lg text-muted-foreground">{case_.name}</p>
+            <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
-          <Button onClick={downloadCompleteReport} size="lg" className="shadow-lg">
+          <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
             <Download className="h-4 w-4 mr-2" />
-            Download Complete Report
+            Download Report
           </Button>
         </div>
 

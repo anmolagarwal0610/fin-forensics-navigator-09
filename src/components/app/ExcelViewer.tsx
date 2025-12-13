@@ -621,22 +621,22 @@ export default function ExcelViewer({
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center justify-between">
-          {title}
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+          <span className="text-base sm:text-lg">{title}</span>
           {onDownload && (
-            <Button onClick={onDownload} variant="outline" size="sm">
+            <Button onClick={onDownload} variant="outline" size="sm" className="w-full sm:w-auto">
               <Download className="w-4 h-4 mr-2" />
               Download
             </Button>
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent>
-        <p className="text-xs text-muted-foreground mb-4">
+      <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
+        <p className="text-xs text-muted-foreground mb-3 sm:mb-4">
           Credit and Debit amounts are with respect to bank statements. Any amount appearing under Total Credit means that the bank account owner received that amount from the beneficiary. Any amount under Total Debit means the bank account owner paid that amount to the beneficiary.
         </p>
-        <div className="relative overflow-auto h-[600px] w-full border rounded-md">
+        <div className="relative overflow-auto h-[400px] sm:h-[600px] w-full border rounded-md">
           <TooltipProvider>
                 <table className="border-collapse min-w-full">
                   {/* Sticky header for first 2 rows */}
@@ -680,7 +680,7 @@ export default function ExcelViewer({
                                 key={colIndex}
                                 {...span}
                                 style={{ ...style, backgroundColor: style.backgroundColor || 'hsl(var(--background))' }}
-                                className={`p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left font-semibold ${colIndex === 0 ? 'sticky left-0 z-30 bg-background' : ''}`}
+                                className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px] text-left font-semibold ${colIndex === 0 ? 'sticky left-0 z-30 bg-background' : ''}`}
                               >
                                 {cellContent.truncated ? (
                                   <Tooltip>
@@ -750,7 +750,7 @@ export default function ExcelViewer({
                                   key={colIndex}
                                   {...span}
                                   style={style}
-                                  className={`p-2 text-sm border border-border align-top overflow-hidden min-w-[120px] max-w-[400px] text-left ${colIndex === 0 ? 'sticky left-0 z-10 bg-background' : ''}`}
+                                  className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px] text-left ${colIndex === 0 ? 'sticky left-0 z-10 bg-background' : ''}`}
                                 >
                                   {isClickable ? (
                                     <button

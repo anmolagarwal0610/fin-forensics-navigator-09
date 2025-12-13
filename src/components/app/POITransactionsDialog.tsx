@@ -98,43 +98,43 @@ export default function POITransactionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
-      <DialogContent className="max-w-6xl max-h-[85vh] flex flex-col p-0 gap-0">
+      <DialogContent className="w-[95vw] sm:max-w-6xl max-h-[90vh] sm:max-h-[85vh] flex flex-col p-0 gap-0">
         {/* Header */}
-        <DialogHeader className="px-6 py-4 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border-b">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/10 rounded-lg">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+        <DialogHeader className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-transparent border-b">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className="p-1.5 sm:p-2 bg-amber-500/10 rounded-lg">
+                <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 dark:text-amber-400" />
               </div>
-              <div>
-                <DialogTitle className="text-lg font-semibold">
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-lg font-semibold truncate">
                   POI Transactions for "{beneficiaryName}"
                 </DialogTitle>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                  Suspicious transactions flagged across multiple source files
+                <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 hidden sm:block">
+                  Suspicious transactions across multiple files
                 </p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-xs font-medium px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-              {transactions.length} {transactions.length === 1 ? "transaction" : "transactions"}
+            <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+              {transactions.length} {transactions.length === 1 ? "tx" : "txs"}
             </Badge>
           </div>
         </DialogHeader>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden px-6 py-4">
+        <div className="flex-1 overflow-hidden px-3 sm:px-6 py-3 sm:py-4">
           {isLoading ? (
-            <div className="flex items-center justify-center h-48">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
-              <span className="ml-3 text-muted-foreground">Loading POI transactions...</span>
+            <div className="flex items-center justify-center h-32 sm:h-48">
+              <div className="animate-spin rounded-full h-6 w-6 sm:h-8 sm:w-8 border-b-2 border-amber-500"></div>
+              <span className="ml-2 sm:ml-3 text-sm text-muted-foreground">Loading...</span>
             </div>
           ) : transactions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground">
-              <AlertTriangle className="h-12 w-12 mb-3 opacity-30" />
-              <p>No POI transactions found for this beneficiary.</p>
+            <div className="flex flex-col items-center justify-center h-32 sm:h-48 text-muted-foreground">
+              <AlertTriangle className="h-10 w-10 sm:h-12 sm:w-12 mb-2 sm:mb-3 opacity-30" />
+              <p className="text-sm">No POI transactions found.</p>
             </div>
           ) : (
-            <ScrollArea className="h-[450px] rounded-md border">
+            <ScrollArea className="h-[300px] sm:h-[450px] rounded-md border">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm table-auto min-w-[900px]">
                   <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
@@ -209,17 +209,18 @@ export default function POITransactionsDialog({
         </div>
 
         {/* Footer */}
-        <DialogFooter className="px-6 py-4 border-t bg-muted/30 flex justify-between sm:justify-between">
+        <DialogFooter className="px-3 sm:px-6 py-3 sm:py-4 border-t bg-muted/30 flex flex-col-reverse sm:flex-row gap-2 sm:justify-between">
           <Button 
             variant="outline" 
             onClick={downloadAsCSV} 
-            className="gap-2"
+            className="gap-2 w-full sm:w-auto"
             disabled={transactions.length === 0}
+            size="sm"
           >
             <Download className="h-4 w-4" />
             Download CSV
           </Button>
-          <Button variant="outline" onClick={onClose} className="gap-2">
+          <Button variant="outline" onClick={onClose} className="gap-2 w-full sm:w-auto" size="sm">
             <X className="h-4 w-4" />
             Close
           </Button>

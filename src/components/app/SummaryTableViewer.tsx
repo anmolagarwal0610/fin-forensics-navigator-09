@@ -265,64 +265,69 @@ export default function SummaryTableViewer({
     <>
       <div className="w-full">
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as SortColumn)} className="w-full">
-          {/* Chrome-style tabs */}
-          <TabsList className="h-auto p-0 bg-transparent gap-0.5 border-b border-border rounded-none justify-start">
-            {hasTransactions && (
-              <TabsTrigger
-                value="transactions"
-                className={cn(
-                  "relative rounded-t-lg rounded-b-none border border-b-0 px-4 py-2 text-sm font-medium",
-                  "data-[state=active]:bg-background data-[state=active]:border-border data-[state=active]:shadow-sm",
-                  "data-[state=inactive]:bg-muted/40 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground",
-                  "data-[state=active]:after:absolute data-[state=active]:after:bottom-[-1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[1px] data-[state=active]:after:bg-background",
-                  "transition-all duration-150"
-                )}
-              >
-                No. of Transactions (High to Low)
-              </TabsTrigger>
-            )}
-            {hasCredit && (
-              <TabsTrigger
-                value="credit"
-                className={cn(
-                  "relative rounded-t-lg rounded-b-none border border-b-0 px-4 py-2 text-sm font-medium",
-                  "data-[state=active]:bg-background data-[state=active]:border-border data-[state=active]:shadow-sm",
-                  "data-[state=inactive]:bg-muted/40 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground",
-                  "data-[state=active]:after:absolute data-[state=active]:after:bottom-[-1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[1px] data-[state=active]:after:bg-background",
-                  "transition-all duration-150"
-                )}
-              >
-                Total Credit (High to Low)
-              </TabsTrigger>
-            )}
-            {hasDebit && (
-              <TabsTrigger
-                value="debit"
-                className={cn(
-                  "relative rounded-t-lg rounded-b-none border border-b-0 px-4 py-2 text-sm font-medium",
-                  "data-[state=active]:bg-background data-[state=active]:border-border data-[state=active]:shadow-sm",
-                  "data-[state=inactive]:bg-muted/40 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground",
-                  "data-[state=active]:after:absolute data-[state=active]:after:bottom-[-1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[1px] data-[state=active]:after:bg-background",
-                  "transition-all duration-150"
-                )}
-              >
-                Total Debit (High to Low)
-              </TabsTrigger>
-            )}
-          </TabsList>
+          {/* Chrome-style tabs - scrollable on mobile */}
+          <div className="overflow-x-auto -mx-2 px-2">
+            <TabsList className="h-auto p-0 bg-transparent gap-0.5 border-b border-border rounded-none justify-start inline-flex min-w-max">
+              {hasTransactions && (
+                <TabsTrigger
+                  value="transactions"
+                  className={cn(
+                    "relative rounded-t-lg rounded-b-none border border-b-0 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap",
+                    "data-[state=active]:bg-background data-[state=active]:border-border data-[state=active]:shadow-sm",
+                    "data-[state=inactive]:bg-muted/40 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground",
+                    "data-[state=active]:after:absolute data-[state=active]:after:bottom-[-1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[1px] data-[state=active]:after:bg-background",
+                    "transition-all duration-150"
+                  )}
+                >
+                  <span className="hidden sm:inline">No. of Transactions (High to Low)</span>
+                  <span className="sm:hidden">Transactions</span>
+                </TabsTrigger>
+              )}
+              {hasCredit && (
+                <TabsTrigger
+                  value="credit"
+                  className={cn(
+                    "relative rounded-t-lg rounded-b-none border border-b-0 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap",
+                    "data-[state=active]:bg-background data-[state=active]:border-border data-[state=active]:shadow-sm",
+                    "data-[state=inactive]:bg-muted/40 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground",
+                    "data-[state=active]:after:absolute data-[state=active]:after:bottom-[-1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[1px] data-[state=active]:after:bg-background",
+                    "transition-all duration-150"
+                  )}
+                >
+                  <span className="hidden sm:inline">Total Credit (High to Low)</span>
+                  <span className="sm:hidden">Credit</span>
+                </TabsTrigger>
+              )}
+              {hasDebit && (
+                <TabsTrigger
+                  value="debit"
+                  className={cn(
+                    "relative rounded-t-lg rounded-b-none border border-b-0 px-2 sm:px-4 py-1.5 sm:py-2 text-xs sm:text-sm font-medium whitespace-nowrap",
+                    "data-[state=active]:bg-background data-[state=active]:border-border data-[state=active]:shadow-sm",
+                    "data-[state=inactive]:bg-muted/40 data-[state=inactive]:border-transparent data-[state=inactive]:text-muted-foreground",
+                    "data-[state=active]:after:absolute data-[state=active]:after:bottom-[-1px] data-[state=active]:after:left-0 data-[state=active]:after:right-0 data-[state=active]:after:h-[1px] data-[state=active]:after:bg-background",
+                    "transition-all duration-150"
+                  )}
+                >
+                  <span className="hidden sm:inline">Total Debit (High to Low)</span>
+                  <span className="sm:hidden">Debit</span>
+                </TabsTrigger>
+              )}
+            </TabsList>
+          </div>
 
-          <TabsContent value={activeTab} className="mt-0 pt-4">
-            <div className="overflow-auto h-[400px] w-full rounded-md border">
-                <table className="w-full text-sm table-fixed">
+          <TabsContent value={activeTab} className="mt-0 pt-3 sm:pt-4">
+            <div className="overflow-auto h-[300px] sm:h-[400px] w-full rounded-md border">
+                <table className="w-full text-xs sm:text-sm table-fixed">
                   <thead className="sticky top-0 z-10 bg-muted/95">
                     <tr>
                       {sortedData[0]?.map((cell, colIdx) => (
                         <th
                           key={colIdx}
-                          className="px-3 py-2 text-left font-semibold bg-muted/80 border-b whitespace-nowrap"
+                          className="px-2 sm:px-3 py-1.5 sm:py-2 text-left font-semibold bg-muted/80 border-b whitespace-nowrap"
                           style={{
                             ...getCellStyle(cell),
-                            minWidth: "120px",
+                            minWidth: "80px",
                           }}
                         >
                           {formatCellValue(cell?.value)}
@@ -359,10 +364,10 @@ export default function SummaryTableViewer({
                             <td
                               key={colIdx}
                               // Apply the calculated color class
-                              className={cn("px-3 py-2 break-words", colorClass)} 
+                              className={cn("px-2 sm:px-3 py-1.5 sm:py-2 break-words text-xs sm:text-sm", colorClass)} 
                               style={{
                                 ...getCellStyle(cell),
-                                minWidth: "120px",
+                                minWidth: "80px",
                               }}
                             >
                               {isClickable && cellValue ? (

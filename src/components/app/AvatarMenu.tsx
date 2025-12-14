@@ -68,18 +68,23 @@ export default function AvatarMenu() {
           {profile?.full_name || user?.email?.split('@')[0] || 'My Account'}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => navigate("/app/account")}>
-          Account
-        </DropdownMenuItem>
         <DropdownMenuItem 
-          onClick={() => setTheme(theme === "light" ? "dark" : "light")}
+          onClick={() => navigate("/app/account")}
           className="flex items-center justify-between cursor-pointer"
         >
-          <span>{theme === "light" ? "Dark mode" : "Light mode"}</span>
-          <div className="relative h-4 w-4">
-            <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-            <Moon className="absolute top-0 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          </div>
+          <span>Account</span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setTheme(theme === "light" ? "dark" : "light");
+            }}
+            className="p-1 rounded hover:bg-accent"
+          >
+            <div className="relative h-4 w-4">
+              <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+              <Moon className="absolute top-0 h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+            </div>
+          </button>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="text-destructive">

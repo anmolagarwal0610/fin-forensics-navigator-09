@@ -6,14 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2, BarChart3 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
 import POIModal from "@/components/app/POIModal";
+import FileSankeyModal from "@/components/app/FileSankeyModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
@@ -32,6 +34,8 @@ interface ParsedAnalysisData {
   mainGraphUrl: string | null;
   mainGraphHtml: string | null;
   mainGraphPngUrl?: string | null;
+  mainNodeGraphHtml: string | null;      // poi_flows_main.html
+  mainSankeyGraphHtml: string | null;    // poi_flows_sankey.html
   egoImages: Array<{ name: string; url: string }>;
   poiHtmlFiles: Array<{ name: string; htmlContent: string; title: string; pngUrl?: string }>;
   poiFileCount: number;
@@ -39,6 +43,7 @@ interface ParsedAnalysisData {
     originalFile: string;
     rawTransactionsFile: string | null;
     summaryFile: string | null;
+    sankeyHtml: string | null;           // Per-file sankey HTML content
   }>;
   zipData?: JSZip | null;
   summaryDataMap: Map<string, CellData[][]>;
@@ -56,6 +61,10 @@ export default function CaseAnalysisResults() {
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
+  
+  // State for per-file sankey modal
+  const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
+  const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
 
   const toggleSummary = (index: number) => {
     setExpandedSummaries(prev => {
@@ -124,6 +133,8 @@ export default function CaseAnalysisResults() {
         mainGraphUrl: null,
         mainGraphHtml: null,
         mainGraphPngUrl: null,
+        mainNodeGraphHtml: null,      // poi_flows_main.html
+        mainSankeyGraphHtml: null,    // poi_flows_sankey.html
         egoImages: [],
         poiHtmlFiles: [],
         poiFileCount: 0,
@@ -218,10 +229,25 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // Process main graph
+      // Process main graphs (new format: poi_flows_main.html and poi_flows_sankey.html)
+      const mainNodeGraphFile = zipData.file("poi_flows_main.html");
+      if (mainNodeGraphFile) {
+        parsedData.mainNodeGraphHtml = await mainNodeGraphFile.async("text");
+      }
+      
+      const mainSankeyGraphFile = zipData.file("poi_flows_sankey.html");
+      if (mainSankeyGraphFile) {
+        parsedData.mainSankeyGraphHtml = await mainSankeyGraphFile.async("text");
+      }
+      
+      // Fallback to old format (poi_flows.html)
       const mainGraphHtmlFile = zipData.file("poi_flows.html");
       if (mainGraphHtmlFile) {
         parsedData.mainGraphHtml = await mainGraphHtmlFile.async("text");
+        // Use as node graph if new format doesn't exist
+        if (!parsedData.mainNodeGraphHtml) {
+          parsedData.mainNodeGraphHtml = parsedData.mainGraphHtml;
+        }
       } else {
         const mainGraphFile = zipData.file("poi_flows.png");
         if (mainGraphFile) {
@@ -234,6 +260,24 @@ export default function CaseAnalysisResults() {
       if (mainGraphPngFile) {
         const content = await mainGraphPngFile.async("blob");
         parsedData.mainGraphPngUrl = URL.createObjectURL(content);
+      }
+      
+      // Parse per-file sankey graphs from poi_flows_per_file_sankeys folder
+      const sankeyPerFileMap = new Map<string, string>();
+      const sankeyFolderPrefix = "poi_flows_per_file_sankeys/";
+      const sankeyFiles = Object.keys(zipData.files).filter(
+        name => name.startsWith(sankeyFolderPrefix) && name.endsWith('.html')
+      );
+      
+      for (const sankeyPath of sankeyFiles) {
+        const file = zipData.file(sankeyPath);
+        if (file) {
+          const htmlContent = await file.async("text");
+          // Extract original filename from sankey_*.html
+          // e.g., "poi_flows_per_file_sankeys/sankey_Raghav_Goyal_gupta.html" -> "Raghav_Goyal_gupta"
+          const fileName = sankeyPath.replace(sankeyFolderPrefix, '').replace('sankey_', '').replace('.html', '');
+          sankeyPerFileMap.set(fileName, htmlContent);
+        }
       }
 
       // Process POI HTML files
@@ -294,6 +338,12 @@ export default function CaseAnalysisResults() {
 
       for (const originalFile of originalFiles) {
         const originalNormalized = normalizeString(originalFile.file_name);
+        // Also create a version with underscores for sankey matching
+        const originalWithUnderscores = originalFile.file_name
+          .replace(/\.pdf$/i, '')
+          .replace(/\.xlsx$/i, '')
+          .replace(/\.csv$/i, '')
+          .replace(/\s+/g, '_');
 
         // Find Raw Transactions (Pattern: raw_transactions_[filename].xlsx)
         const rawTransactionsFile = analysisFileNames.find(zipFileName => {
@@ -315,11 +365,32 @@ export default function CaseAnalysisResults() {
           
           return zipNormalized === originalNormalized || zipNormalized.includes(originalNormalized) || originalNormalized.includes(zipNormalized);
         });
+        
+        // Find Sankey HTML for this file from sankeyPerFileMap
+        // Sankey files are named: sankey_[filename_with_underscores].html
+        let sankeyHtml: string | null = null;
+        
+        // Try exact match with underscores
+        if (sankeyPerFileMap.has(originalWithUnderscores)) {
+          sankeyHtml = sankeyPerFileMap.get(originalWithUnderscores)!;
+        } else {
+          // Try normalized matching
+          for (const [sankeyFileName, sankeyContent] of sankeyPerFileMap) {
+            const sankeyNormalized = normalizeString(sankeyFileName);
+            if (sankeyNormalized === originalNormalized || 
+                sankeyNormalized.includes(originalNormalized) || 
+                originalNormalized.includes(sankeyNormalized)) {
+              sankeyHtml = sankeyContent;
+              break;
+            }
+          }
+        }
 
         parsedData.fileSummaries.push({
           originalFile: originalFile.file_name,
           rawTransactionsFile: rawTransactionsFile || null,
-          summaryFile: summaryFile || null
+          summaryFile: summaryFile || null,
+          sankeyHtml: sankeyHtml
         });
 
         // Parse summary file data for the collapsible table
@@ -623,8 +694,8 @@ export default function CaseAnalysisResults() {
           />
         )}
 
-        {/* Main Flow Graph */}
-        {(analysisData.mainGraphHtml || analysisData.mainGraphUrl) && (
+        {/* Main Flow Graph - with Tabs for Sankey and Node graphs */}
+        {(analysisData.mainSankeyGraphHtml || analysisData.mainNodeGraphHtml || analysisData.mainGraphHtml || analysisData.mainGraphUrl) && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
@@ -632,22 +703,66 @@ export default function CaseAnalysisResults() {
                 Transaction Flow Analysis
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                {analysisData.mainGraphHtml 
-                  ? "Interactive visualization of person of interest relationships and transaction flows"
-                  : "Visual representation of person of interest relationships and transaction flows"
-                }
+                Interactive visualization of person of interest relationships and transaction flows
               </p>
             </CardHeader>
             <CardContent className="p-6">
-               {analysisData.mainGraphHtml ? (
-                 <HTMLViewer
-                   htmlContent={analysisData.mainGraphHtml}
-                   title="Transaction Flow Analysis"
-                   onDownload={() => downloadIndividualFile('poi_flows.html')}
-                   onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
-                   className="h-[70vh]"
-                 />
-               ) : analysisData.mainGraphUrl ? (
+              {/* Show tabs if both graphs exist */}
+              {analysisData.mainSankeyGraphHtml && analysisData.mainNodeGraphHtml ? (
+                <Tabs defaultValue="sankey" className="w-full">
+                  <TabsList className="mb-4 bg-muted/60">
+                    <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
+                      Sankey Graph
+                    </TabsTrigger>
+                    <TabsTrigger value="node" className="data-[state=active]:bg-background">
+                      Node Graph
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="sankey">
+                    <HTMLViewer
+                      htmlContent={analysisData.mainSankeyGraphHtml}
+                      title="Sankey Graph"
+                      onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                      className="h-[70vh]"
+                    />
+                  </TabsContent>
+                  <TabsContent value="node">
+                    <HTMLViewer
+                      htmlContent={analysisData.mainNodeGraphHtml}
+                      title="Node Graph"
+                      onDownload={() => downloadIndividualFile('poi_flows_main.html')}
+                      onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                      className="h-[70vh]"
+                    />
+                  </TabsContent>
+                </Tabs>
+              ) : analysisData.mainSankeyGraphHtml ? (
+                // Only Sankey exists
+                <HTMLViewer
+                  htmlContent={analysisData.mainSankeyGraphHtml}
+                  title="Sankey Graph"
+                  onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                  className="h-[70vh]"
+                />
+              ) : analysisData.mainNodeGraphHtml ? (
+                // Only Node graph exists
+                <HTMLViewer
+                  htmlContent={analysisData.mainNodeGraphHtml}
+                  title="Node Graph"
+                  onDownload={() => downloadIndividualFile('poi_flows_main.html')}
+                  onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                  className="h-[70vh]"
+                />
+              ) : analysisData.mainGraphHtml ? (
+                // Fallback to old poi_flows.html
+                <HTMLViewer
+                  htmlContent={analysisData.mainGraphHtml}
+                  title="Transaction Flow Analysis"
+                  onDownload={() => downloadIndividualFile('poi_flows.html')}
+                  onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                  className="h-[70vh]"
+                />
+              ) : analysisData.mainGraphUrl ? (
                 <div className="relative group">
                   <img 
                     src={analysisData.mainGraphUrl} 
@@ -879,44 +994,52 @@ export default function CaseAnalysisResults() {
                           </CollapsibleTrigger>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         {summary.rawTransactionsFile && (
-                          <div className="flex items-center justify-between gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                              <span className="text-muted-foreground flex-shrink-0">Raw Transactions:</span>
-                              <span className="font-mono text-xs bg-blue-100 dark:bg-blue-900/50 px-2 py-1 rounded truncate">
-                                {summary.rawTransactionsFile}
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded-lg">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
+                            <span className="text-muted-foreground">Raw Transactions</span>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => downloadIndividualFile(summary.rawTransactionsFile!)}
-                              className="flex-shrink-0 ml-2"
+                              className="h-7 px-2"
                             >
-                              <Download className="h-3 w-3 mr-1" />
-                              Download
+                              <Download className="h-3 w-3" />
                             </Button>
                           </div>
                         )}
                         {summary.summaryFile && (
-                          <div className="flex items-center justify-between gap-2 text-sm bg-green-50 dark:bg-green-950/30 p-3 rounded-lg">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                              <span className="text-muted-foreground flex-shrink-0">Summary:</span>
-                              <span className="font-mono text-xs bg-green-100 dark:bg-green-900/50 px-2 py-1 rounded truncate">
-                                {summary.summaryFile}
-                              </span>
-                            </div>
+                          <div className="flex items-center gap-2 text-sm bg-green-50 dark:bg-green-950/30 px-3 py-2 rounded-lg">
+                            <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                            <span className="text-muted-foreground">Summary</span>
                             <Button
                               size="sm"
                               variant="outline"
                               onClick={() => downloadIndividualFile(summary.summaryFile!)}
-                              className="flex-shrink-0 ml-2"
+                              className="h-7 px-2"
                             >
-                              <Download className="h-3 w-3 mr-1" />
-                              Download
+                              <Download className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                        {summary.sankeyHtml && (
+                          <div className="flex items-center gap-2 text-sm bg-violet-50 dark:bg-violet-950/30 px-3 py-2 rounded-lg">
+                            <div className="w-2 h-2 bg-violet-500 rounded-full flex-shrink-0"></div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                // Find the index among files that have sankey graphs
+                                const filesWithSankey = analysisData.fileSummaries.filter(s => s.sankeyHtml);
+                                const sankeyIndex = filesWithSankey.findIndex(s => s.originalFile === summary.originalFile);
+                                setCurrentFileSankeyIndex(sankeyIndex >= 0 ? sankeyIndex : 0);
+                                setFileSankeyModalOpen(true);
+                              }}
+                              className="h-7 gap-1.5 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800 hover:bg-violet-100 dark:hover:bg-violet-900/50"
+                            >
+                              <BarChart3 className="h-3 w-3" />
+                              Graph
                             </Button>
                           </div>
                         )}
@@ -980,6 +1103,35 @@ export default function CaseAnalysisResults() {
           }
         }}
       />
+
+      {/* Per-File Sankey Modal */}
+      {(() => {
+        const filesWithSankey = analysisData.fileSummaries.filter(s => s.sankeyHtml);
+        const currentSankey = filesWithSankey[currentFileSankeyIndex];
+        
+        if (!currentSankey) return null;
+        
+        return (
+          <FileSankeyModal
+            isOpen={fileSankeyModalOpen}
+            onClose={() => setFileSankeyModalOpen(false)}
+            fileName={currentSankey.originalFile}
+            htmlContent={currentSankey.sankeyHtml!}
+            onDownload={() => {
+              if (currentSankey.sankeyHtml) {
+                const blob = new Blob([currentSankey.sankeyHtml], { type: 'text/html' });
+                const url = URL.createObjectURL(blob);
+                handleDownload(url, `sankey_${currentSankey.originalFile.replace(/\.[^/.]+$/, '')}.html`);
+                toast({ title: `Downloading sankey graph` });
+              }
+            }}
+            onPrevious={currentFileSankeyIndex > 0 ? () => setCurrentFileSankeyIndex(prev => prev - 1) : undefined}
+            onNext={currentFileSankeyIndex < filesWithSankey.length - 1 ? () => setCurrentFileSankeyIndex(prev => prev + 1) : undefined}
+            currentIndex={currentFileSankeyIndex}
+            totalCount={filesWithSankey.length}
+          />
+        );
+      })()}
     </>
   );
 }

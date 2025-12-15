@@ -57,7 +57,7 @@ export default function FileUploader({
     // Immediately add files with "counting" status using functional update
     onFilesChange(prevFiles => {
       const combinedFiles = [...prevFiles, ...newFiles];
-      return combinedFiles.length > 30 ? combinedFiles.slice(0, 30) : combinedFiles;
+      return combinedFiles.length > 35 ? combinedFiles.slice(0, 35) : combinedFiles;
     });
     
     // Count pages for each file individually using functional state updates

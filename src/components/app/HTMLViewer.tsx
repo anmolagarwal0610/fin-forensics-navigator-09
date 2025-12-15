@@ -43,7 +43,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
             body { 
               margin: 0; 
               padding: 16px;
-              background: transparent !important; 
+              background: #ffffff !important; 
             }
             .plotly-graph-div { 
               height: 100% !important; 

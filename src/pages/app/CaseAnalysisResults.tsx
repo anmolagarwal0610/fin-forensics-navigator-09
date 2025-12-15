@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,9 @@ export default function CaseAnalysisResults() {
   // State for per-file sankey modal
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
+  
+  // State for viewing previous results
+  const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
 
   const toggleSummary = (index: number) => {
     setExpandedSummaries(prev => {
@@ -97,11 +100,19 @@ export default function CaseAnalysisResults() {
   const case_ = caseData?.case_ || null;
   const files = caseData?.files || [];
 
+  // Determine which result URL to use based on viewing state
+  const activeResultUrl = useMemo(() => {
+    if (viewingPreviousResults && (case_ as any)?.previous_result_zip_url) {
+      return (case_ as any).previous_result_zip_url;
+    }
+    return case_?.result_zip_url;
+  }, [case_, viewingPreviousResults]);
+
   // Fetch and parse analysis data with caching
   const { data: analysisData, isLoading: analysisLoading } = useQuery({
-    queryKey: ['analysis-data', id, case_?.result_zip_url],
-    queryFn: () => loadAnalysisFiles(case_!.result_zip_url!, files),
-    enabled: !!case_?.result_zip_url && case_?.status === 'Ready' && files.length >= 0,
+    queryKey: ['analysis-data', id, activeResultUrl],
+    queryFn: () => loadAnalysisFiles(activeResultUrl!, files),
+    enabled: !!activeResultUrl && case_?.status === 'Ready' && files.length >= 0,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
   });
@@ -611,15 +622,17 @@ export default function CaseAnalysisResults() {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => {
-                // Open previous results in new tab with the previous URL
-                window.open((case_ as any).previous_result_zip_url, '_blank');
-              }}
+              onClick={() => setViewingPreviousResults(!viewingPreviousResults)}
               className="gap-2"
             >
               <FileText className="h-4 w-4" />
-              View Previous Results
+              {viewingPreviousResults ? "View Latest Results" : "View Previous Results"}
             </Button>
+          )}
+          {viewingPreviousResults && (
+            <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 px-3 py-1.5 rounded-md text-sm font-medium">
+              Viewing Previous Results
+            </div>
           )}
         </div>
 
@@ -995,7 +1008,7 @@ export default function CaseAnalysisResults() {
                         )}
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-                        {summary.rawTransactionsFile && (
+        {summary.rawTransactionsFile && (
                           <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded-lg">
                             <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
                             <span className="text-muted-foreground">Raw Transactions</span>
@@ -1003,9 +1016,10 @@ export default function CaseAnalysisResults() {
                               size="sm"
                               variant="outline"
                               onClick={() => downloadIndividualFile(summary.rawTransactionsFile!)}
-                              className="h-7 px-2"
+                              className="h-7 gap-1.5"
                             >
                               <Download className="h-3 w-3" />
+                              Download
                             </Button>
                           </div>
                         )}
@@ -1017,9 +1031,10 @@ export default function CaseAnalysisResults() {
                               size="sm"
                               variant="outline"
                               onClick={() => downloadIndividualFile(summary.summaryFile!)}
-                              className="h-7 px-2"
+                              className="h-7 gap-1.5"
                             >
                               <Download className="h-3 w-3" />
+                              Download
                             </Button>
                           </div>
                         )}

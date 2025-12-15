@@ -9,6 +9,7 @@ import JSZip from 'jszip';
 import { parseExcelFile } from '@/utils/excelParser';
 import BeneficiaryTransactionsDialog, { TransactionRow } from './BeneficiaryTransactionsDialog';
 import POITransactionsDialog, { POITransactionRow } from './POITransactionsDialog';
+import { useTheme } from 'next-themes';
 
 interface MergedRange {
   startRow: number;
@@ -57,6 +58,7 @@ export default function ExcelViewer({
   onCacheRawData,
   onCachePOIData,
 }: ExcelViewerProps) {
+  const { resolvedTheme } = useTheme();
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [processedData, setProcessedData] = useState<CellData[][]>([]);
   // State to store column indices that should be formatted as currency (INR)
@@ -490,12 +492,12 @@ export default function ExcelViewer({
 
   const displayData = processedData.slice(0, maxRows);
 
-  const getCellStyle = (cell: CellData, rowIndex: number, colIndex: number) => {
+  const getCellStyle = useCallback((cell: CellData, rowIndex: number, colIndex: number) => {
     const style: React.CSSProperties = {};
     const cellAddress = toA1(colIndex, rowIndex);
     
-    // Check if we're in dark mode
-    const isDarkMode = document.documentElement.classList.contains('dark');
+    // Use reactive theme from useTheme hook
+    const isDarkMode = resolvedTheme === 'dark';
     
     // Set smart default text color based on theme
     style.color = isDarkMode ? '#ffffff' : '#000000';
@@ -596,7 +598,7 @@ export default function ExcelViewer({
     }
     
     return style;
-  };
+  }, [resolvedTheme, previewData, processedData]);
 
   const getCellSpan = (cell: CellData) => {
     if (!cell.merged) return {};

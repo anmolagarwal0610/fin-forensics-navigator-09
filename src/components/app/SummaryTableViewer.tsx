@@ -126,14 +126,26 @@ export default function SummaryTableViewer({
     return style;
   };
 
-  // Format cell value for display
-  const formatCellValue = (value: any): string => {
+  // Format cell value for display - column-aware formatting
+  const formatCellValue = (value: any, columnIndex?: number): string => {
     if (value === null || value === undefined) return "";
     if (typeof value === "number") {
-      // Use Indian locale formatting for numbers
       try {
-        // If the number is large, treat it as currency (Debit/Credit)
-        if (Math.abs(value) > 100) { 
+        // Check if this is the Total Transactions column - always format as plain integer
+        const isTransactionsColumn = columnIndex !== undefined && columnIndex === columnIndices.transactions;
+        
+        if (isTransactionsColumn) {
+          return new Intl.NumberFormat("en-IN", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          }).format(value);
+        }
+        
+        // For Credit/Debit columns or large values, format as currency
+        const isCreditColumn = columnIndex !== undefined && columnIndex === columnIndices.credit;
+        const isDebitColumn = columnIndex !== undefined && columnIndex === columnIndices.debit;
+        
+        if (isCreditColumn || isDebitColumn || Math.abs(value) > 100) {
           return new Intl.NumberFormat("en-IN", {
             style: "currency",
             currency: "INR",
@@ -141,13 +153,13 @@ export default function SummaryTableViewer({
             maximumFractionDigits: 2,
           }).format(value);
         }
-        // Otherwise, treat it as a simple count (e.g., No. of Transactions)
+        
+        // Default: plain number
         return new Intl.NumberFormat("en-IN", {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
         }).format(value);
       } catch {
-        // Fallback for browsers without Intl support
         return value.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
       }
     }
@@ -330,7 +342,7 @@ export default function SummaryTableViewer({
                             minWidth: "80px",
                           }}
                         >
-                          {formatCellValue(cell?.value)}
+                          {formatCellValue(cell?.value, colIdx)}
                         </th>
                       ))}
                     </tr>
@@ -346,7 +358,7 @@ export default function SummaryTableViewer({
                       >
                         {row.map((cell, colIdx) => {
                           const isClickable = isBeneficiaryCell(colIdx);
-                          const cellValue = formatCellValue(cell?.value);
+                          const cellValue = formatCellValue(cell?.value, colIdx);
 
                           // --- NEW COLOR LOGIC ---
                           const isCreditColumn = colIdx === columnIndices.credit;

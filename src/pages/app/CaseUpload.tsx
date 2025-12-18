@@ -288,24 +288,20 @@ export default function CaseUpload() {
         (job) => {
           console.log('Job update:', job);
         },
-        async (finalJob) => {
+        (finalJob) => {
           console.log('Job completed:', finalJob);
           if (finalJob.status === 'SUCCEEDED') {
             toast({
-              title: "Analysis complete!",
+              title: "Analysis Complete!",
               description: useHitl 
-                ? "Review the extracted data." 
-                : "Results are ready."
+                ? "Your case is ready for review. Go to your dashboard to continue." 
+                : "Your results are ready. View them from your dashboard.",
             });
-            if (useHitl) {
-              navigate(`/app/cases/${case_.id}/review`);
-            } else {
-              navigate("/app/dashboard");
-            }
+            // No auto-navigation - user navigates manually from dashboard
           } else if (finalJob.status === 'FAILED') {
             toast({
-              title: "Analysis failed",
-              description: finalJob.error || "Please try again.",
+              title: "Analysis Failed",
+              description: finalJob.error || "Please check your dashboard and try again.",
               variant: "destructive"
             });
           }

@@ -192,14 +192,14 @@ export default function CaseReview() {
           setProcessing(false);
           if (finalJob.status === 'SUCCEEDED') {
             toast({
-              title: "Final analysis complete!",
-              description: "Results are ready."
+              title: "Final Analysis Complete!",
+              description: "Your results are ready. View them from your dashboard.",
             });
-            navigate("/app/dashboard");
+            // No auto-navigation - user stays on review page and navigates manually
           } else if (finalJob.status === 'FAILED') {
             toast({
-              title: "Final analysis failed",
-              description: finalJob.error || "Please try again.",
+              title: "Final Analysis Failed",
+              description: finalJob.error || "Please try again or contact support.",
               variant: "destructive"
             });
           }

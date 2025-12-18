@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RotateCcw, Maximize2, Download, Image } from "lucide-react";
@@ -15,6 +15,19 @@ interface HTMLViewerProps {
 export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadPng, className = "" }: HTMLViewerProps) {
   const [key, setKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // Memoize Blob URL to prevent recreation on every render
+  const blobUrl = useMemo(() => {
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    return URL.createObjectURL(blob);
+  }, [htmlContent, key]);
+
+  // Clean up Blob URL when it changes or component unmounts
+  useEffect(() => {
+    return () => {
+      URL.revokeObjectURL(blobUrl);
+    };
+  }, [blobUrl]);
 
   const handleRefresh = () => {
     setKey(prev => prev + 1);
@@ -35,9 +48,9 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
 
     const handleLoad = () => {
       try {
-        // Inject custom styles for better integration
         const iframeDoc = iframe.contentDocument;
         if (iframeDoc) {
+          // Inject custom styles for better integration
           const style = iframeDoc.createElement('style');
           style.textContent = `
             body { 
@@ -51,6 +64,30 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
             }
           `;
           iframeDoc.head.appendChild(style);
+
+          // Trigger ECharts resize after a short delay to ensure proper dimensions
+          const resizeScript = iframeDoc.createElement('script');
+          resizeScript.textContent = `
+            setTimeout(function() {
+              if (typeof echarts !== 'undefined') {
+                var charts = document.querySelectorAll('[_echarts_instance_]');
+                charts.forEach(function(el) {
+                  var chart = echarts.getInstanceByDom(el);
+                  if (chart) {
+                    chart.resize();
+                  }
+                });
+              }
+              // Also handle Plotly charts
+              if (typeof Plotly !== 'undefined') {
+                var plotlyDivs = document.querySelectorAll('.plotly-graph-div');
+                plotlyDivs.forEach(function(el) {
+                  Plotly.Plots.resize(el);
+                });
+              }
+            }, 150);
+          `;
+          iframeDoc.body.appendChild(resizeScript);
         }
       } catch (error) {
         // Ignore cross-origin errors
@@ -60,12 +97,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
 
     iframe.addEventListener('load', handleLoad);
     return () => iframe.removeEventListener('load', handleLoad);
-  }, [key]);
-
-  const createBlobUrl = () => {
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    return URL.createObjectURL(blob);
-  };
+  }, [key, blobUrl]);
 
   return (
     <div className={`relative bg-card border rounded-lg overflow-hidden shadow-sm flex flex-col ${className}`}>
@@ -130,7 +162,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
         <iframe
           key={key}
           ref={iframeRef}
-          src={createBlobUrl()}
+          src={blobUrl}
           className="w-full h-full border-0"
           title={title || "Interactive Visualization"}
           sandbox="allow-scripts allow-same-origin"

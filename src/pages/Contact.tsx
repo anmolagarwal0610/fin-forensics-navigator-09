@@ -13,6 +13,7 @@ import DocumentHead from "@/components/common/DocumentHead";
 const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   email: z.string().trim().email("Invalid email address").max(255, "Email must be less than 255 characters"),
+  phone: z.string().trim().min(1, "Phone number is required").max(20, "Phone number must be less than 20 characters"),
   organization: z.string().trim().max(200, "Organization name must be less than 200 characters").optional(),
   message: z.string().trim().min(1, "Message is required").max(2000, "Message must be less than 2000 characters")
 });
@@ -23,6 +24,7 @@ const Contact = () => {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    phone: "",
     organization: "",
     message: ""
   });
@@ -71,6 +73,7 @@ const Contact = () => {
       setFormData({
         name: "",
         email: "",
+        phone: "",
         organization: "",
         message: ""
       });
@@ -154,18 +157,34 @@ const Contact = () => {
                       />
                     </div>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="organization">Organization</Label>
-                    <Input
-                      id="organization"
-                      name="organization"
-                      type="text"
-                      value={formData.organization}
-                      onChange={handleInputChange}
-                      placeholder="Your organization or agency"
-                      maxLength={200}
-                    />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="phone">Phone Number *</Label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        required
+                        value={formData.phone}
+                        onChange={handleInputChange}
+                        placeholder="+91-9876543210"
+                        maxLength={20}
+                        aria-required="true"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="organization">Organization</Label>
+                      <Input
+                        id="organization"
+                        name="organization"
+                        type="text"
+                        value={formData.organization}
+                        onChange={handleInputChange}
+                        placeholder="Your organization or agency"
+                        maxLength={200}
+                      />
+                    </div>
                   </div>
                   
                   <div className="space-y-2">

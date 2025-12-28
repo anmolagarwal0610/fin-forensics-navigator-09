@@ -20,6 +20,7 @@ function escapeHtml(text: string): string {
 interface ContactFormData {
   name: string;
   email: string;
+  phone: string;
   organization?: string;
   message: string;
 }
@@ -31,12 +32,12 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { name, email, organization, message }: ContactFormData = await req.json();
+    const { name, email, phone, organization, message }: ContactFormData = await req.json();
 
     // Validate inputs
-    if (!name?.trim() || !email?.trim() || !message?.trim()) {
+    if (!name?.trim() || !email?.trim() || !phone?.trim() || !message?.trim()) {
       return new Response(
-        JSON.stringify({ error: "Name, email, and message are required" }),
+        JSON.stringify({ error: "Name, email, phone number, and message are required" }),
         {
           status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -77,8 +78,19 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    if (phone.trim().length > 20) {
+      return new Response(
+        JSON.stringify({ error: "Phone number must be less than 20 characters" }),
+        {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
     const sanitizedName = escapeHtml(name.trim());
     const sanitizedEmail = escapeHtml(email.trim().toLowerCase());
+    const sanitizedPhone = escapeHtml(phone.trim());
     const sanitizedOrganization = escapeHtml(organization?.trim() || "Not specified");
     const sanitizedMessage = escapeHtml(message.trim());
     const timestamp = new Date().toLocaleString("en-US", {
@@ -120,6 +132,10 @@ const handler = async (req: Request): Promise<Response> => {
               <div class="field">
                 <div class="field-label">Email:</div>
                 <div class="field-value">${sanitizedEmail}</div>
+              </div>
+              <div class="field">
+                <div class="field-label">Phone:</div>
+                <div class="field-value">${sanitizedPhone}</div>
               </div>
               <div class="field">
                 <div class="field-label">Organization:</div>
@@ -176,6 +192,7 @@ const handler = async (req: Request): Promise<Response> => {
               </ul>
               <div class="summary">
                 <p style="margin: 0 0 10px 0;"><strong>Summary of your submission:</strong></p>
+                <p style="margin: 5px 0;"><strong>Phone:</strong> ${sanitizedPhone}</p>
                 <p style="margin: 5px 0;"><strong>Organization:</strong> ${sanitizedOrganization}</p>
                 <p style="margin: 5px 0;"><strong>Submitted:</strong> ${timestamp}</p>
               </div>

@@ -948,9 +948,7 @@ export default function CaseAnalysisResults() {
                     <div className="border rounded-lg p-4 bg-gradient-to-r from-muted/30 to-muted/50 hover:from-muted/50 hover:to-muted/70 transition-all">
                       <div className="flex items-center justify-between mb-3">
                         <h4 className="font-semibold text-sm flex items-center gap-2">
-                          <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                            {index + 1}
-                          </span>
+                          <span className="text-muted-foreground text-xs font-medium">{index + 1}.</span>
                           <FileText className="h-4 w-4 text-primary" />
                           <span className="text-muted-foreground">Original File:</span>
                           <span className="text-primary font-mono">{summary.originalFile}</span>

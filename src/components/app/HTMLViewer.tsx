@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RotateCcw, Maximize2, Download, Image } from "lucide-react";
@@ -42,6 +42,70 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
     }
   };
 
+  // Function to resize charts when entering/exiting fullscreen
+  const resizeChartsInIframe = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    try {
+      const iframeDoc = iframe.contentDocument;
+      if (!iframeDoc) return;
+
+      // Override inline styles on chart containers and trigger resize
+      const resizeScript = iframeDoc.createElement('script');
+      resizeScript.textContent = `
+        (function() {
+          // Find all chart containers with fixed inline styles
+          var chartContainers = document.querySelectorAll('[_echarts_instance_]');
+          chartContainers.forEach(function(el) {
+            // Override fixed width/height to 100%
+            el.style.width = '100%';
+            el.style.height = '100%';
+            
+            // Trigger ECharts resize
+            if (typeof echarts !== 'undefined') {
+              var chart = echarts.getInstanceByDom(el);
+              if (chart) {
+                setTimeout(function() { chart.resize(); }, 50);
+              }
+            }
+          });
+          
+          // Also handle Plotly charts
+          if (typeof Plotly !== 'undefined') {
+            var plotlyDivs = document.querySelectorAll('.plotly-graph-div');
+            plotlyDivs.forEach(function(el) {
+              el.style.width = '100%';
+              el.style.height = '100%';
+              setTimeout(function() { Plotly.Plots.resize(el); }, 50);
+            });
+          }
+        })();
+      `;
+      iframeDoc.body.appendChild(resizeScript);
+    } catch (error) {
+      console.log('Cross-origin iframe styling skipped');
+    }
+  }, []);
+
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      // Small delay to allow fullscreen transition to complete
+      setTimeout(() => {
+        resizeChartsInIframe();
+      }, 100);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [resizeChartsInIframe]);
+
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -50,17 +114,30 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
       try {
         const iframeDoc = iframe.contentDocument;
         if (iframeDoc) {
-          // Inject custom styles for better integration
+          // Inject custom styles for better integration and fullscreen support
           const style = iframeDoc.createElement('style');
           style.textContent = `
-            body { 
+            html, body { 
               margin: 0; 
               padding: 16px;
-              background: #ffffff !important; 
+              background: #ffffff !important;
+              width: 100% !important;
+              height: 100% !important;
+              overflow: auto;
+            }
+            :fullscreen body,
+            :-webkit-full-screen body {
+              padding: 0;
             }
             .plotly-graph-div { 
               height: 100% !important; 
               width: 100% !important; 
+            }
+            /* Override fixed width/height on ECharts containers in fullscreen */
+            :fullscreen [_echarts_instance_],
+            :-webkit-full-screen [_echarts_instance_] {
+              width: 100% !important;
+              height: 100% !important;
             }
           `;
           iframeDoc.head.appendChild(style);

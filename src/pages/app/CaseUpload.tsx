@@ -484,6 +484,13 @@ export default function CaseUpload() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* File naming guidance */}
+          <Alert className="border-primary/30 bg-primary/5">
+            <Info className="h-4 w-4 text-primary" />
+            <AlertDescription className="text-muted-foreground">
+              <span className="font-medium text-foreground">Tip:</span> Name your files after the bank statement owner (e.g., <span className="font-mono text-sm bg-muted px-1 rounded">John_Smith.pdf</span>). File names are used as headings in generated reports for easier identification.
+            </AlertDescription>
+          </Alert>
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
             <div className="flex items-start gap-3">
               <Info className="h-5 w-5 text-muted-foreground mt-0.5" />

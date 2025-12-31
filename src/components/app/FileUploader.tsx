@@ -45,7 +45,33 @@ export default function FileUploader({
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    const newFiles: FileItem[] = acceptedFiles.map(file => ({
+    // Check for duplicate file names (case-insensitive)
+    const existingNames = new Set(files.map(f => f.name.toLowerCase()));
+    const duplicates: string[] = [];
+    const uniqueFiles: File[] = [];
+    
+    for (const file of acceptedFiles) {
+      if (existingNames.has(file.name.toLowerCase())) {
+        duplicates.push(file.name);
+      } else {
+        uniqueFiles.push(file);
+        existingNames.add(file.name.toLowerCase()); // Prevent duplicates within the same drop
+      }
+    }
+    
+    // Notify user about skipped duplicates
+    if (duplicates.length > 0) {
+      toast({
+        title: "Duplicate files skipped",
+        description: `The following files already exist: ${duplicates.join(', ')}`,
+        variant: "destructive"
+      });
+    }
+    
+    // If no unique files to add, return early
+    if (uniqueFiles.length === 0) return;
+    
+    const newFiles: FileItem[] = uniqueFiles.map(file => ({
       name: file.name,
       size: file.size,
       file: file,
@@ -106,7 +132,7 @@ export default function FileUploader({
         );
       }
     }
-  }, [onFilesChange]);
+  }, [files, onFilesChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

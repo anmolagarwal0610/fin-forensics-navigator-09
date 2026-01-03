@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { FileSearch, Clock, CheckCircle, FileText, FileEdit } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import type { CaseRecord } from "@/api/cases";
 
@@ -10,42 +11,44 @@ interface KPICardsProps {
 export default function KPICards({
   cases
 }: KPICardsProps) {
+  const { t } = useTranslation();
+  
   const draftCount = cases.filter(c => c.status === "Draft").length;
   const reviewCount = cases.filter(c => c.status === "Review").length;
   const processingCount = cases.filter(c => c.status === "Processing").length;
   const readyCount = cases.filter(c => c.status === "Ready").length;
+  
   const kpis = [{
     icon: CheckCircle,
     value: readyCount,
-    label: "Ready",
+    labelKey: "status.ready",
     color: "text-green-600 dark:text-green-400"
   }, {
     icon: FileSearch,
     value: reviewCount,
-    label: "Review",
+    labelKey: "status.review",
     color: "text-purple-600 dark:text-purple-400"
   }, {
     icon: Clock,
     value: processingCount,
-    label: "Processing",
+    labelKey: "status.processing",
     color: "text-orange-600 dark:text-orange-400"
   }, {
     icon: FileEdit,
     value: draftCount,
-    label: "Draft",
+    labelKey: "status.draft",
     color: "text-blue-600 dark:text-blue-400"
   }];
-  return <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-      {kpis.map((kpi, index) => <motion.div key={kpi.label} initial={{
-      opacity: 0,
-      y: 20
-    }} animate={{
-      opacity: 1,
-      y: 0
-    }} transition={{
-      delay: index * 0.05,
-      duration: 0.3
-    }}>
+  
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {kpis.map((kpi, index) => (
+        <motion.div 
+          key={kpi.labelKey} 
+          initial={{ opacity: 0, y: 20 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: index * 0.05, duration: 0.3 }}
+        >
           <Card className="hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -55,13 +58,14 @@ export default function KPICards({
                   </div>
                   <div>
                     <div className="text-2xl font-bold">{kpi.value}</div>
-                    <div className="text-sm text-muted-foreground">{kpi.label}</div>
+                    <div className="text-sm text-muted-foreground">{t(kpi.labelKey)}</div>
                   </div>
                 </div>
-                
               </div>
             </CardContent>
           </Card>
-        </motion.div>)}
-    </div>;
+        </motion.div>
+      ))}
+    </div>
+  );
 }

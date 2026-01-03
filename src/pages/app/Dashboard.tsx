@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
 import { UpgradeBanner } from "@/components/app/UpgradeBanner";
@@ -12,6 +13,7 @@ import QuickActions from "@/components/app/QuickActions";
 import DashboardSkeleton from "@/components/app/DashboardSkeleton";
 
 export default function Dashboard() {
+  const { t } = useTranslation();
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -21,10 +23,10 @@ export default function Dashboard() {
     getCases().then(data => setCases(data)).catch(e => {
       console.error(e);
       toast({
-        title: "Failed to load cases"
+        title: t('dashboard.failedToLoad')
       });
     }).finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   if (loading) {
     return (
@@ -53,9 +55,9 @@ export default function Dashboard() {
           animate={{ opacity: 1, y: 0 }}
           className="py-2"
         >
-          <h1 className="text-2xl md:text-3xl font-semibold">Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold">{t('dashboard.title')}</h1>
           <p className="text-muted-foreground mt-1">
-            Overview of your case management system
+            {t('dashboard.subtitle')}
           </p>
         </motion.div>
 

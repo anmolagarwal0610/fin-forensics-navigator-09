@@ -1,5 +1,5 @@
-
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function ChangePassword() {
+  const { t } = useTranslation();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -18,7 +19,7 @@ export default function ChangePassword() {
     
     if (newPassword !== confirmPassword) {
       toast({
-        title: "Password mismatch",
+        title: t('errors.error'),
         description: "New passwords do not match.",
         variant: "destructive",
       });
@@ -27,7 +28,7 @@ export default function ChangePassword() {
 
     if (newPassword.length < 6) {
       toast({
-        title: "Password too short",
+        title: t('errors.error'),
         description: "Password must be at least 6 characters long.",
         variant: "destructive",
       });
@@ -43,14 +44,14 @@ export default function ChangePassword() {
 
       if (error) {
         toast({
-          title: "Error changing password",
+          title: t('errors.error'),
           description: error.message,
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Password changed successfully",
-          description: "Your password has been updated.",
+          title: t('account.passwordChanged'),
+          description: t('account.passwordUpdated'),
         });
         setCurrentPassword("");
         setNewPassword("");
@@ -58,8 +59,8 @@ export default function ChangePassword() {
       }
     } catch (error) {
       toast({
-        title: "Error changing password",
-        description: "An unexpected error occurred.",
+        title: t('errors.error'),
+        description: t('errors.somethingWentWrong'),
         variant: "destructive",
       });
     } finally {
@@ -70,45 +71,45 @@ export default function ChangePassword() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Change Password</CardTitle>
+        <CardTitle>{t('account.changePassword')}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleChangePassword} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current Password</Label>
+            <Label htmlFor="currentPassword">{t('account.currentPassword')}</Label>
             <Input
               id="currentPassword"
               type="password"
-              placeholder="Enter current password"
+              placeholder={t('auth.enterPassword')}
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="newPassword">New Password</Label>
+            <Label htmlFor="newPassword">{t('account.newPassword')}</Label>
             <Input
               id="newPassword"
               type="password"
-              placeholder="Enter new password"
+              placeholder={t('auth.enterPassword')}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm New Password</Label>
+            <Label htmlFor="confirmPassword">{t('account.confirmNewPassword')}</Label>
             <Input
               id="confirmPassword"
               type="password"
-              placeholder="Confirm new password"
+              placeholder={t('auth.confirmYourPassword')}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
             />
           </div>
           <Button type="submit" disabled={loading}>
-            {loading ? "Changing Password..." : "Change Password"}
+            {loading ? t('account.changingPassword') : t('account.changePassword')}
           </Button>
         </form>
       </CardContent>

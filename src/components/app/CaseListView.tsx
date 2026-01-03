@@ -1,5 +1,5 @@
-
 import { FileText, Upload, ExternalLink, MoreVertical } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -28,13 +28,14 @@ interface CaseListViewProps {
 
 export default function CaseListView({ cases }: CaseListViewProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const formatTimeAgo = (dateString: string) => {
     const date = new Date(dateString);
     const now = new Date();
     const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60));
     
-    if (diffInHours < 1) return "Just now";
+    if (diffInHours < 1) return t('dashboard.justNow');
     if (diffInHours < 24) return `${diffInHours}h ago`;
     const diffInDays = Math.floor(diffInHours / 24);
     if (diffInDays < 7) return `${diffInDays}d ago`;
@@ -73,12 +74,12 @@ export default function CaseListView({ cases }: CaseListViewProps) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Case</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Tags</TableHead>
-            <TableHead>Files</TableHead>
-            <TableHead>Updated</TableHead>
-            <TableHead>Actions</TableHead>
+            <TableHead>{t('cases.case')}</TableHead>
+            <TableHead>{t('cases.status')}</TableHead>
+            <TableHead>{t('cases.tags')}</TableHead>
+            <TableHead>{t('cases.files')}</TableHead>
+            <TableHead>{t('cases.updated')}</TableHead>
+            <TableHead>{t('cases.actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -121,7 +122,7 @@ export default function CaseListView({ cases }: CaseListViewProps) {
               <TableCell>
                 <div className="flex items-center gap-1">
                   <FileText className="h-4 w-4" />
-                  <span>{fileCounts[caseItem.id] || 0} files</span>
+                  <span>{fileCounts[caseItem.id] || 0} {t('cases.files').toLowerCase()}</span>
                 </div>
               </TableCell>
               <TableCell className="text-muted-foreground">
@@ -158,21 +159,21 @@ export default function CaseListView({ cases }: CaseListViewProps) {
                           try {
                             await updateCaseStatus(caseItem.id, 'Archived');
                             toast({
-                              title: "Case archived",
-                              description: "The case has been archived successfully.",
+                              title: t('cases.caseArchived'),
+                              description: t('cases.caseArchivedDesc'),
                             });
                             // Trigger a page refresh to update the cases list
                             window.location.reload();
                           } catch (error) {
                             toast({
-                              title: "Error",
-                              description: "Failed to archive the case.",
+                              title: t('errors.error'),
+                              description: t('cases.archiveError'),
                               variant: "destructive",
                             });
                           }
                         }}
                       >
-                        Archive
+                        {t('cases.archive')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>

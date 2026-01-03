@@ -1,0 +1,63 @@
+{
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "cases": "केस",
+    "raiseTicket": "टिकट उठाएं",
+    "account": "खाता",
+    "logout": "लॉगआउट",
+    "pricing": "मूल्य निर्धारण",
+    "security": "सुरक्षा",
+    "about": "हमारे बारे में",
+    "contact": "संपर्क करें",
+    "signIn": "साइन इन करें"
+  },
+  "actions": {
+    "submit": "जमा करें",
+    "cancel": "रद्द करें",
+    "delete": "हटाएं",
+    "edit": "संपादित करें",
+    "download": "डाउनलोड करें",
+    "view": "देखें",
+    "search": "खोजें",
+    "upload": "अपलोड करें",
+    "save": "सहेजें",
+    "close": "बंद करें",
+    "confirm": "पुष्टि करें",
+    "back": "वापस",
+    "next": "अगला",
+    "viewSummary": "सारांश देखें",
+    "downloadCSV": "CSV डाउनलोड करें"
+  },
+  "common": {
+    "loading": "लोड हो रहा है...",
+    "error": "त्रुटि",
+    "success": "सफल",
+    "noData": "कोई डेटा उपलब्ध नहीं",
+    "searchPlaceholder": "खोजें...",
+    "organization": "संगठन"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "डैशबोर्ड",
+      "welcome": "वापसी पर स्वागत है"
+    },
+    "cases": {
+      "title": "केस",
+      "newCase": "नया केस",
+      "allCases": "सभी केस"
+    },
+    "upload": {
+      "title": "फाइलें अपलोड करें",
+      "dragDrop": "फाइलें यहां खींचें और छोड़ें",
+      "browse": "फाइलें ब्राउज़ करें"
+    }
+  },
+  "analysis": {
+    "fileAnalysisSummary": "फ़ाइल विश्लेषण सारांश",
+    "viewSummary": "सारांश देखें",
+    "totalTransactions": "कुल लेनदेन",
+    "totalCredit": "कुल जमा",
+    "totalDebit": "कुल डेबिट",
+    "searchBeneficiary": "लाभार्थी खोजें..."
+  }
+}

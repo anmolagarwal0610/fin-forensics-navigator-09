@@ -1,4 +1,5 @@
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   Sidebar,
   SidebarContent,
@@ -15,34 +16,35 @@ import {
 import { LayoutDashboard, FolderGit2, UserCog, Ticket, LogOut } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
-// import navArrow from "@/assets/nav-arrow.png";
-const items = [
+
+const navItems = [
   {
-    title: "Dashboard",
+    titleKey: "nav.dashboard",
     url: "/app/dashboard",
     icon: LayoutDashboard,
   },
   {
-    title: "Cases",
+    titleKey: "nav.cases",
     url: "/app/cases",
     icon: FolderGit2,
   },
   {
-    title: "Raise a Ticket",
+    titleKey: "nav.raiseTicket",
     url: "/app/support/raise-ticket",
     icon: Ticket,
   },
   {
-    title: "Account",
+    titleKey: "nav.account",
     url: "/app/account",
     icon: UserCog,
   },
 ];
+
 export default function AppSidebar() {
+  const { t } = useTranslation();
   const { state } = useSidebar();
   const location = useLocation();
   const navigate = useNavigate();
-  const currentPath = location.pathname;
 
   const getNavCls = ({ isActive }: { isActive: boolean }) =>
     isActive ? "bg-muted text-primary font-medium" : "hover:bg-muted/50";
@@ -59,6 +61,7 @@ export default function AppSidebar() {
       navigate("/signin");
     }
   };
+
   return (
     <Sidebar className={state === "collapsed" ? "w-14" : "w-60"} collapsible="icon">
       <SidebarContent>
@@ -67,16 +70,15 @@ export default function AppSidebar() {
             {state !== "collapsed" && (
               <SidebarGroupLabel className="text-2xl font-bold text-primary">FinNavigator</SidebarGroupLabel>
             )}
-            {/* <img src={navArrow} alt="FinNavigator" className="h-7 w-auto flex-shrink-0 mt-[-12px] ml-[-8px]" /> */}
           </div>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
-                <SidebarMenuItem key={item.title}>
+              {navItems.map((item) => (
+                <SidebarMenuItem key={item.titleKey}>
                   <SidebarMenuButton asChild>
                     <NavLink to={item.url} end className={getNavCls}>
                       <item.icon className="mr-2 h-4 w-4" />
-                      {state !== "collapsed" && <span>{item.title}</span>}
+                      {state !== "collapsed" && <span>{t(item.titleKey)}</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -93,7 +95,7 @@ export default function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton onClick={handleSignOut} className="text-muted-foreground hover:text-foreground">
               <LogOut className="mr-2 h-4 w-4" />
-              {state !== "collapsed" && <span>Logout</span>}
+              {state !== "collapsed" && <span>{t('nav.logout')}</span>}
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

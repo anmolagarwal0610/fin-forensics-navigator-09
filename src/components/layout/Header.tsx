@@ -1,10 +1,14 @@
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 import MobileMenu from "@/components/MobileMenu";
 import navArrow from "@/assets/nav-arrow.png";
 
 const Header = () => {
+  const { t } = useTranslation();
+
   return (
     <header className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 sticky top-0 z-50">
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -23,7 +27,7 @@ const Header = () => {
                 h-5 w-5 sm:h-6 sm:w-6 lg:h-7 lg:w-7
                 self-baseline
                 -translate-y-[1px] sm:-translate-y-[1px] lg:-translate-y-[2px]
-                -ml-1 sm:-ml-1.5             /* 👈 brings it closer to 'n' */
+                -ml-1 sm:-ml-1.5
                 transition-transform group-hover:scale-110
               "
             />
@@ -35,33 +39,34 @@ const Header = () => {
               to="/pricing" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              Pricing
+              {t('nav.pricing')}
             </Link>
             <Link 
               to="/security" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              Security
+              {t('nav.security')}
             </Link>
             <Link 
               to="/about" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              About
+              {t('nav.about')}
             </Link>
             <Link 
               to="/contact" 
               className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              Contact
+              {t('nav.contact')}
             </Link>
           </nav>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1">
+            <LanguageToggle />
             <ThemeToggle />
             <Link to="/signin" className="hidden md:block">
               <Button variant="ghost" size="sm">
-                Sign In
+                {t('nav.signIn')}
               </Button>
             </Link>
             <MobileMenu />

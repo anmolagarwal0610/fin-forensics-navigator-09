@@ -1,0 +1,63 @@
+{
+  "nav": {
+    "dashboard": "Dashboard",
+    "cases": "Cases",
+    "raiseTicket": "Raise a Ticket",
+    "account": "Account",
+    "logout": "Logout",
+    "pricing": "Pricing",
+    "security": "Security",
+    "about": "About",
+    "contact": "Contact",
+    "signIn": "Sign In"
+  },
+  "actions": {
+    "submit": "Submit",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "download": "Download",
+    "view": "View",
+    "search": "Search",
+    "upload": "Upload",
+    "save": "Save",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "viewSummary": "View Summary",
+    "downloadCSV": "Download CSV"
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "noData": "No data available",
+    "searchPlaceholder": "Search...",
+    "organization": "Organization"
+  },
+  "pages": {
+    "dashboard": {
+      "title": "Dashboard",
+      "welcome": "Welcome back"
+    },
+    "cases": {
+      "title": "Cases",
+      "newCase": "New Case",
+      "allCases": "All Cases"
+    },
+    "upload": {
+      "title": "Upload Files",
+      "dragDrop": "Drag and drop files here",
+      "browse": "Browse files"
+    }
+  },
+  "analysis": {
+    "fileAnalysisSummary": "File Analysis Summary",
+    "viewSummary": "View Summary",
+    "totalTransactions": "Total Transactions",
+    "totalCredit": "Total Credit",
+    "totalDebit": "Total Debit",
+    "searchBeneficiary": "Search beneficiary..."
+  }
+}

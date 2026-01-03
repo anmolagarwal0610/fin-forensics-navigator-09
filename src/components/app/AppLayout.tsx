@@ -1,15 +1,17 @@
 import { PropsWithChildren } from "react";
+import { useTranslation } from "react-i18next";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./AppSidebar";
 import AvatarMenu from "./AvatarMenu";
+import { LanguageToggle } from "@/components/ui/language-toggle";
 import { Toaster } from "@/components/ui/toaster";
 import { useAuth } from "@/contexts/AuthContext";
+
 export default function AppLayout({
   children
 }: PropsWithChildren) {
-  const {
-    user
-  } = useAuth();
+  const { t } = useTranslation();
+  const { user } = useAuth();
 
   // Extract organization name from user metadata or email domain
   const getOrganizationName = () => {
@@ -22,9 +24,11 @@ export default function AppLayout({
       const base = domain.split('.')[0];
       return base.charAt(0).toUpperCase() + base.slice(1);
     }
-    return "Organization";
+    return t('common.organization');
   };
-  return <SidebarProvider>
+
+  return (
+    <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
@@ -33,10 +37,13 @@ export default function AppLayout({
               <SidebarTrigger className="p-2 hover:bg-muted rounded-md transition-colors" />
               <div className="flex items-center gap-3">
                 <div className="text-base md:text-xl font-bold tracking-tight">{getOrganizationName()}</div>
-                <div className="hidden sm:block text-xs md:text-sm text-muted-foreground font-medium">Dashboard</div>
+                <div className="hidden sm:block text-xs md:text-sm text-muted-foreground font-medium">{t('nav.dashboard')}</div>
               </div>
             </div>
-            <AvatarMenu />
+            <div className="flex items-center gap-1">
+              <LanguageToggle />
+              <AvatarMenu />
+            </div>
           </header>
           <main className="flex-1 p-4 md:p-6 w-full">
             {children}
@@ -44,5 +51,6 @@ export default function AppLayout({
         </div>
       </div>
       <Toaster />
-    </SidebarProvider>;
+    </SidebarProvider>
+  );
 }

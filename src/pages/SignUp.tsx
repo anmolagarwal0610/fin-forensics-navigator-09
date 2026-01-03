@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import BackToLanding from "@/components/auth/BackToLanding";
 import { PasswordStrength } from "@/components/PasswordStrength";
 
 export default function SignUp() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -30,7 +32,7 @@ export default function SignUp() {
     
     if (password !== confirmPassword) {
       toast({
-        title: "Password mismatch",
+        title: t('errors.error'),
         description: "Passwords do not match.",
         variant: "destructive",
       });
@@ -39,7 +41,7 @@ export default function SignUp() {
 
     if (password.length < 8) {
       toast({
-        title: "Password too short",
+        title: t('errors.error'),
         description: "Password must be at least 8 characters long.",
         variant: "destructive",
       });
@@ -48,7 +50,7 @@ export default function SignUp() {
 
     if (!acceptedTerms) {
       toast({
-        title: "Terms required",
+        title: t('errors.error'),
         description: "You must accept the Terms of Service and Privacy Policy to continue.",
         variant: "destructive",
       });
@@ -74,21 +76,21 @@ export default function SignUp() {
 
       if (error) {
         toast({
-          title: "Error signing up",
+          title: t('errors.error'),
           description: error.message,
           variant: "destructive",
         });
       } else {
         toast({
-          title: "Account created!",
-          description: "Please check your email to verify your account.",
+          title: t('auth.accountCreated'),
+          description: t('auth.verifyEmail'),
         });
         navigate("/signin");
       }
     } catch (error) {
       toast({
-        title: "Error signing up",
-        description: "An unexpected error occurred.",
+        title: t('errors.error'),
+        description: t('errors.somethingWentWrong'),
         variant: "destructive",
       });
     } finally {
@@ -103,19 +105,19 @@ export default function SignUp() {
         <BackToLanding />
         <Card className="w-full max-w-md mx-4">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
+            <CardTitle className="text-2xl font-bold">{t('auth.createAccount')}</CardTitle>
             <CardDescription>
-              Sign up to get started with FinNavigator
+              {t('auth.getStarted')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSignUp} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name *</Label>
+                <Label htmlFor="fullName">{t('auth.fullName')} *</Label>
                 <Input
                   id="fullName"
                   type="text"
-                  placeholder="Your name"
+                  placeholder={t('auth.yourName')}
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
@@ -123,11 +125,11 @@ export default function SignUp() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="organizationName">Organization Name *</Label>
+                <Label htmlFor="organizationName">{t('auth.organizationName')} *</Label>
                 <Input
                   id="organizationName"
                   type="text"
-                  placeholder="Your organization"
+                  placeholder={t('auth.yourOrganization')}
                   value={organizationName}
                   onChange={(e) => setOrganizationName(e.target.value)}
                   required
@@ -135,7 +137,7 @@ export default function SignUp() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="phoneNumber">Phone Number (optional)</Label>
+                <Label htmlFor="phoneNumber">{t('auth.phoneNumber')} ({t('auth.optional')})</Label>
                 <Input
                   id="phoneNumber"
                   type="tel"
@@ -145,11 +147,11 @@ export default function SignUp() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="email">{t('auth.email')} *</Label>
                 <Input
                   id="email"
                   type="email"
-                  placeholder="Enter your email"
+                  placeholder={t('auth.enterEmail')}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -157,12 +159,12 @@ export default function SignUp() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
+                <Label htmlFor="password">{t('auth.password')} *</Label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Create a password"
+                    placeholder={t('auth.createPassword')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -186,12 +188,12 @@ export default function SignUp() {
                 <PasswordStrength password={password} />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password *</Label>
+                <Label htmlFor="confirmPassword">{t('auth.confirmPassword')} *</Label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm your password"
+                    placeholder={t('auth.confirmYourPassword')}
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
@@ -225,25 +227,25 @@ export default function SignUp() {
                   htmlFor="terms"
                   className="text-sm text-muted-foreground leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                  I agree to the{" "}
+                  {t('auth.termsAgree')}{" "}
                   <Link to="/terms" className="text-primary hover:underline" target="_blank">
-                    Terms of Service
+                    {t('auth.termsOfService')}
                   </Link>{" "}
-                  and{" "}
+                  {t('auth.and')}{" "}
                   <Link to="/privacy" className="text-primary hover:underline" target="_blank">
-                    Privacy Policy
+                    {t('auth.privacyPolicy')}
                   </Link>
                 </label>
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Creating account..." : "Create Account"}
+                {loading ? t('auth.creatingAccount') : t('auth.createAccount')}
               </Button>
             </form>
             <div className="mt-6 text-center">
               <div className="text-sm text-muted-foreground">
-                Already have an account?{" "}
+                {t('auth.hasAccount')}{" "}
                 <Link to="/signin" className="text-primary hover:underline">
-                  Sign in
+                  {t('auth.signIn')}
                 </Link>
               </div>
             </div>

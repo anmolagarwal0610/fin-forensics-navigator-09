@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, Plus } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
@@ -16,6 +17,7 @@ import DashboardSkeleton from "@/components/app/DashboardSkeleton";
 import EmptyState from "@/components/app/EmptyState";
 
 export default function Cases() {
+  const { t } = useTranslation();
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -32,10 +34,10 @@ export default function Cases() {
     getCases().then(data => setCases(data)).catch(e => {
       console.error(e);
       toast({
-        title: "Failed to load cases"
+        title: t('dashboard.failedToLoad')
       });
     }).finally(() => setLoading(false));
-  }, []);
+  }, [t]);
 
   // Set up real-time subscriptions for case status updates
   useEffect(() => {
@@ -63,24 +65,24 @@ export default function Cases() {
           if (payload.old && (payload.old as any).status !== updatedCase.status) {
             if (updatedCase.status === 'Ready') {
               toast({
-                title: "Analysis Complete!",
-                description: `Case "${updatedCase.name}" is ready for review.`,
+                title: t('notifications.analysisComplete'),
+                description: `${t('cases.case')} "${updatedCase.name}" ${t('notifications.caseReadyForReview')}`,
               });
             } else if (updatedCase.status === 'Review') {
               toast({
-                title: "Ready for Review!",
-                description: `Case "${updatedCase.name}" data has been extracted. Please review.`,
+                title: t('notifications.readyForReview'),
+                description: `${t('cases.case')} "${updatedCase.name}" ${t('notifications.dataExtracted')}`,
               });
             } else if (updatedCase.status === 'Failed') {
               toast({
-                title: "Analysis Failed",
-                description: `Case "${updatedCase.name}" encountered an error.`,
+                title: t('notifications.analysisFailed'),
+                description: `${t('cases.case')} "${updatedCase.name}" ${t('notifications.caseError')}`,
                 variant: "destructive",
               });
             } else if (updatedCase.status === 'Timeout') {
               toast({
-                title: "Analysis Timeout",
-                description: `Case "${updatedCase.name}" timed out. Consider reducing file count.`,
+                title: t('notifications.analysisTimeout'),
+                description: `${t('cases.case')} "${updatedCase.name}" ${t('notifications.timeoutMessage')}`,
                 variant: "destructive",
               });
             }
@@ -92,7 +94,7 @@ export default function Cases() {
     return () => {
       supabase.removeChannel(channel);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     localStorage.setItem("dashboard-view", viewMode);
@@ -131,9 +133,9 @@ export default function Cases() {
           className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-2"
         >
           <div>
-            <h1 className="text-2xl md:text-3xl font-semibold">All Cases</h1>
+            <h1 className="text-2xl md:text-3xl font-semibold">{t('cases.allCases')}</h1>
             <p className="text-muted-foreground mt-1">
-              Manage and browse all your cases
+              {t('cases.manageAndBrowse')}
             </p>
           </div>
           
@@ -142,7 +144,7 @@ export default function Cases() {
             <div className="relative min-w-[280px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search cases..."
+                placeholder={t('cases.searchCases')}
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="pl-10"
@@ -151,7 +153,7 @@ export default function Cases() {
             
             <Button onClick={() => navigate("/app/cases/new")} className="whitespace-nowrap">
               <Plus className="h-4 w-4 mr-2" />
-              New Case
+              {t('cases.newCase')}
             </Button>
           </div>
         </motion.div>
@@ -179,7 +181,7 @@ export default function Cases() {
                 animate={{ opacity: 1 }}
                 className="text-center py-12"
               >
-                <p className="text-muted-foreground mb-4">No cases match your filters.</p>
+                <p className="text-muted-foreground mb-4">{t('cases.noMatchingCases')}</p>
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -188,7 +190,7 @@ export default function Cases() {
                     setTagFilter("");
                   }}
                 >
-                  Clear Filters
+                  {t('cases.clearFilters')}
                 </Button>
               </motion.div>
             )

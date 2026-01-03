@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Menu } from 'lucide-react';
 
 const MobileMenu = () => {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
 
   const handleLinkClick = () => {
     setOpen(false);
@@ -30,33 +32,33 @@ const MobileMenu = () => {
             className="text-lg font-medium text-foreground hover:text-accent transition-colors py-2"
             onClick={handleLinkClick}
           >
-            Pricing
+            {t('nav.pricing')}
           </Link>
           <Link 
             to="/security" 
             className="text-lg font-medium text-foreground hover:text-accent transition-colors py-2"
             onClick={handleLinkClick}
           >
-            Security
+            {t('nav.security')}
           </Link>
           <Link 
             to="/about" 
             className="text-lg font-medium text-foreground hover:text-accent transition-colors py-2"
             onClick={handleLinkClick}
           >
-            About
+            {t('nav.about')}
           </Link>
           <Link 
             to="/contact" 
             className="text-lg font-medium text-foreground hover:text-accent transition-colors py-2"
             onClick={handleLinkClick}
           >
-            Contact
+            {t('nav.contact')}
           </Link>
           <div className="pt-4 border-t border-border">
             <Link to="/signin" onClick={handleLinkClick}>
               <Button variant="default" className="w-full">
-                Sign In
+                {t('nav.signIn')}
               </Button>
             </Link>
           </div>

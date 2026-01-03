@@ -1,5 +1,6 @@
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Clock, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ interface RecentActivityProps {
 
 export default function RecentActivity({ cases }: RecentActivityProps) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   // Get the 10 most recent cases
   const recentCases = cases
@@ -26,7 +28,7 @@ export default function RecentActivity({ cases }: RecentActivityProps) {
     const diffInHours = Math.floor(diffInMs / 3600000);
     const diffInDays = Math.floor(diffInMs / 86400000);
 
-    if (diffInMins < 1) return "Just now";
+    if (diffInMins < 1) return t('dashboard.justNow');
     if (diffInMins < 60) return `${diffInMins}m ago`;
     if (diffInHours < 24) return `${diffInHours}h ago`;
     if (diffInDays < 7) return `${diffInDays}d ago`;
@@ -39,12 +41,12 @@ export default function RecentActivity({ cases }: RecentActivityProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Recent Activity
+            {t('dashboard.recentActivity')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-muted-foreground text-center py-8">
-            No recent activity yet. Create your first case to get started.
+            {t('dashboard.noRecentActivity')}
           </p>
         </CardContent>
       </Card>
@@ -57,7 +59,7 @@ export default function RecentActivity({ cases }: RecentActivityProps) {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
             <Clock className="h-5 w-5" />
-            Recent Activity
+            {t('dashboard.recentActivity')}
           </CardTitle>
           <Button
             variant="ghost"
@@ -65,7 +67,7 @@ export default function RecentActivity({ cases }: RecentActivityProps) {
             onClick={() => navigate("/app/cases")}
             className="text-muted-foreground hover:text-foreground"
           >
-            View All
+            {t('dashboard.viewAll')}
             <ArrowRight className="ml-1 h-4 w-4" />
           </Button>
         </div>

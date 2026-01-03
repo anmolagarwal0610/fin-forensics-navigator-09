@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export default function SummaryTableViewer({
   rawTransactionsFileName,
   onLoadRawData
 }: SummaryTableViewerProps) {
+  const { t } = useTranslation();
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "transactions", direction: "desc" });
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -361,7 +363,7 @@ export default function SummaryTableViewer({
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 onKeyDown={handleSearchKeyDown}
-                                placeholder="Search beneficiary..."
+                                placeholder={t('analysis.searchBeneficiary')}
                                 className="h-6 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 p-0 placeholder:text-muted-foreground/60"
                               />
                               <button
@@ -405,6 +407,7 @@ export default function SummaryTableViewer({
               {dataRows.length === 0 ? (
                 <tr>
                   <td colSpan={headerRow?.length || 1} className="text-center py-8 text-muted-foreground">
+                    {t('analysis.noResults')}
                     No matching results found.
                   </td>
                 </tr>

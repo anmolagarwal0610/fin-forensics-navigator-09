@@ -1,6 +1,6 @@
-
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
 const Reset = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -41,7 +42,7 @@ const Reset = () => {
       
       if (error) {
         toast({ 
-          title: "Reset failed", 
+          title: t('errors.error'), 
           description: error.message 
         });
         return;
@@ -50,7 +51,7 @@ const Reset = () => {
       setIsSubmitted(true);
     } catch (error) {
       console.error("Password reset error:", error);
-      toast({ title: "An error occurred during password reset" });
+      toast({ title: t('errors.somethingWentWrong') });
     } finally {
       setLoading(false);
     }
@@ -61,8 +62,8 @@ const Reset = () => {
     
     if (newPassword !== confirmPassword) {
       toast({ 
-        title: "Passwords don't match", 
-        description: "Please make sure both passwords are the same",
+        title: t('errors.error'), 
+        description: "Passwords don't match",
         variant: "destructive"
       });
       return;
@@ -70,7 +71,7 @@ const Reset = () => {
 
     if (newPassword.length < 6) {
       toast({ 
-        title: "Password too short", 
+        title: t('errors.error'), 
         description: "Password must be at least 6 characters",
         variant: "destructive"
       });
@@ -86,7 +87,7 @@ const Reset = () => {
       
       if (error) {
         toast({ 
-          title: "Update failed", 
+          title: t('errors.error'), 
           description: error.message,
           variant: "destructive"
         });
@@ -94,8 +95,8 @@ const Reset = () => {
       }
       
       toast({ 
-        title: "Password updated successfully", 
-        description: "You can now sign in with your new password"
+        title: t('account.passwordChanged'), 
+        description: t('account.passwordUpdated')
       });
 
       // Redirect to signin after 2 seconds
@@ -105,8 +106,8 @@ const Reset = () => {
     } catch (error) {
       console.error("Password update error:", error);
       toast({ 
-        title: "An error occurred", 
-        description: "Please try again or request a new reset link",
+        title: t('errors.somethingWentWrong'), 
+        description: t('errors.tryAgain'),
         variant: "destructive"
       });
     } finally {
@@ -133,15 +134,15 @@ const Reset = () => {
               <div className="w-16 h-16 bg-primary text-primary-foreground rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock className="h-8 w-8" />
               </div>
-              <CardTitle className="text-2xl">Set new password</CardTitle>
+              <CardTitle className="text-2xl">{t('auth.setNewPassword')}</CardTitle>
               <CardDescription>
-                Enter your new password below
+                {t('auth.enterNewPassword')}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handlePasswordUpdate} className="space-y-6">
                 <div className="space-y-2">
-                  <Label htmlFor="newPassword">New password</Label>
+                  <Label htmlFor="newPassword">{t('auth.newPassword')}</Label>
                   <Input
                     id="newPassword"
                     name="newPassword"
@@ -150,13 +151,13 @@ const Reset = () => {
                     required
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="Enter new password"
+                    placeholder={t('auth.enterPassword')}
                     minLength={6}
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <Label htmlFor="confirmPassword">{t('auth.confirmPassword')}</Label>
                   <Input
                     id="confirmPassword"
                     name="confirmPassword"
@@ -165,13 +166,13 @@ const Reset = () => {
                     required
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="Confirm new password"
+                    placeholder={t('auth.confirmYourPassword')}
                     minLength={6}
                   />
                 </div>
 
                 <Button type="submit" variant="cta" className="w-full" disabled={loading}>
-                  {loading ? "Updating..." : "Update password"}
+                  {loading ? t('auth.updating') : t('auth.updatePassword')}
                 </Button>
               </form>
             </CardContent>
@@ -197,20 +198,19 @@ const Reset = () => {
               <div className="w-16 h-16 bg-success text-success-foreground rounded-full flex items-center justify-center mx-auto mb-4">
                 <Mail className="h-8 w-8" />
               </div>
-              <CardTitle className="text-2xl">Check your email</CardTitle>
+              <CardTitle className="text-2xl">{t('auth.checkEmail')}</CardTitle>
               <CardDescription>
-                We've sent password reset instructions to {email}
+                {t('auth.resetEmailSent')} {email}
               </CardDescription>
             </CardHeader>
             <CardContent className="text-center space-y-4">
               <p className="text-sm text-muted-foreground">
-                If you don't see the email in your inbox, check your spam folder. 
-                The reset link will expire in 24 hours.
+                {t('auth.checkSpam')}
               </p>
               <div className="space-y-3">
                 <Link to="/signin" className="w-full">
                   <Button variant="cta" className="w-full">
-                    Back to sign in
+                    {t('auth.backToSignIn')}
                   </Button>
                 </Link>
                 <Button 
@@ -218,7 +218,7 @@ const Reset = () => {
                   className="w-full"
                   onClick={() => setIsSubmitted(false)}
                 >
-                  Try different email
+                  {t('auth.tryDifferentEmail')}
                 </Button>
               </div>
             </CardContent>
@@ -242,15 +242,15 @@ const Reset = () => {
 
         <Card className="shadow-elegant">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Reset your password</CardTitle>
+            <CardTitle className="text-2xl">{t('auth.resetPassword')}</CardTitle>
             <CardDescription>
-              Enter your email address and we'll send you instructions to reset your password
+              {t('auth.resetInstructions')}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email">Email address</Label>
+                <Label htmlFor="email">{t('auth.email')}</Label>
                 <Input
                   id="email"
                   name="email"
@@ -259,12 +259,12 @@ const Reset = () => {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@organization.com"
+                  placeholder={t('auth.enterEmail')}
                 />
               </div>
 
               <Button type="submit" variant="cta" className="w-full" disabled={loading}>
-                {loading ? "Sending..." : "Send reset instructions"}
+                {loading ? t('auth.sending') : t('auth.sendResetInstructions')}
               </Button>
             </form>
 
@@ -274,7 +274,7 @@ const Reset = () => {
                 className="inline-flex items-center text-sm text-accent hover:text-accent-hover font-medium transition-colors"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to sign in
+                {t('auth.backToSignIn')}
               </Link>
             </div>
           </CardContent>
@@ -282,12 +282,12 @@ const Reset = () => {
 
         <div className="mt-8 text-center">
           <p className="text-sm text-muted-foreground">
-            Don't have an account?{" "}
+            {t('auth.noAccount')}{" "}
             <Link
               to="/signup"
               className="text-accent hover:text-accent-hover font-medium transition-colors"
             >
-              Sign up
+              {t('auth.signUp')}
             </Link>
           </p>
         </div>

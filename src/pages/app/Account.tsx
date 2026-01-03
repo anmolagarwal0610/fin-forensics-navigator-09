@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Account() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const { tier, pagesRemaining, expiresAt, loading } = useSubscription();
   const { toast } = useToast();
@@ -77,14 +79,14 @@ export default function Account() {
       });
 
       toast({
-        title: "Profile updated",
-        description: "Your profile information has been saved.",
+        title: t('account.profileUpdated'),
+        description: t('account.profileSaved'),
       });
       setIsEditing(false);
       refetchProfile();
     } catch (error: any) {
       toast({
-        title: "Failed to update profile",
+        title: t('errors.error'),
         description: error.message,
         variant: "destructive",
       });
@@ -99,7 +101,7 @@ export default function Account() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newEmail)) {
       toast({
-        title: "Invalid email",
+        title: t('errors.error'),
         description: "Please enter a valid email address.",
         variant: "destructive",
       });
@@ -115,14 +117,14 @@ export default function Account() {
       if (error) throw error;
 
       toast({
-        title: "Confirmation email sent",
-        description: `A confirmation link has been sent to ${newEmail}. Please check your inbox and click the link to complete the email change.`,
+        title: t('common.success'),
+        description: `${t('account.emailConfirmationNote')}`,
       });
       setShowEmailChange(false);
       setNewEmail("");
     } catch (error: any) {
       toast({
-        title: "Failed to change email",
+        title: t('errors.error'),
         description: error.message,
         variant: "destructive",
       });
@@ -142,27 +144,27 @@ export default function Account() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
-        <h1 className="text-2xl md:text-3xl font-semibold">Account Settings</h1>
+        <h1 className="text-2xl md:text-3xl font-semibold">{t('account.title')}</h1>
         
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <User className="h-5 w-5" />
-                Profile Information
+                {t('account.profile')}
               </CardTitle>
               {!isEditing ? (
                 <Button variant="outline" size="sm" onClick={() => setIsEditing(true)}>
                   <Pencil className="h-4 w-4 mr-2" />
-                  Edit
+                  {t('account.editProfile')}
                 </Button>
               ) : (
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={() => setIsEditing(false)} disabled={isSaving}>
-                    Cancel
+                    {t('account.cancel')}
                   </Button>
                   <Button size="sm" onClick={handleSaveProfile} disabled={isSaving}>
-                    {isSaving ? "Saving..." : "Save"}
+                    {isSaving ? t('account.saving') : t('account.saveChanges')}
                   </Button>
                 </div>
               )}
@@ -171,45 +173,45 @@ export default function Account() {
           <CardContent className="space-y-4">
             {profileLoading ? (
               <div className="text-center py-4 text-muted-foreground">
-                Loading profile...
+                {t('account.loadingProfile')}
               </div>
             ) : (
               <>
                 <div className="space-y-2">
-                  <Label>Full Name</Label>
+                  <Label>{t('auth.fullName')}</Label>
                   {isEditing ? (
                     <Input value={fullName} onChange={(e) => setFullName(e.target.value)} />
                   ) : (
-                    <p className="text-sm">{profile?.full_name || "Not set"}</p>
+                    <p className="text-sm">{profile?.full_name || t('account.notSet')}</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Organization Name</Label>
+                  <Label>{t('auth.organizationName')}</Label>
                   {isEditing ? (
                     <Input value={organizationName} onChange={(e) => setOrganizationName(e.target.value)} />
                   ) : (
-                    <p className="text-sm">{profile?.organization_name || "Not set"}</p>
+                    <p className="text-sm">{profile?.organization_name || t('account.notSet')}</p>
                   )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Phone Number</Label>
+                  <Label>{t('auth.phoneNumber')}</Label>
                   {isEditing ? (
-                    <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="Optional" />
+                    <Input value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder={t('auth.optional')} />
                   ) : (
-                    <p className="text-sm">{profile?.phone_number || "Not set"}</p>
+                    <p className="text-sm">{profile?.phone_number || t('account.notSet')}</p>
                   )}
                 </div>
 
                 <Separator />
 
                 <div className="space-y-2">
-                  <Label>Email Address</Label>
+                  <Label>{t('account.emailAddress')}</Label>
                   <div className="flex items-center gap-2">
                     <p className="text-sm flex-1">{user?.email}</p>
                     <Button variant="link" size="sm" onClick={() => setShowEmailChange(!showEmailChange)}>
-                      Change Email
+                      {t('account.changeEmail')}
                     </Button>
                   </div>
                   
@@ -217,17 +219,17 @@ export default function Account() {
                     <div className="mt-3 p-4 rounded-lg bg-muted/50 space-y-3">
                       <div className="flex items-start gap-2 text-sm text-muted-foreground">
                         <Mail className="h-4 w-4 mt-0.5" />
-                        <p>A confirmation link will be sent to your new email address. The change will only take effect after you confirm.</p>
+                        <p>{t('account.emailConfirmationNote')}</p>
                       </div>
                       <div className="flex gap-2">
                         <Input 
                           type="email"
-                          placeholder="Enter new email address" 
+                          placeholder={t('account.enterNewEmail')} 
                           value={newEmail}
                           onChange={(e) => setNewEmail(e.target.value)}
                         />
                         <Button onClick={handleEmailChange} disabled={isSaving || !newEmail.trim()}>
-                          {isSaving ? "Sending..." : "Send Confirmation"}
+                          {isSaving ? t('auth.sending') : t('account.sendConfirmation')}
                         </Button>
                       </div>
                     </div>
@@ -235,7 +237,7 @@ export default function Account() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-muted-foreground">Account Created</Label>
+                  <Label className="text-muted-foreground">{t('account.accountCreated')}</Label>
                   <p className="text-sm">{user?.created_at ? format(new Date(user.created_at), 'MMM dd, yyyy') : 'N/A'}</p>
                 </div>
               </>
@@ -248,7 +250,7 @@ export default function Account() {
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <CreditCard className="h-5 w-5" />
-                Subscription & Usage
+                {t('account.subscription')}
               </CardTitle>
               <Badge variant="outline" className="text-sm">
                 {TIER_LABELS[tier]}
@@ -258,7 +260,7 @@ export default function Account() {
           <CardContent className="space-y-6">
             {loading ? (
               <div className="text-center py-4 text-muted-foreground">
-                Loading subscription details...
+                {t('account.loadingSubscription')}
               </div>
             ) : (
               <>
@@ -274,12 +276,12 @@ export default function Account() {
                   <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                     <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                     <div>
-                      <p className="text-sm font-medium">Total Allocation</p>
+                      <p className="text-sm font-medium">{t('account.totalAllocation')}</p>
                       <p className="text-2xl font-semibold mt-1">
                         {totalPages.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        pages per month
+                        {t('account.pagesPerMonth')}
                       </p>
                     </div>
                   </div>
@@ -288,12 +290,12 @@ export default function Account() {
                     <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                       <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium">Renews On</p>
+                        <p className="text-sm font-medium">{t('account.renewsOn')}</p>
                         <p className="text-lg font-semibold mt-1">
                           {format(new Date(expiresAt), 'MMM dd, yyyy')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          Next billing date
+                          {t('account.nextBillingDate')}
                         </p>
                       </div>
                     </div>
@@ -305,15 +307,15 @@ export default function Account() {
                   <div className="p-4 rounded-lg bg-accent/10 border border-accent/20">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h4 className="font-semibold mb-1">Need More Pages?</h4>
+                        <h4 className="font-semibold mb-1">{t('account.needMorePages')}</h4>
                         <p className="text-sm text-muted-foreground">
-                          Upgrade to a paid plan for higher monthly limits and priority support.
+                          {t('account.upgradeDescription')}
                         </p>
                       </div>
                       <Button asChild size="sm" variant="hero">
                         <Link to="/pricing">
                           <Zap className="mr-2 h-4 w-4" />
-                          Upgrade
+                          {t('account.upgrade')}
                         </Link>
                       </Button>
                     </div>

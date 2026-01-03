@@ -1,10 +1,11 @@
-
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
-
 import { type CaseStatus } from "@/api/cases";
 
 export default function StatusBadge({ status }: { status: CaseStatus }) {
+  const { t } = useTranslation();
+  
   const map: Record<string, string> = {
     Draft: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
     Processing: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
@@ -14,6 +15,10 @@ export default function StatusBadge({ status }: { status: CaseStatus }) {
     Failed: "bg-red-500/15 text-red-600 dark:text-red-400",
     Timeout: "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400",
   };
+
+  // Map status to translation key
+  const statusKey = `status.${status.toLowerCase()}`;
+  const translatedStatus = t(statusKey);
 
   return (
     <Badge className={`${map[status] ?? ""} flex items-center gap-1.5`}>
@@ -28,7 +33,7 @@ export default function StatusBadge({ status }: { status: CaseStatus }) {
           }}
         />
       )}
-      {status}
+      {translatedStatus}
     </Badge>
   );
 }

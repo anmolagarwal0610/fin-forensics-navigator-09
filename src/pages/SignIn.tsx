@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,11 +10,14 @@ import { supabase } from "@/integrations/supabase/client";
 import DocumentHead from "@/components/common/DocumentHead";
 import BackToLanding from "@/components/auth/BackToLanding";
 import { Shield, Lock, ShieldCheck } from "lucide-react";
+
 export default function SignIn() {
+  const { t } = useTranslation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -22,8 +26,8 @@ export default function SignIn() {
     const timeoutId = setTimeout(() => {
       setLoading(false);
       toast({
-        title: "Sign in is taking longer than expected",
-        description: "Please try again.",
+        title: t('errors.somethingWentWrong'),
+        description: t('errors.tryAgain'),
         variant: "destructive"
       });
     }, 15000); // 15 second timeout
@@ -46,28 +50,29 @@ export default function SignIn() {
       
       if (error) {
         toast({
-          title: "Error signing in",
+          title: t('errors.error'),
           description: error.message,
           variant: "destructive"
         });
       } else {
         toast({
-          title: "Welcome back!",
-          description: "You have been signed in successfully."
+          title: t('auth.welcomeBack'),
+          description: t('auth.signedInSuccess')
         });
         navigate("/app/dashboard");
       }
     } catch (error) {
       clearTimeout(timeoutId);
       toast({
-        title: "Error signing in",
-        description: "An unexpected error occurred.",
+        title: t('errors.error'),
+        description: t('errors.somethingWentWrong'),
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
   };
+  
   return (
     <>
       <DocumentHead title="Sign In - FinNavigator" description="Securely sign in to FinNavigator — Your AI partner in financial forensics" />
@@ -88,31 +93,31 @@ export default function SignIn() {
 
           <Card className="w-full max-w-md mx-auto">
             <CardHeader className="text-center">
-              <CardTitle className="text-2xl font-bold">Sign In</CardTitle>
-              <CardDescription>Enter your credentials to access your account</CardDescription>
+              <CardTitle className="text-2xl font-bold">{t('auth.signIn')}</CardTitle>
+              <CardDescription>{t('auth.credentials')}</CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="Enter your email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                  <Label htmlFor="email">{t('auth.email')}</Label>
+                  <Input id="email" type="email" placeholder={t('auth.enterEmail')} value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                  <Label htmlFor="password">{t('auth.password')}</Label>
+                  <Input id="password" type="password" placeholder={t('auth.enterPassword')} value={password} onChange={(e) => setPassword(e.target.value)} required />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Signing in..." : "Sign In"}
+                  {loading ? t('auth.signingIn') : t('auth.signIn')}
                 </Button>
               </form>
               <div className="mt-6 text-center space-y-2">
                 <Link to="/reset" className="text-sm text-muted-foreground hover:text-primary">
-                  Forgot your password?
+                  {t('auth.forgotPassword')}
                 </Link>
                 <div className="text-sm text-muted-foreground">
-                  Don't have an account? {""}
+                  {t('auth.noAccount')} {""}
                   <Link to="/signup" className="text-primary hover:underline">
-                    Sign up
+                    {t('auth.signUp')}
                   </Link>
                 </div>
               </div>

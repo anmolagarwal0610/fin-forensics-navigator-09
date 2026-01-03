@@ -1,15 +1,8 @@
-
 import { Grid3X3, List, Filter } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Popover,
   PopoverContent,
@@ -37,6 +30,8 @@ export default function DashboardToolbar({
   viewMode,
   onViewModeChange,
 }: DashboardToolbarProps) {
+  const { t } = useTranslation();
+
   const handleStatusToggle = (status: CaseRecord["status"]) => {
     const newFilter = statusFilter.includes(status)
       ? statusFilter.filter(s => s !== status)
@@ -51,6 +46,11 @@ export default function DashboardToolbar({
 
   const hasActiveFilters = statusFilter.length > 0 || tagFilter.length > 0;
 
+  // Get translated status label
+  const getStatusLabel = (status: string) => {
+    return t(`status.${status.toLowerCase()}`);
+  };
+
   return (
     <Card className="sticky top-4 z-10 bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <CardContent className="p-4">
@@ -62,7 +62,7 @@ export default function DashboardToolbar({
               <PopoverTrigger asChild>
                 <Button variant="outline" className="justify-start gap-2">
                   <Filter className="h-4 w-4" />
-                  Status
+                  {t('cases.status')}
                   {statusFilter.length > 0 && (
                     <Badge variant="secondary" className="ml-1 h-5">
                       {statusFilter.length}
@@ -72,7 +72,7 @@ export default function DashboardToolbar({
               </PopoverTrigger>
               <PopoverContent className="w-64" align="start">
                 <div className="space-y-2">
-                  <div className="text-sm font-medium mb-3">Filter by Status</div>
+                  <div className="text-sm font-medium mb-3">{t('cases.filterByStatus')}</div>
                   {STATUS_OPTIONS.map((status) => (
                     <label key={status} className="flex items-center space-x-2 cursor-pointer">
                       <input
@@ -81,7 +81,7 @@ export default function DashboardToolbar({
                         onChange={() => handleStatusToggle(status)}
                         className="rounded"
                       />
-                      <span className="text-sm">{status}</span>
+                      <span className="text-sm">{getStatusLabel(status)}</span>
                     </label>
                   ))}
                 </div>
@@ -90,7 +90,7 @@ export default function DashboardToolbar({
 
             {/* Tag Filter */}
             <Input
-              placeholder="Filter by tag..."
+              placeholder={t('cases.filterByTag')}
               value={tagFilter}
               onChange={(e) => onTagFilterChange(e.target.value)}
               className="w-full sm:w-48"
@@ -99,7 +99,7 @@ export default function DashboardToolbar({
             {/* Clear Filters */}
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Clear
+                {t('cases.clear')}
               </Button>
             )}
           </div>

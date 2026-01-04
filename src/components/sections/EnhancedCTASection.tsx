@@ -1,8 +1,10 @@
 import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Sparkles, Zap } from "lucide-react";
 const EnhancedCTASection = () => {
+  const { t } = useTranslation();
   return <section className="py-20 relative overflow-hidden">
       {/* Gradient Background with overlay for better text readability */}
       <div className="absolute inset-0 bg-gradient-to-br from-accent/80 via-primary/80 to-accent/80" />
@@ -68,7 +70,7 @@ const EnhancedCTASection = () => {
         }}>
             <Zap className="w-4 h-4 text-accent-foreground" />
             <span className="text-sm font-medium text-accent-foreground">
-              Transform Your Investigations Today
+              {t('cta.transformInvestigations')}
             </span>
           </motion.div>
 
@@ -85,14 +87,14 @@ const EnhancedCTASection = () => {
         }} viewport={{
           once: true
         }}>
-            Ready to accelerate your{" "}
+            {t('cta.readyToAccelerate')}{" "}
             <motion.span className="inline-block text-white" animate={{
             textShadow: ["0 0 0px rgba(255,255,255,0.8)", "0 0 15px rgba(255,255,255,1)", "0 0 0px rgba(255,255,255,0.8)"]
           }} transition={{
             duration: 2,
             repeat: Infinity
           }}>
-              investigations?
+              {t('cta.investigations')}
             </motion.span>
           </motion.h2>
 
@@ -109,8 +111,7 @@ const EnhancedCTASection = () => {
         }} viewport={{
           once: true
         }}>
-            Join leading forensic accountants and investigators who trust FinNavigator 
-            for their most critical cases. Experience the power of AI-driven financial analysis.
+            {t('cta.joinLeading')}
           </motion.p>
 
           {/* CTA Buttons */}
@@ -133,7 +134,7 @@ const EnhancedCTASection = () => {
               scale: 0.95
             }}>
                 <Button size="lg" variant="secondary" className="min-w-[200px] h-14 text-lg font-semibold group bg-white hover:bg-white/90 shadow-lg text-[#3883b8]">
-                  Start Free Trial
+                  {t('cta.startFreeTrial')}
                   <motion.div className="ml-2" animate={{
                   x: [0, 5, 0]
                 }} transition={{
@@ -153,7 +154,7 @@ const EnhancedCTASection = () => {
               scale: 0.95
             }}>
                 <Button size="lg" variant="outline" className="min-w-[200px] h-14 text-lg font-semibold border-foreground/50 text-foreground hover:bg-foreground/10 hover:border-foreground/70 shadow-lg">
-                  Contact Sales
+                  {t('landing.contactSales')}
                 </Button>
               </motion.div>
             </Link>
@@ -178,11 +179,11 @@ const EnhancedCTASection = () => {
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-              <span className="text-sm font-medium">No credit card required for Free Trial</span>
+              <span className="text-sm font-medium">{t('cta.noCreditCard')}</span>
             </div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-              <span className="text-sm font-medium">Cancel anytime</span>
+              <span className="text-sm font-medium">{t('cta.cancelAnytime')}</span>
             </div>
           </motion.div>
         </motion.div>

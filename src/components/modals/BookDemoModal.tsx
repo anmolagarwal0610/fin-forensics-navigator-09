@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +13,7 @@ interface BookDemoModalProps {
 }
 
 export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
+  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: "",
     organization: "",
@@ -34,8 +36,8 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
       }
 
       toast({
-        title: "Demo Booked Successfully!",
-        description: "We'll contact you within 24 hours to schedule your personalized demo.",
+        title: t('demo.demoBooked'),
+        description: t('demo.demoConfirmation'),
       });
       
       setFormData({ name: "", organization: "", email: "", phone: "" });
@@ -56,51 +58,51 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Book a Demo</DialogTitle>
+          <DialogTitle>{t('demo.bookDemo')}</DialogTitle>
           <DialogDescription>
-            Get a personalized demonstration of FinNavigator's capabilities. Our team will reach out to schedule your demo.
+            {t('demo.demoDescription')}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
+            <Label htmlFor="name">{t('demo.fullName')}</Label>
             <Input
               id="name"
               type="text"
-              placeholder="Enter your full name"
+              placeholder={t('demo.enterFullName')}
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="organization">Organization</Label>
+            <Label htmlFor="organization">{t('demo.organization')}</Label>
             <Input
               id="organization"
               type="text"
-              placeholder="Enter your organization name"
+              placeholder={t('demo.enterOrganization')}
               value={formData.organization}
               onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address</Label>
+            <Label htmlFor="email">{t('demo.emailAddress')}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="Enter your email address"
+              placeholder={t('demo.enterEmail')}
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               required
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
+            <Label htmlFor="phone">{t('demo.phoneNumber')}</Label>
             <Input
               id="phone"
               type="tel"
-              placeholder="Enter your phone number"
+              placeholder={t('demo.enterPhone')}
               value={formData.phone}
               onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               required
@@ -108,10 +110,10 @@ export default function BookDemoModal({ isOpen, onClose }: BookDemoModalProps) {
           </div>
           <div className="flex justify-end space-x-2 pt-4">
             <Button type="button" variant="outline" onClick={onClose}>
-              Cancel
+              {t('actions.cancel')}
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Booking..." : "Book Demo"}
+              {loading ? t('demo.booking') : t('demo.bookDemoBtn')}
             </Button>
           </div>
         </form>

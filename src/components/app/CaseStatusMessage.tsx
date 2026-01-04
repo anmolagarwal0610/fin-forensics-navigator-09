@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, Clock, Ticket } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -11,6 +12,7 @@ interface CaseStatusMessageProps {
 }
 
 export default function CaseStatusMessage({ status, onRetry, caseId, caseName }: CaseStatusMessageProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   if (status === 'Timeout') {
     return (
@@ -20,13 +22,13 @@ export default function CaseStatusMessage({ status, onRetry, caseId, caseName }:
             <Clock className="h-6 w-6 text-orange-600 dark:text-orange-400 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-semibold text-orange-900 dark:text-orange-100">
-                Analysis Timeout
+                {t('caseStatus.analysisTimeout')}
               </h3>
               <p className="text-orange-700 dark:text-orange-200 mt-1">
-                The analysis took longer than expected to complete. This often happens with large files or many documents.
+                {t('caseStatus.timeoutDescription')}
               </p>
               <p className="text-sm text-orange-600 dark:text-orange-300 mt-2">
-                <strong>Suggestion:</strong> Try reducing the number of files uploaded or ensure files are reasonably sized.
+                <strong>{t('caseStatus.timeoutSuggestion')}</strong>
               </p>
               {onRetry && (
                 <Button 
@@ -35,7 +37,7 @@ export default function CaseStatusMessage({ status, onRetry, caseId, caseName }:
                   className="mt-3 border-orange-200 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-300"
                   onClick={onRetry}
                 >
-                  Try Again
+                  {t('caseStatus.tryAgain')}
                 </Button>
               )}
             </div>
@@ -53,10 +55,10 @@ export default function CaseStatusMessage({ status, onRetry, caseId, caseName }:
             <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400 mt-0.5" />
             <div className="flex-1">
               <h3 className="font-semibold text-red-900 dark:text-red-100">
-                Analysis Failed
+                {t('caseStatus.analysisFailed')}
               </h3>
               <p className="text-red-700 dark:text-red-200 mt-1">
-                An error occurred during the analysis process. Our team has been automatically notified.
+                {t('caseStatus.failedDescription')}
               </p>
               <div className="flex gap-2 mt-3">
                 {onRetry && (
@@ -66,7 +68,7 @@ export default function CaseStatusMessage({ status, onRetry, caseId, caseName }:
                     className="border-red-200 text-red-700 hover:bg-red-100 dark:border-red-700 dark:text-red-300"
                     onClick={onRetry}
                   >
-                    Retry Analysis
+                    {t('caseStatus.retryAnalysis')}
                   </Button>
                 )}
                 <Button 
@@ -76,7 +78,7 @@ export default function CaseStatusMessage({ status, onRetry, caseId, caseName }:
                   onClick={() => navigate('/app/support/raise-ticket')}
                 >
                   <Ticket className="h-4 w-4 mr-2" />
-                  Raise a Ticket
+                  {t('caseStatus.raiseTicket')}
                 </Button>
               </div>
             </div>

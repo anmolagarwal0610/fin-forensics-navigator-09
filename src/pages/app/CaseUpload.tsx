@@ -78,8 +78,8 @@ export default function CaseUpload() {
         }
         setCase(data);
 
-        // For Draft cases (not in add files mode), load existing files from database
-        if (data.status === "Draft" && !isAddFilesMode) {
+        // For Draft, Failed, or Timeout cases (not in add files mode), load existing files from database
+        if ((data.status === "Draft" || data.status === "Failed" || data.status === "Timeout") && !isAddFilesMode) {
           try {
             const existingFiles = await getCaseFiles(id);
             if (existingFiles.length > 0) {

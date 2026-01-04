@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { FilePlus, FolderPlus, ArrowRight } from "lucide-react";
@@ -12,6 +13,7 @@ interface AddFilesDialogProps {
 }
 
 export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }: AddFilesDialogProps) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const handleAddToExistingCase = () => {
@@ -39,9 +41,9 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
     <Dialog open={open} onOpenChange={(isOpen) => !isOpen && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle className="text-xl font-semibold">Add More Files</DialogTitle>
+          <DialogTitle className="text-xl font-semibold">{t('addFilesDialog.title')}</DialogTitle>
           <DialogDescription className="text-muted-foreground">
-            Choose how you'd like to add more files to your analysis
+            {t('addFilesDialog.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -56,10 +58,10 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                Add Files to This Case
+                {t('addFilesDialog.addToExisting')}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Add more documents to "{caseName}" and re-run the analysis. Previous results will be preserved.
+                {t('addFilesDialog.addToExistingDesc', { caseName })}
               </p>
             </div>
             <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all self-center" />
@@ -75,10 +77,10 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
-                Start a new Case
+                {t('addFilesDialog.createNew')}
               </h3>
               <p className="text-sm text-muted-foreground mt-1">
-                Create a new case with existing files plus new documents. Original case remains unchanged.
+                {t('addFilesDialog.createNewDesc')}
               </p>
             </div>
             <ArrowRight className="h-5 w-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all self-center" />
@@ -87,7 +89,7 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
 
         <div className="flex justify-end pt-2 border-t border-border">
           <Button variant="outline" onClick={onClose}>
-            Cancel
+            {t('actions.cancel')}
           </Button>
         </div>
       </DialogContent>

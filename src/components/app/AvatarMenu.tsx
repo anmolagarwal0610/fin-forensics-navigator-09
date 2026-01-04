@@ -1,4 +1,4 @@
-
+import { useTranslation } from "react-i18next";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -18,6 +18,7 @@ import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 
 export default function AvatarMenu() {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
@@ -65,14 +66,14 @@ export default function AvatarMenu() {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-48">
         <DropdownMenuLabel className="font-semibold truncate">
-          {profile?.full_name || user?.email?.split('@')[0] || 'My Account'}
+          {profile?.full_name || user?.email?.split('@')[0] || t('avatarMenu.myAccount')}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem 
           onClick={() => navigate("/app/account")}
           className="flex items-center justify-between cursor-pointer"
         >
-          <span>Account</span>
+          <span>{t('avatarMenu.account')}</span>
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -88,7 +89,7 @@ export default function AvatarMenu() {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} className="text-destructive">
-          Sign out
+          {t('avatarMenu.signOut')}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

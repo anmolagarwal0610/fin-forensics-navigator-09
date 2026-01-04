@@ -104,7 +104,8 @@
     "draft": "Draft",
     "failed": "Failed",
     "timeout": "Timeout",
-    "archived": "Archived"
+    "archived": "Archived",
+    "active": "Active"
   },
   "analysisResults": {
     "title": "Analysis Results",
@@ -263,5 +264,89 @@
     "caseError": "Case encountered an error.",
     "analysisTimeout": "Analysis Timeout",
     "timeoutMessage": "Case timed out. Consider reducing file count."
+  },
+  "landing": {
+    "poweredByAI": "Powered by Advanced AI & ML",
+    "heroTitle": "Financial investigations",
+    "heroTitleHighlight": "reimagined.",
+    "heroDescription": "Transform complex financial data into clear, actionable insights with AI-powered analysis. Identify persons of interest, trace money flows, and generate court-ready reports in hours, not weeks.",
+    "bookDemo": "Book a Demo",
+    "contactSales": "Contact Sales",
+    "aiPartner": "Your AI partner in financial forensics.",
+    "simpleYetPowerful": "Simple yet",
+    "powerful": "Powerful",
+    "threeSteps": "Three intuitive steps to transform complex financial data into actionable intelligence that drives successful investigations."
+  },
+  "demo": {
+    "bookDemo": "Book a Demo",
+    "demoDescription": "Get a personalized demonstration of FinNavigator's capabilities. Our team will reach out to schedule your demo.",
+    "fullName": "Full Name",
+    "enterFullName": "Enter your full name",
+    "organization": "Organization",
+    "enterOrganization": "Enter your organization name",
+    "emailAddress": "Email Address",
+    "enterEmail": "Enter your email address",
+    "phoneNumber": "Phone Number",
+    "enterPhone": "Enter your phone number",
+    "booking": "Booking...",
+    "bookDemoBtn": "Book Demo",
+    "demoBooked": "Demo Booked Successfully!",
+    "demoConfirmation": "We'll contact you within 24 hours to schedule your personalized demo."
+  },
+  "caseDetail": {
+    "back": "Back",
+    "files": "Files",
+    "timeline": "Timeline",
+    "addMoreFiles": "Add More Files",
+    "continueAnalysis": "Continue Analysis",
+    "addFiles": "Add Files",
+    "viewResults": "View Results",
+    "deleteCase": "Delete Case",
+    "noFilesYet": "No files uploaded yet.",
+    "noEventsYet": "No events yet.",
+    "caseCreated": "Case Created",
+    "filesUploaded": "Files Uploaded",
+    "analysisStarted": "Analysis Started",
+    "resultsReady": "Results Ready",
+    "reviewExtractedData": "Review Extracted Data",
+    "goToReviewPage": "Go to Review Page",
+    "filesReadyForReview": "file(s) ready for review",
+    "analysisComplete": "Analysis Complete",
+    "resultsReadyForReview": "Results are ready for review.",
+    "viewResultsComingSoon": "View Results (Coming Soon)",
+    "resultsAppearHere": "Results will appear here once analysis is complete.",
+    "analysisIssue": "Analysis encountered an issue. See the message above for details."
+  },
+  "caseStatus": {
+    "analysisTimeout": "Analysis Timeout",
+    "timeoutDescription": "The analysis took longer than expected to complete. This often happens with large files or many documents.",
+    "timeoutSuggestion": "Try reducing the number of files uploaded or ensure files are reasonably sized.",
+    "tryAgain": "Try Again",
+    "analysisFailed": "Analysis Failed",
+    "failedDescription": "An error occurred during the analysis process. Our team has been automatically notified.",
+    "retryAnalysis": "Retry Analysis",
+    "raiseTicket": "Raise a Ticket"
+  },
+  "avatarMenu": {
+    "myAccount": "My Account",
+    "account": "Account",
+    "signOut": "Sign out"
+  },
+  "cta": {
+    "transformInvestigations": "Transform Your Investigations Today",
+    "readyToAccelerate": "Ready to accelerate your",
+    "investigations": "investigations?",
+    "joinLeading": "Join leading forensic accountants and investigators who trust FinNavigator for their most critical cases. Experience the power of AI-driven financial analysis.",
+    "startFreeTrial": "Start Free Trial",
+    "noCreditCard": "No credit card required for Free Trial",
+    "cancelAnytime": "Cancel anytime"
+  },
+  "addFilesDialog": {
+    "title": "Add More Files",
+    "description": "Choose how you'd like to add more files to your analysis",
+    "addToExisting": "Add Files to This Case",
+    "addToExistingDesc": "Add more documents to \"{{caseName}}\" and re-run the analysis. Previous results will be preserved.",
+    "createNew": "Start a new Case",
+    "createNewDesc": "Create a new case with existing files plus new documents. Original case remains unchanged."
   }
 }

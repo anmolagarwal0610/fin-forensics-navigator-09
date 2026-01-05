@@ -10,6 +10,7 @@ export interface SubscriptionStatus {
   expires_at: string | null;
   pages_remaining: number;
   bonus_pages: number;
+  total_pages_granted: number | null;
 }
 
 export function useSubscription() {
@@ -29,10 +30,10 @@ export function useSubscription() {
         throw rpcError;
       }
 
-      // Fetch bonus_pages from profiles
+      // Fetch bonus_pages and total_pages_granted from profiles
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select('bonus_pages')
+        .select('bonus_pages, total_pages_granted, current_period_pages_used')
         .eq('user_id', user.id)
         .single();
 
@@ -44,23 +45,32 @@ export function useSubscription() {
       return {
         ...subscriptionStatus,
         bonus_pages: profileData?.bonus_pages || 0,
-      } as SubscriptionStatus | null;
+        total_pages_granted: profileData?.total_pages_granted || null,
+        current_period_pages_used: profileData?.current_period_pages_used || 0,
+      } as SubscriptionStatus & { current_period_pages_used: number };
     },
     enabled: !!user,
     refetchInterval: 60000, // Refresh every minute
   });
   
   const bonusPages = data?.bonus_pages || 0;
-  const totalPagesRemaining = (data?.pages_remaining || 0) + bonusPages;
+  const totalPagesGranted = data?.total_pages_granted;
+  const currentPeriodPagesUsed = (data as any)?.current_period_pages_used || 0;
+  
+  // If total_pages_granted is set, use it; otherwise fall back to tier limits
+  const effectiveTotalPages = totalPagesGranted ?? TIER_LIMITS[data?.tier || 'free'];
+  const pagesRemaining = Math.max(0, effectiveTotalPages - currentPeriodPagesUsed) + bonusPages;
 
   return {
     tier: data?.tier || 'free',
     isActive: data?.is_active || false,
     expiresAt: data?.expires_at,
-    pagesRemaining: totalPagesRemaining,
+    pagesRemaining,
     bonusPages,
+    totalPagesGranted,
+    currentPeriodPagesUsed,
     loading: isLoading,
-    hasAccess: (data?.is_active && totalPagesRemaining > 0) || false,
+    hasAccess: (data?.is_active && pagesRemaining > 0) || false,
     refetch,
   };
 }
@@ -83,4 +93,15 @@ export const TIER_LABELS: Record<SubscriptionTier, string> = {
   monthly: 'Monthly Tier',
   yearly_tier: 'Yearly Tier',
   yearly_plan: 'Yearly Plan',
+};
+
+// Helper to get pages per period for a tier
+export const TIER_PAGES_PER_PERIOD: Record<SubscriptionTier, { pages: number; period: 'month' | 'year' }> = {
+  free: { pages: 50, period: 'month' },
+  starter: { pages: 500, period: 'month' },
+  professional: { pages: 2000, period: 'month' },
+  enterprise: { pages: 10000, period: 'month' },
+  monthly: { pages: 22500, period: 'month' },
+  yearly_tier: { pages: 200000, period: 'year' },
+  yearly_plan: { pages: 250000, period: 'year' },
 };

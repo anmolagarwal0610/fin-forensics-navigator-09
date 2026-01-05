@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Progress } from "@/components/ui/progress";
 import { useAuth } from "@/contexts/AuthContext";
-import { useSubscription, TIER_LIMITS, TIER_LABELS } from "@/hooks/useSubscription";
+import { useSubscription, TIER_LIMITS, TIER_LABELS, TIER_PAGES_PER_PERIOD } from "@/hooks/useSubscription";
 import { UsageIndicator } from "@/components/app/UsageIndicator";
 import ChangePassword from "@/components/auth/ChangePassword";
-import { format } from "date-fns";
-import { CreditCard, Calendar, FileText, Zap, User, Pencil, Mail } from "lucide-react";
+import { format, differenceInDays, differenceInMonths } from "date-fns";
+import { CreditCard, Calendar, FileText, Zap, User, Pencil, Mail, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,10 +22,41 @@ import { useToast } from "@/hooks/use-toast";
 export default function Account() {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const { tier, pagesRemaining, expiresAt, loading } = useSubscription();
+  const { tier, pagesRemaining, expiresAt, loading, totalPagesGranted, currentPeriodPagesUsed, bonusPages } = useSubscription();
   const { toast } = useToast();
-  const totalPages = TIER_LIMITS[tier];
-  const pagesUsed = totalPages - pagesRemaining;
+
+  // Calculate effective total pages and usage
+  const effectiveTotalPages = totalPagesGranted ?? TIER_LIMITS[tier];
+  const pagesUsed = currentPeriodPagesUsed || 0;
+  const usagePercentage = effectiveTotalPages > 0 ? Math.min(100, (pagesUsed / effectiveTotalPages) * 100) : 0;
+
+  // Calculate duration info for display
+  const getDurationInfo = () => {
+    if (!expiresAt) return null;
+    
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const daysRemaining = differenceInDays(expiry, now);
+    const monthsRemaining = differenceInMonths(expiry, now);
+    
+    const tierInfo = TIER_PAGES_PER_PERIOD[tier];
+    const isMonthlyTier = tierInfo?.period === 'month';
+    
+    // Calculate how many months the subscription was originally for
+    const totalMonths = totalPagesGranted && isMonthlyTier && tierInfo 
+      ? Math.round(totalPagesGranted / tierInfo.pages)
+      : null;
+
+    return {
+      daysRemaining,
+      monthsRemaining,
+      totalMonths,
+      isMonthlyTier,
+      pagesPerPeriod: tierInfo?.pages || 0,
+    };
+  };
+
+  const durationInfo = getDurationInfo();
 
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -264,46 +296,80 @@ export default function Account() {
               </div>
             ) : (
               <>
-                {/* Usage Indicator */}
-                <UsageIndicator 
-                  tier={tier}
-                  pagesUsed={pagesUsed}
-                  className="mb-6"
-                />
+                {/* Page Usage Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium">Page Usage</span>
+                    </div>
+                    <span className="text-sm text-muted-foreground">
+                      {pagesUsed.toLocaleString()} / {effectiveTotalPages.toLocaleString()} used
+                    </span>
+                  </div>
+                  <Progress value={usagePercentage} className="h-3" />
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{pagesRemaining.toLocaleString()} pages remaining</span>
+                    <span>{usagePercentage.toFixed(1)}% used</span>
+                  </div>
+                </div>
 
                 {/* Subscription Details */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                     <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium">{t('account.totalAllocation')}</p>
-                      <p className="text-2xl font-semibold mt-1">
-                        {totalPages.toLocaleString()}
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Total Page Allocation</p>
+                      <p className="text-2xl font-semibold">
+                        {effectiveTotalPages.toLocaleString()}
                       </p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {expiresAt 
-                          ? `Total pages until ${format(new Date(expiresAt), 'MMM dd, yyyy')}`
-                          : t('account.pagesPerMonth')
-                        }
-                      </p>
+                      {durationInfo?.isMonthlyTier && durationInfo.totalMonths && durationInfo.totalMonths > 1 ? (
+                        <p className="text-xs text-muted-foreground">
+                          {durationInfo.pagesPerPeriod.toLocaleString()}/month × {durationInfo.totalMonths} months
+                        </p>
+                      ) : expiresAt ? (
+                        <p className="text-xs text-muted-foreground">
+                          Valid until {format(new Date(expiresAt), 'MMM dd, yyyy')}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">
+                          {t('account.pagesPerMonth')}
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   {expiresAt && (
                     <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                       <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-                      <div>
+                      <div className="space-y-1">
                         <p className="text-sm font-medium">Subscription Expires</p>
-                        <p className="text-lg font-semibold mt-1">
+                        <p className="text-lg font-semibold">
                           {format(new Date(expiresAt), 'MMM dd, yyyy')}
                         </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Contact admin to renew
+                        <p className="text-xs text-muted-foreground">
+                          {durationInfo && durationInfo.daysRemaining > 0 
+                            ? `${durationInfo.daysRemaining} days remaining`
+                            : 'Contact admin to renew'
+                          }
                         </p>
                       </div>
                     </div>
                   )}
                 </div>
+
+                {/* Bonus Pages */}
+                {bonusPages > 0 && (
+                  <div className="p-3 rounded-lg bg-accent/10 border border-accent/20">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-accent-foreground" />
+                      <span className="text-sm font-medium">Bonus Pages: {bonusPages.toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Bonus pages are added to your remaining balance
+                    </p>
+                  </div>
+                )}
 
                 {/* Upgrade CTA for Free Tier */}
                 {tier === 'free' && (

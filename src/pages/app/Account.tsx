@@ -323,9 +323,10 @@ export default function Account() {
                       <p className="text-2xl font-semibold">
                         {effectiveTotalPages.toLocaleString()}
                       </p>
-                      {durationInfo?.isMonthlyTier && durationInfo.totalMonths && durationInfo.totalMonths > 1 ? (
+                      {/* For custom allocations (totalPagesGranted set), show custom pack info */}
+                      {totalPagesGranted ? (
                         <p className="text-xs text-muted-foreground">
-                          {durationInfo.pagesPerPeriod.toLocaleString()}/month × {durationInfo.totalMonths} months
+                          Custom allocation • Valid until {expiresAt ? format(new Date(expiresAt), 'MMM dd, yyyy') : 'N/A'}
                         </p>
                       ) : expiresAt ? (
                         <p className="text-xs text-muted-foreground">

@@ -319,14 +319,35 @@ async function updateCaseStatus(supabase: any, payload: any) {
       
       const updateData: any = { 
         status: "Ready",
-        result_zip_url: payload.url,
         hitl_stage: null
       };
       
-      // If there's an existing result, move it to previous_result_zip_url
-      if (existingCase?.result_zip_url) {
-        updateData.previous_result_zip_url = existingCase.result_zip_url;
-        console.log(`[Add Files] Moving previous result to previous_result_zip_url`);
+      // NEW SECURE FLOW: Check for result_file_id (uploaded via upload-result-file)
+      if (payload.result_file_id) {
+        console.log(`[Secure Storage] Using result_file_id: ${payload.result_file_id}, storage_path: ${payload.storage_path}`);
+        // File already uploaded via upload-result-file edge function
+        // Frontend will use get-result-file to fetch signed URL
+        // Don't set result_zip_url - this signals to frontend to use secure flow
+        
+        // Mark old result files as non-current if any
+        const userId = payload.user_id || payload.userId;
+        await supabase
+          .from("result_files")
+          .update({ is_current: false })
+          .eq("case_id", caseId)
+          .eq("user_id", userId)
+          .neq("id", payload.result_file_id);
+          
+      } else if (payload.url) {
+        // LEGACY FLOW: Still has public URL (for backwards compatibility)
+        console.log(`[Legacy Storage] Using public URL: ${payload.url}`);
+        updateData.result_zip_url = payload.url;
+        
+        // If there's an existing result, move it to previous_result_zip_url
+        if (existingCase?.result_zip_url) {
+          updateData.previous_result_zip_url = existingCase.result_zip_url;
+          console.log(`[Add Files] Moving previous result to previous_result_zip_url`);
+        }
       }
       
       const { error: caseError } = await supabase
@@ -337,7 +358,8 @@ async function updateCaseStatus(supabase: any, payload: any) {
       if (caseError) {
         console.error("Failed to update case to Ready:", caseError);
       } else {
-        console.log(`Case ${caseId} set to Ready with result_zip_url: ${payload.url}`);
+        const flowType = payload.result_file_id ? "secure storage" : "legacy URL";
+        console.log(`Case ${caseId} set to Ready via ${flowType}`);
       }
       
       // TODO: Track page usage for final-analysis

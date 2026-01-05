@@ -13,6 +13,7 @@ interface EmailRequest {
     tier?: string;
     expiresAt?: string;
     daysUntilExpiry?: number;
+    totalPages?: number;
   };
 }
 
@@ -105,7 +106,10 @@ const renderLogo = () => `
 
 const getEmailTemplate = (type: EmailRequest["type"], data: EmailRequest["data"]) => {
   const tierName = getTierDisplayName(data.tier);
-  const pageLimit = getTierPageLimit(data.tier);
+  // Use passed totalPages if available, otherwise fall back to hardcoded limit
+  const pageLimit = data.totalPages 
+    ? data.totalPages.toLocaleString()
+    : getTierPageLimit(data.tier);
   const expiryDate = data.expiresAt
     ? new Date(data.expiresAt).toLocaleDateString("en-IN", {
         year: "numeric",
@@ -140,7 +144,7 @@ const getEmailTemplate = (type: EmailRequest["type"], data: EmailRequest["data"]
       <div class="label">Plan</div>
       <div class="value">${tierName}</div>
 
-      <div style="margin-top:12px;" class="label">Monthly Page Limit</div>
+      <div style="margin-top:12px;" class="label">Total Pages Allocated</div>
       <div class="value">${pageLimit} pages</div>
 
       <div style="margin-top:12px;" class="label">Valid Until</div>

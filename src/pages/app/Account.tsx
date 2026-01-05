@@ -323,12 +323,7 @@ export default function Account() {
                       <p className="text-2xl font-semibold">
                         {effectiveTotalPages.toLocaleString()}
                       </p>
-                      {/* For custom allocations (totalPagesGranted set), show custom pack info */}
-                      {totalPagesGranted ? (
-                        <p className="text-xs text-muted-foreground">
-                          Custom allocation • Valid until {expiresAt ? format(new Date(expiresAt), 'MMM dd, yyyy') : 'N/A'}
-                        </p>
-                      ) : expiresAt ? (
+                      {expiresAt ? (
                         <p className="text-xs text-muted-foreground">
                           Valid until {format(new Date(expiresAt), 'MMM dd, yyyy')}
                         </p>

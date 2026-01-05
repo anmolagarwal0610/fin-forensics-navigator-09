@@ -36,7 +36,8 @@ interface CustomTier {
   id: string;
   name: string;
   pages: number;
-  duration: 'monthly' | 'yearly';
+  duration: 'monthly' | 'yearly' | 'quarterly' | 'half-yearly' | 'custom';
+  customDays?: number;
 }
 
 export default function AdminCases() {
@@ -60,7 +61,7 @@ export default function AdminCases() {
 
   // Custom subscription tiers state
   const [customTiers, setCustomTiers] = useState<CustomTier[]>([]);
-  const [newTier, setNewTier] = useState<{ name: string; pages: string; duration: 'monthly' | 'yearly' }>({ name: '', pages: '', duration: 'monthly' });
+  const [newTier, setNewTier] = useState<{ name: string; pages: string; duration: 'monthly' | 'yearly' | 'quarterly' | 'half-yearly' | 'custom'; customDays: string }>({ name: '', pages: '', duration: 'monthly', customDays: '' });
   const [loadingTiers, setLoadingTiers] = useState(true);
 
   // Load custom tiers from app_settings
@@ -134,17 +135,23 @@ export default function AdminCases() {
       return;
     }
     
+    if (newTier.duration === 'custom' && (!newTier.customDays || parseInt(newTier.customDays) <= 0)) {
+      toast({ title: "Please enter valid number of days", variant: "destructive" });
+      return;
+    }
+    
     const tier: CustomTier = {
       id: crypto.randomUUID(),
       name: newTier.name.trim(),
       pages: parseInt(newTier.pages),
-      duration: newTier.duration
+      duration: newTier.duration,
+      ...(newTier.duration === 'custom' && { customDays: parseInt(newTier.customDays) })
     };
     
     const success = await saveCustomTiers([...customTiers, tier]);
     if (success) {
       toast({ title: "Tier added successfully" });
-      setNewTier({ name: '', pages: '', duration: 'monthly' });
+      setNewTier({ name: '', pages: '', duration: 'monthly', customDays: '' });
     } else {
       toast({ title: "Failed to add tier", variant: "destructive" });
     }
@@ -461,17 +468,32 @@ export default function AdminCases() {
                     <Label htmlFor="tier-duration">Duration</Label>
                     <Select
                       value={newTier.duration}
-                      onValueChange={(value: 'monthly' | 'yearly') => setNewTier({ ...newTier, duration: value })}
+                      onValueChange={(value: 'monthly' | 'yearly' | 'quarterly' | 'half-yearly' | 'custom') => setNewTier({ ...newTier, duration: value, customDays: value === 'custom' ? newTier.customDays : '' })}
                     >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                        <SelectItem value="yearly">Yearly</SelectItem>
+                        <SelectItem value="monthly">Monthly (30 days)</SelectItem>
+                        <SelectItem value="quarterly">Quarterly (90 days)</SelectItem>
+                        <SelectItem value="half-yearly">Half-Yearly (180 days)</SelectItem>
+                        <SelectItem value="yearly">Yearly (365 days)</SelectItem>
+                        <SelectItem value="custom">Custom Days</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
+                  {newTier.duration === 'custom' && (
+                    <div>
+                      <Label htmlFor="tier-custom-days">Number of Days</Label>
+                      <Input
+                        id="tier-custom-days"
+                        type="number"
+                        placeholder="e.g. 45"
+                        value={newTier.customDays}
+                        onChange={(e) => setNewTier({ ...newTier, customDays: e.target.value })}
+                      />
+                    </div>
+                  )}
                   <div className="flex items-end">
                     <Button onClick={handleAddTier} className="w-full">
                       <Plus className="h-4 w-4 mr-2" />
@@ -509,7 +531,11 @@ export default function AdminCases() {
                           <TableCell>{tier.pages.toLocaleString()} pages</TableCell>
                           <TableCell>
                             <Badge variant="secondary">
-                              {tier.duration === 'monthly' ? '1 Month' : '1 Year'}
+                              {tier.duration === 'monthly' ? '30 days' : 
+                               tier.duration === 'quarterly' ? '90 days' : 
+                               tier.duration === 'half-yearly' ? '180 days' : 
+                               tier.duration === 'yearly' ? '365 days' : 
+                               `${tier.customDays} days`}
                             </Badge>
                           </TableCell>
                           <TableCell>

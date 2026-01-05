@@ -107,7 +107,7 @@ export default function AdminUsers() {
               <TableBody>
                 {users && users.length > 0 ? (
                   users.map((user) => {
-                    const limit = TIER_LIMITS[user.subscription_tier as keyof typeof TIER_LIMITS] || 50;
+                    const limit = user.total_pages_granted ?? TIER_LIMITS[user.subscription_tier as keyof typeof TIER_LIMITS] ?? 50;
                     const isExpired = user.subscription_expires_at 
                       ? new Date(user.subscription_expires_at) < new Date()
                       : false;

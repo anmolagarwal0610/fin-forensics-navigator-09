@@ -10,6 +10,7 @@ export interface AdminUser {
   subscription_expires_at: string | null;
   current_period_pages_used: number;
   bonus_pages: number;
+  total_pages_granted: number | null;
   created_at: string;
 }
 

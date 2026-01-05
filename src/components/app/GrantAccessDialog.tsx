@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
 import { CalendarIcon, Mail } from "lucide-react";
-import { format, addMonths, addYears } from "date-fns";
+import { format, addMonths, addYears, addDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import type { SubscriptionTier } from "@/hooks/useSubscription";
@@ -24,11 +25,16 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
   const [tier, setTier] = useState<SubscriptionTier>('starter');
   const [duration, setDuration] = useState<string>('1-month');
   const [customDate, setCustomDate] = useState<Date>();
+  const [customDays, setCustomDays] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
 
   const calculateExpiry = () => {
-    if (duration === 'custom' && customDate) return customDate;
+    if (duration === 'custom-date' && customDate) return customDate;
+    if (duration === 'custom-days' && customDays) {
+      const days = parseInt(customDays, 10);
+      if (days > 0) return addDays(new Date(), days);
+    }
     
     const today = new Date();
     switch (duration) {
@@ -38,6 +44,12 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
       case '1-year': return addYears(today, 1);
       default: return addMonths(today, 1);
     }
+  };
+
+  const isValidCustomDays = () => {
+    if (duration !== 'custom-days') return true;
+    const days = parseInt(customDays, 10);
+    return days > 0 && days <= 3650; // Max 10 years
   };
 
   const handleGrant = async () => {
@@ -118,12 +130,32 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
                 <SelectItem value="3-months">3 Months</SelectItem>
                 <SelectItem value="6-months">6 Months</SelectItem>
                 <SelectItem value="1-year">1 Year</SelectItem>
-                <SelectItem value="custom">Custom Date</SelectItem>
+                <SelectItem value="custom-days">Custom Days</SelectItem>
+                <SelectItem value="custom-date">Custom Date</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {duration === 'custom' && (
+          {duration === 'custom-days' && (
+            <div className="space-y-2">
+              <Label>Number of Days</Label>
+              <Input
+                type="number"
+                min="1"
+                max="3650"
+                placeholder="Enter number of days (1-3650)"
+                value={customDays}
+                onChange={(e) => setCustomDays(e.target.value)}
+              />
+              {customDays && parseInt(customDays, 10) > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Approximately {Math.floor(parseInt(customDays, 10) / 30)} months / {(parseInt(customDays, 10) / 365).toFixed(1)} years
+                </p>
+              )}
+            </div>
+          )}
+
+          {duration === 'custom-date' && (
             <div className="space-y-2">
               <Label>Expiration Date</Label>
               <Popover>
@@ -170,7 +202,10 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
-          <Button onClick={handleGrant} disabled={loading || (duration === 'custom' && !customDate)}>
+          <Button 
+            onClick={handleGrant} 
+            disabled={loading || (duration === 'custom-date' && !customDate) || !isValidCustomDays()}
+          >
             {loading ? 'Granting...' : 'Grant Access'}
           </Button>
         </div>

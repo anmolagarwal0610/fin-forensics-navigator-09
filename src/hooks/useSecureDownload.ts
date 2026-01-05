@@ -19,28 +19,30 @@ export function useSecureDownload() {
 
   /**
    * Get a signed URL for a result file (secure storage)
+   * Handles 401 by attempting session refresh and retry once
    */
   const getSecureFileUrl = useCallback(async (
     caseId: string,
     fileType: 'result_zip' | 'csv_zip' = 'result_zip'
   ): Promise<SecureFileInfo | null> => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        console.error('[SecureDownload] No active session for secure file access');
-        return null;
-      }
-
+    const invokeFunction = async (accessToken: string): Promise<SecureFileInfo | null> => {
       console.log('[SecureDownload] Fetching secure file for case:', caseId, 'type:', fileType);
-
+      
       const response = await supabase.functions.invoke('get-result-file', {
         body: { caseId, fileType },
         headers: {
-          Authorization: `Bearer ${session.access_token}`
+          Authorization: `Bearer ${accessToken}`
         }
       });
 
       if (response.error) {
+        // Check if it's a 401 error
+        const is401 = response.error.message?.includes('401') || 
+                      response.error.message?.includes('Unauthorized') ||
+                      (response.error as any)?.status === 401;
+        if (is401) {
+          throw new Error('AUTH_EXPIRED');
+        }
         console.error('[SecureDownload] Edge function error:', response.error);
         return null;
       }
@@ -53,6 +55,40 @@ export function useSecureDownload() {
 
       console.log('[SecureDownload] ✓ Got signed URL');
       return response.data as SecureFileInfo;
+    };
+
+    try {
+      // Get current session
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        console.error('[SecureDownload] No active session for secure file access');
+        return null;
+      }
+
+      try {
+        return await invokeFunction(session.access_token);
+      } catch (error) {
+        // If auth expired, try to refresh and retry once
+        if (error instanceof Error && error.message === 'AUTH_EXPIRED') {
+          console.log('[SecureDownload] Auth expired, attempting refresh...');
+          
+          const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+          
+          if (refreshError || !refreshData.session?.access_token) {
+            console.error('[SecureDownload] Session refresh failed:', refreshError?.message);
+            toast({
+              title: 'Session expired',
+              description: 'Please sign in again.',
+              variant: 'destructive'
+            });
+            return null;
+          }
+          
+          console.log('[SecureDownload] Session refreshed, retrying...');
+          return await invokeFunction(refreshData.session.access_token);
+        }
+        throw error;
+      }
     } catch (error) {
       console.error('[SecureDownload] Failed to get secure file URL:', error);
       return null;

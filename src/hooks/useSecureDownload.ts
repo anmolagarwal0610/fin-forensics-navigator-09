@@ -26,26 +26,35 @@ export function useSecureDownload() {
   ): Promise<SecureFileInfo | null> => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('You must be logged in to access files');
+      if (!session?.access_token) {
+        console.error('[SecureDownload] No active session for secure file access');
+        return null;
       }
 
+      console.log('[SecureDownload] Fetching secure file for case:', caseId, 'type:', fileType);
+
       const response = await supabase.functions.invoke('get-result-file', {
-        body: { caseId, fileType }
+        body: { caseId, fileType },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`
+        }
       });
 
       if (response.error) {
-        throw new Error(response.error.message);
+        console.error('[SecureDownload] Edge function error:', response.error);
+        return null;
       }
 
       // Check if file not found (legacy case - no secure file exists)
       if (response.data?.notFound) {
+        console.log('[SecureDownload] No secure file found, will try legacy URL');
         return null;
       }
 
+      console.log('[SecureDownload] ✓ Got signed URL');
       return response.data as SecureFileInfo;
     } catch (error) {
-      console.error('Failed to get secure file URL:', error);
+      console.error('[SecureDownload] Failed to get secure file URL:', error);
       return null;
     }
   }, []);

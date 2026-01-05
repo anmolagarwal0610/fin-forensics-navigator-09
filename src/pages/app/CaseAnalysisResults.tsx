@@ -11,6 +11,7 @@ import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
+import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2, BarChart3 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -70,8 +71,12 @@ export default function CaseAnalysisResults() {
   // State for viewing previous results
   const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
   
+  // Check for secure result files (new flow)
+  const { hasResultFile: hasSecureResultFile, isLoading: resultStatusLoading } = useResultFileStatus(id);
+  
   // Secure download hook for new storage + legacy URL fallback
   const { fetchFileForParsing, downloadResultFile, isDownloading } = useSecureDownload();
+  
   const toggleSummary = (index: number) => {
     setExpandedSummaries(prev => {
       const next = new Set(prev);
@@ -111,23 +116,33 @@ export default function CaseAnalysisResults() {
     return case_?.result_zip_url;
   }, [case_, viewingPreviousResults]);
 
+  // Determine if we have any results to load (legacy URL OR secure storage)
+  const hasAnyResults = !!(activeResultUrl || hasSecureResultFile);
+
   // Fetch and parse analysis data with caching - uses secure storage with legacy fallback
-  const { data: analysisData, isLoading: analysisLoading } = useQuery({
-    queryKey: ['analysis-data', id, activeResultUrl, viewingPreviousResults],
+  const { data: analysisData, isLoading: analysisLoading, error: analysisError } = useQuery({
+    queryKey: ['analysis-data', id, activeResultUrl, hasSecureResultFile, viewingPreviousResults],
     queryFn: async () => {
+      console.log('[Analysis] Fetching analysis files for case:', id);
+      console.log('[Analysis] Legacy URL:', activeResultUrl ? 'available' : 'none');
+      console.log('[Analysis] Secure file:', hasSecureResultFile ? 'available' : 'none');
+      
       // Try secure storage first, fall back to legacy URL
       const arrayBuffer = await fetchFileForParsing(id!, activeResultUrl, 'result_zip');
       if (!arrayBuffer) {
-        throw new Error('Failed to fetch analysis files');
+        console.error('[Analysis] Failed to fetch analysis files');
+        throw new Error('Failed to fetch analysis files. Please try again.');
       }
+      console.log('[Analysis] ✓ Loaded', (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), 'MB');
       return loadAnalysisFiles(arrayBuffer, files);
     },
-    enabled: !!id && case_?.status === 'Ready' && files.length >= 0,
+    enabled: !!id && case_?.status === 'Ready' && !resultStatusLoading && hasAnyResults,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
+    retry: 1, // Only retry once to avoid long waits
   });
 
-  const loading = caseLoading || analysisLoading;
+  const loading = caseLoading || analysisLoading || resultStatusLoading;
 
   // Handle case not found error
   useEffect(() => {
@@ -553,16 +568,25 @@ export default function CaseAnalysisResults() {
   if (loading) {
     return (
       <div className="container mx-auto p-6 space-y-6">
-        <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded mb-6 w-1/3"></div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-24 bg-muted rounded"></div>
-            ))}
-          </div>
-          <div className="h-64 bg-muted rounded mb-6"></div>
-          <div className="h-48 bg-muted rounded"></div>
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Case
+          </Button>
         </div>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center py-12">
+              <Loader2 className="h-12 w-12 mx-auto mb-4 text-primary animate-spin" />
+              <h3 className="text-lg font-medium mb-2">Loading Analysis Results</h3>
+              <p className="text-muted-foreground text-sm">
+                {caseLoading ? 'Fetching case data...' : 
+                 resultStatusLoading ? 'Checking file availability...' : 
+                 'Downloading and parsing results...'}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -591,7 +615,8 @@ export default function CaseAnalysisResults() {
     );
   }
 
-  if (!analysisData) {
+  // Error state - failed to load analysis
+  if (analysisError || !analysisData) {
     return (
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center gap-4">
@@ -603,7 +628,19 @@ export default function CaseAnalysisResults() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-center py-12">
-              <div className="text-lg font-medium mb-2">Loading analysis results...</div>
+              <FileText className="h-12 w-12 mx-auto mb-4 text-destructive" />
+              <h3 className="text-lg font-medium mb-2">Failed to Load Results</h3>
+              <p className="text-muted-foreground mb-4">
+                {analysisError instanceof Error 
+                  ? analysisError.message 
+                  : 'Unable to load analysis files. Please try again.'}
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => window.location.reload()}
+              >
+                Retry
+              </Button>
             </div>
           </CardContent>
         </Card>

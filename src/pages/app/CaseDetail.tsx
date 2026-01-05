@@ -16,6 +16,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import { getCaseCsvFiles } from "@/api/cases";
 import { AddFilesDialog } from "@/components/app/AddFilesDialog";
+import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 export default function CaseDetail() {
   const {
     id
@@ -31,6 +32,12 @@ export default function CaseDetail() {
   const [csvFileCount, setCsvFileCount] = useState(0);
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
   const [addFilesDialogOpen, setAddFilesDialogOpen] = useState(false);
+  
+  // Check for secure result files (new flow where result_zip_url is null)
+  const { hasResultFile: hasSecureResultFile } = useResultFileStatus(id);
+  
+  // Determine if results are available (legacy URL OR secure storage)
+  const hasResults = !!(case_?.result_zip_url || hasSecureResultFile);
   
   useEffect(() => {
     if (!id) return;
@@ -279,7 +286,7 @@ export default function CaseDetail() {
                   Files ({files.length})
                 </div>
                 {/* Add More Files for Ready cases */}
-                {case_.status === 'Ready' && case_.result_zip_url && (
+                {case_.status === 'Ready' && hasResults && (
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -441,8 +448,8 @@ export default function CaseDetail() {
                 <p className="text-sm text-muted-foreground mb-4">
                   Results are ready for review.
                 </p>
-                <Button disabled={!case_.result_zip_url} onClick={() => case_.result_zip_url && navigate(`/app/cases/${case_.id}/results`)}>
-                  {case_.result_zip_url ? 'View Results' : 'View Results (Coming Soon)'}
+                <Button disabled={!hasResults} onClick={() => hasResults && navigate(`/app/cases/${case_.id}/results`)}>
+                  {hasResults ? 'View Results' : 'View Results (Coming Soon)'}
                 </Button>
               </div> : case_.status === 'Failed' || case_.status === 'Timeout' ? <div className="text-center py-8 text-muted-foreground">
                 <p>Analysis encountered an issue. See the message above for details.</p>

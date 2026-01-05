@@ -106,7 +106,30 @@ export async function uploadInput(
       console.log(`⏭️ Skipping file insertion for ${uploadedFiles.length} files (skipFileInsertion=true)`);
     }
 
-    // STEP 4: Create ZIP file locally using PRE-READ buffers
+    // STEP 4: Delete old ZIPs for this case to prevent duplicates
+    console.log('🗑️ Cleaning up old ZIPs...');
+    try {
+      const { data: oldZips } = await supabase.storage
+        .from(bucket)
+        .list(`${userId}/zips`, {
+          search: `case_${caseId}_`
+        });
+
+      if (oldZips && oldZips.length > 0) {
+        const filesToDelete = oldZips.map(f => `${userId}/zips/${f.name}`);
+        const { error: deleteError } = await supabase.storage.from(bucket).remove(filesToDelete);
+        if (deleteError) {
+          console.warn('⚠️ Failed to delete old ZIPs:', deleteError.message);
+        } else {
+          console.log(`✓ Deleted ${oldZips.length} old ZIP(s)`);
+        }
+      }
+    } catch (cleanupError) {
+      console.warn('⚠️ ZIP cleanup warning:', cleanupError);
+      // Non-critical, continue with upload
+    }
+
+    // STEP 5: Create ZIP file locally using PRE-READ buffers
     console.log('🗜️ Creating ZIP file...');
     try {
       const zip = new JSZip();

@@ -48,7 +48,7 @@ export default function CaseUpload() {
   const [loadingPreExisting, setLoadingPreExisting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [savingForLater, setSavingForLater] = useState(false);
-  const [useHitl, setUseHitl] = useState(true);
+  const [useHitl, setUseHitl] = useState(false);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
 

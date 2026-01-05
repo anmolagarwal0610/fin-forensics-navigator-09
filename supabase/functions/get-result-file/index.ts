@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
@@ -14,27 +15,51 @@ serve(async (req) => {
   }
 
   try {
-    // Get user from JWT
+    // Get and validate Authorization header
     const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       console.error("[Auth] No authorization header");
-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
+
+    // Parse bearer token
+    const tokenMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (!tokenMatch || !tokenMatch[1]) {
+      console.error("[Auth] Invalid authorization header format");
+      return new Response(
+        JSON.stringify({ error: "Invalid authorization header" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const token = tokenMatch[1];
+    console.log(`[Auth] Token received (length: ${token.length})`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     
-    // Verify user with anon client
+    // Create user client with server-safe auth config (no session persistence)
     const userClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+        detectSessionInUrl: false,
+      },
       global: { headers: { Authorization: authHeader } }
     });
     
-    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    // Verify user using the token directly (avoids AuthSessionMissingError)
+    const { data: { user }, error: authError } = await userClient.auth.getUser(token);
     
     if (authError || !user) {
-      console.error("[Auth] User verification failed:", authError);
-      return new Response("Unauthorized", { status: 401, headers: corsHeaders });
+      console.error("[Auth] User verification failed:", authError?.message || "No user returned");
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     console.log(`[Auth] ✓ User verified: ${user.id}`);
@@ -47,6 +72,8 @@ serve(async (req) => {
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    console.log(`[Request] Case: ${caseId}, FileType: ${fileType}`);
 
     // Use service role for database operations
     const supabase = createClient(supabaseUrl, supabaseServiceKey);

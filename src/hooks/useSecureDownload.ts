@@ -1,0 +1,159 @@
+import { useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/hooks/use-toast';
+
+interface SecureFileInfo {
+  signedUrl: string;
+  fileName: string;
+  fileSize: number;
+  createdAt: string;
+  storagePath: string;
+}
+
+/**
+ * Hook for securely downloading result files from Supabase Storage.
+ * Handles both new secure storage and legacy public URLs for backwards compatibility.
+ */
+export function useSecureDownload() {
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  /**
+   * Get a signed URL for a result file (secure storage)
+   */
+  const getSecureFileUrl = useCallback(async (
+    caseId: string,
+    fileType: 'result_zip' | 'csv_zip' = 'result_zip'
+  ): Promise<SecureFileInfo | null> => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('You must be logged in to access files');
+      }
+
+      const response = await supabase.functions.invoke('get-result-file', {
+        body: { caseId, fileType }
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message);
+      }
+
+      // Check if file not found (legacy case - no secure file exists)
+      if (response.data?.notFound) {
+        return null;
+      }
+
+      return response.data as SecureFileInfo;
+    } catch (error) {
+      console.error('Failed to get secure file URL:', error);
+      return null;
+    }
+  }, []);
+
+  /**
+   * Download a result file - tries secure storage first, falls back to legacy URL
+   */
+  const downloadResultFile = useCallback(async (
+    caseId: string,
+    legacyUrl: string | null | undefined,
+    fileType: 'result_zip' | 'csv_zip' = 'result_zip',
+    suggestedFileName?: string
+  ) => {
+    setIsDownloading(true);
+    
+    try {
+      // First, try to get from secure storage
+      const secureFile = await getSecureFileUrl(caseId, fileType);
+      
+      let downloadUrl: string;
+      let fileName: string;
+
+      if (secureFile) {
+        // Use secure signed URL
+        console.log('[SecureDownload] Using secure storage');
+        downloadUrl = secureFile.signedUrl;
+        fileName = suggestedFileName || secureFile.fileName || 'download.zip';
+      } else if (legacyUrl) {
+        // Fall back to legacy public URL
+        console.log('[SecureDownload] Using legacy URL');
+        downloadUrl = legacyUrl;
+        fileName = suggestedFileName || 'download.zip';
+      } else {
+        throw new Error('No download URL available');
+      }
+
+      // Download the file
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({ title: 'Download started' });
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      toast({ 
+        title: 'Download failed', 
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [getSecureFileUrl]);
+
+  /**
+   * Fetch file content (ZIP) for parsing - tries secure storage first, falls back to legacy URL
+   */
+  const fetchFileForParsing = useCallback(async (
+    caseId: string,
+    legacyUrl: string | null | undefined,
+    fileType: 'result_zip' | 'csv_zip' = 'result_zip'
+  ): Promise<ArrayBuffer | null> => {
+    try {
+      // First, try to get from secure storage
+      const secureFile = await getSecureFileUrl(caseId, fileType);
+      
+      let fetchUrl: string;
+
+      if (secureFile) {
+        console.log('[SecureDownload] Fetching from secure storage');
+        fetchUrl = secureFile.signedUrl;
+      } else if (legacyUrl) {
+        console.log('[SecureDownload] Fetching from legacy URL');
+        fetchUrl = legacyUrl;
+      } else {
+        console.error('[SecureDownload] No URL available for parsing');
+        return null;
+      }
+
+      const response = await fetch(fetchUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch file: ${response.status}`);
+      }
+
+      return await response.arrayBuffer();
+    } catch (error) {
+      console.error('Failed to fetch file for parsing:', error);
+      return null;
+    }
+  }, [getSecureFileUrl]);
+
+  return { 
+    downloadResultFile, 
+    fetchFileForParsing,
+    getSecureFileUrl,
+    isDownloading 
+  };
+}

@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2, BarChart3 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -68,7 +69,9 @@ export default function CaseAnalysisResults() {
   
   // State for viewing previous results
   const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
-
+  
+  // Secure download hook for new storage + legacy URL fallback
+  const { fetchFileForParsing, downloadResultFile, isDownloading } = useSecureDownload();
   const toggleSummary = (index: number) => {
     setExpandedSummaries(prev => {
       const next = new Set(prev);
@@ -108,11 +111,18 @@ export default function CaseAnalysisResults() {
     return case_?.result_zip_url;
   }, [case_, viewingPreviousResults]);
 
-  // Fetch and parse analysis data with caching
+  // Fetch and parse analysis data with caching - uses secure storage with legacy fallback
   const { data: analysisData, isLoading: analysisLoading } = useQuery({
-    queryKey: ['analysis-data', id, activeResultUrl],
-    queryFn: () => loadAnalysisFiles(activeResultUrl!, files),
-    enabled: !!activeResultUrl && case_?.status === 'Ready' && files.length >= 0,
+    queryKey: ['analysis-data', id, activeResultUrl, viewingPreviousResults],
+    queryFn: async () => {
+      // Try secure storage first, fall back to legacy URL
+      const arrayBuffer = await fetchFileForParsing(id!, activeResultUrl, 'result_zip');
+      if (!arrayBuffer) {
+        throw new Error('Failed to fetch analysis files');
+      }
+      return loadAnalysisFiles(arrayBuffer, files);
+    },
+    enabled: !!id && case_?.status === 'Ready' && files.length >= 0,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
   });
@@ -127,12 +137,8 @@ export default function CaseAnalysisResults() {
     }
   }, [caseError, navigate]);
 
-  const loadAnalysisFiles = async (zipUrl: string, originalFiles: CaseFileRecord[]): Promise<ParsedAnalysisData | null> => {
+  const loadAnalysisFiles = async (arrayBuffer: ArrayBuffer, originalFiles: CaseFileRecord[]): Promise<ParsedAnalysisData | null> => {
     try {
-      const response = await fetch(zipUrl);
-      if (!response.ok) throw new Error('Failed to fetch ZIP file');
-      
-      const arrayBuffer = await response.arrayBuffer();
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
       
@@ -438,16 +444,13 @@ export default function CaseAnalysisResults() {
   };
 
   const downloadAllPOIFiles = () => {
-    if (!case_?.result_zip_url) return;
-    handleDownload(case_.result_zip_url, `POI_files_${case_.name}.zip`);
-    toast({ title: `Downloading ${analysisData?.poiFileCount || 0} POI files` });
+    if (!case_) return;
+    downloadResultFile(case_.id, case_.result_zip_url, 'result_zip', `POI_files_${case_.name}.zip`);
   };
 
   const downloadCompleteReport = () => {
-    if (case_?.result_zip_url) {
-      handleDownload(case_.result_zip_url, `analysis_report_${case_.name}.zip`);
-      toast({ title: "Downloading complete analysis report" });
-    }
+    if (!case_) return;
+    downloadResultFile(case_.id, case_.result_zip_url, 'result_zip', `analysis_report_${case_.name}.zip`);
   };
 
   const downloadIndividualFile = async (fileName: string) => {

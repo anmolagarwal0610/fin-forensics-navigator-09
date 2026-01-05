@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -7,11 +7,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
-import { CalendarIcon, Mail } from "lucide-react";
-import { format, addMonths, addYears, addDays } from "date-fns";
+import { CalendarIcon, Mail, Info } from "lucide-react";
+import { format, addMonths, addYears, addDays, differenceInDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { TIER_LIMITS, TIER_PAGES_PER_PERIOD } from "@/hooks/useSubscription";
 import type { SubscriptionTier } from "@/hooks/useSubscription";
+
+interface CustomTier {
+  id: string;
+  name: string;
+  pages: number;
+  duration: 'monthly' | 'yearly' | 'quarterly' | 'half-yearly' | 'custom';
+  customDays?: number;
+}
 
 interface GrantAccessDialogProps {
   open: boolean;
@@ -22,12 +31,36 @@ interface GrantAccessDialogProps {
 }
 
 export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuccess }: GrantAccessDialogProps) {
-  const [tier, setTier] = useState<SubscriptionTier>('starter');
+  const [tier, setTier] = useState<string>('starter');
   const [duration, setDuration] = useState<string>('1-month');
   const [customDate, setCustomDate] = useState<Date>();
   const [customDays, setCustomDays] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [sendEmail, setSendEmail] = useState(true);
+  const [customTiers, setCustomTiers] = useState<CustomTier[]>([]);
+
+  // Load custom tiers on mount
+  useEffect(() => {
+    const loadCustomTiers = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('app_settings')
+          .select('value')
+          .eq('key', 'custom_subscription_tiers')
+          .single();
+        
+        if (data && !error) {
+          setCustomTiers((data.value as any) || []);
+        }
+      } catch (err) {
+        console.log('No custom tiers configured');
+      }
+    };
+    if (open) loadCustomTiers();
+  }, [open]);
+
+  const isCustomTier = !['free', 'starter', 'professional', 'enterprise', 'monthly', 'yearly_tier', 'yearly_plan'].includes(tier);
+  const selectedCustomTier = customTiers.find(t => t.id === tier);
 
   const calculateExpiry = () => {
     if (duration === 'custom-date' && customDate) return customDate;
@@ -46,6 +79,48 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
     }
   };
 
+  const calculateTotalPages = () => {
+    const expiryDate = calculateExpiry();
+    const durationDays = differenceInDays(expiryDate, new Date());
+    const durationMonths = Math.max(1, Math.round(durationDays / 30));
+
+    if (isCustomTier && selectedCustomTier) {
+      // Custom tier - use its pages directly as total
+      return {
+        total: selectedCustomTier.pages,
+        perPeriod: selectedCustomTier.pages,
+        period: 'total' as const,
+        months: durationMonths,
+      };
+    }
+
+    // Built-in tier
+    const tierKey = tier as SubscriptionTier;
+    const tierInfo = TIER_PAGES_PER_PERIOD[tierKey];
+    
+    if (!tierInfo) {
+      return { total: 0, perPeriod: 0, period: 'month' as const, months: durationMonths };
+    }
+
+    if (tierInfo.period === 'year') {
+      // Yearly tiers - pages are for the full year
+      return {
+        total: tierInfo.pages,
+        perPeriod: tierInfo.pages,
+        period: 'year' as const,
+        months: durationMonths,
+      };
+    } else {
+      // Monthly tiers - multiply by duration in months
+      return {
+        total: tierInfo.pages * durationMonths,
+        perPeriod: tierInfo.pages,
+        period: 'month' as const,
+        months: durationMonths,
+      };
+    }
+  };
+
   const isValidCustomDays = () => {
     if (duration !== 'custom-days') return true;
     const days = parseInt(customDays, 10);
@@ -59,14 +134,29 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
       if (!session) throw new Error('Not authenticated');
 
       const expiryDate = calculateExpiry();
+      const pageCalc = calculateTotalPages();
+      
+      // Prepare tier data for edge function
+      const tierData = isCustomTier && selectedCustomTier
+        ? {
+            tierName: selectedCustomTier.name,
+            tierPages: selectedCustomTier.pages,
+            isCustom: true,
+          }
+        : {
+            tierName: tier,
+            isCustom: false,
+          };
       
       // Call secure edge function for server-side validation
       const response = await supabase.functions.invoke('grant-subscription', {
         body: {
           userId,
-          tier,
+          tier: isCustomTier ? 'professional' : tier, // Use professional as base for custom tiers
           expiresAt: expiryDate.toISOString(),
           sendEmail,
+          totalPagesGranted: pageCalc.total,
+          customTierData: isCustomTier ? tierData : undefined,
         },
         headers: {
           Authorization: `Bearer ${session.access_token}`,
@@ -77,8 +167,12 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
         throw new Error(response.error.message || 'Failed to grant subscription');
       }
 
+      const tierLabel = isCustomTier && selectedCustomTier 
+        ? selectedCustomTier.name 
+        : tier;
+
       toast.success('Access Granted', {
-        description: `${userEmail} now has ${tier} access until ${format(expiryDate, 'PPP')}${sendEmail ? ' (email sent)' : ''}`,
+        description: `${userEmail} now has ${tierLabel} access (${pageCalc.total.toLocaleString()} pages) until ${format(expiryDate, 'PPP')}${sendEmail ? ' (email sent)' : ''}`,
       });
 
       onSuccess();
@@ -91,9 +185,11 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
     }
   };
 
+  const pageCalc = calculateTotalPages();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>Grant Premium Access</DialogTitle>
           <DialogDescription>
@@ -104,7 +200,7 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Subscription Tier</Label>
-            <Select value={tier} onValueChange={(v) => setTier(v as SubscriptionTier)}>
+            <Select value={tier} onValueChange={setTier}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -115,6 +211,19 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
                 <SelectItem value="monthly">Monthly Tier (22,500 pages/month)</SelectItem>
                 <SelectItem value="yearly_tier">Yearly Tier (200,000 pages/year)</SelectItem>
                 <SelectItem value="yearly_plan">Yearly Plan (250,000 pages/year)</SelectItem>
+                
+                {customTiers.length > 0 && (
+                  <>
+                    <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1 pt-2">
+                      Custom Tiers
+                    </div>
+                    {customTiers.map((ct) => (
+                      <SelectItem key={ct.id} value={ct.id}>
+                        {ct.name} ({ct.pages.toLocaleString()} pages)
+                      </SelectItem>
+                    ))}
+                  </>
+                )}
               </SelectContent>
             </Select>
           </div>
@@ -177,10 +286,32 @@ export function GrantAccessDialog({ open, onOpenChange, userId, userEmail, onSuc
             </div>
           )}
 
-          <div className="bg-muted p-3 rounded-md">
-            <p className="text-sm text-muted-foreground">
-              Access will expire on {format(calculateExpiry(), 'PPP')}
-            </p>
+          {/* Total Pages Preview */}
+          <div className="bg-primary/5 border border-primary/20 p-4 rounded-lg space-y-2">
+            <div className="flex items-center gap-2 text-sm font-medium">
+              <Info className="h-4 w-4 text-primary" />
+              Subscription Summary
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total Pages</p>
+                <p className="text-lg font-semibold">{pageCalc.total.toLocaleString()}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Expires</p>
+                <p className="text-lg font-semibold">{format(calculateExpiry(), 'MMM dd, yyyy')}</p>
+              </div>
+            </div>
+            {pageCalc.period === 'month' && pageCalc.months > 1 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                {pageCalc.perPeriod.toLocaleString()} pages/month × {pageCalc.months} months = {pageCalc.total.toLocaleString()} total pages
+              </p>
+            )}
+            {isCustomTier && selectedCustomTier && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Custom tier: {selectedCustomTier.name}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-between p-3 border rounded-md">

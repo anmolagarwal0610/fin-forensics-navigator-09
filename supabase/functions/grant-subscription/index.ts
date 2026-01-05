@@ -51,7 +51,7 @@ serve(async (req) => {
     }
 
     // Parse request body
-    const { userId, tier, expiresAt, sendEmail = true } = await req.json();
+    const { userId, tier, expiresAt, sendEmail = true, totalPagesGranted, customTierData } = await req.json();
 
     // Validate input
     if (!userId || !tier) {
@@ -61,7 +61,7 @@ serve(async (req) => {
       });
     }
 
-    // Validate tier
+    // Validate tier (allow professional as base for custom tiers)
     const validTiers = ["free", "starter", "professional", "enterprise", "monthly", "yearly_tier", "yearly_plan"];
     if (!validTiers.includes(tier)) {
       return new Response(JSON.stringify({ error: "Invalid tier. Must be one of: free, starter, professional, enterprise, monthly, yearly_tier, yearly_plan" }), {
@@ -101,14 +101,23 @@ serve(async (req) => {
     }
 
     // Update profile with subscription details
+    const updateData: Record<string, any> = {
+      subscription_tier: tier,
+      subscription_expires_at: expiresAt || null,
+      subscription_granted_at: new Date().toISOString(),
+      subscription_granted_by: user.id,
+      current_period_pages_used: 0, // Reset usage when granting new subscription
+    };
+
+    // Set total_pages_granted if provided
+    if (totalPagesGranted !== undefined && totalPagesGranted !== null) {
+      updateData.total_pages_granted = totalPagesGranted;
+      console.log(`Setting total_pages_granted to ${totalPagesGranted}`);
+    }
+
     const { error: updateError } = await supabase
       .from("profiles")
-      .update({
-        subscription_tier: tier,
-        subscription_expires_at: expiresAt || null,
-        subscription_granted_at: new Date().toISOString(),
-        subscription_granted_by: user.id,
-      })
+      .update(updateData)
       .eq("user_id", userId);
 
     if (updateError) {
@@ -116,18 +125,27 @@ serve(async (req) => {
       throw updateError;
     }
 
+    // Build details for audit log
+    const logDetails: Record<string, any> = {
+      tier,
+      expires_at: expiresAt,
+      total_pages_granted: totalPagesGranted,
+    };
+    
+    if (customTierData) {
+      logDetails.custom_tier = customTierData;
+    }
+
     // Log the admin action
     await supabase.rpc("log_admin_action", {
       p_admin_id: user.id,
       p_target_user_id: userId,
       p_action: "grant_subscription",
-      p_details: {
-        tier,
-        expires_at: expiresAt,
-      },
+      p_details: logDetails,
     });
 
-    console.log(`Admin ${user.email} granted ${tier} subscription to user ${userId}`);
+    const tierLabel = customTierData?.isCustom ? customTierData.tierName : tier;
+    console.log(`Admin ${user.email} granted ${tierLabel} subscription (${totalPagesGranted} pages) to user ${userId}`);
 
     // Get target user email for notification (only if sendEmail is true)
     if (sendEmail) {
@@ -141,8 +159,9 @@ serve(async (req) => {
               to: targetAuthData.user.email,
               type: "granted",
               data: {
-                tier,
+                tier: tierLabel,
                 expiresAt,
+                totalPages: totalPagesGranted,
               },
             },
           });
@@ -159,7 +178,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `Successfully granted ${tier} subscription` 
+        message: `Successfully granted ${tierLabel} subscription with ${totalPagesGranted?.toLocaleString() || 'default'} pages` 
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

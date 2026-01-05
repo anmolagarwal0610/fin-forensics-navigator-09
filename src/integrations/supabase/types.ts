@@ -329,6 +329,59 @@ export type Database = {
         }
         Relationships: []
       }
+      result_files: {
+        Row: {
+          case_id: string
+          created_at: string
+          expires_at: string | null
+          file_name: string
+          file_size_bytes: number | null
+          file_type: string
+          id: string
+          is_current: boolean | null
+          job_id: string | null
+          mime_type: string | null
+          storage_path: string
+          user_id: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          expires_at?: string | null
+          file_name: string
+          file_size_bytes?: number | null
+          file_type?: string
+          id?: string
+          is_current?: boolean | null
+          job_id?: string | null
+          mime_type?: string | null
+          storage_path: string
+          user_id: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          expires_at?: string | null
+          file_name?: string
+          file_size_bytes?: number | null
+          file_type?: string
+          id?: string
+          is_current?: boolean | null
+          job_id?: string | null
+          mime_type?: string | null
+          storage_path?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "result_files_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       usage_history: {
         Row: {
           created_at: string | null

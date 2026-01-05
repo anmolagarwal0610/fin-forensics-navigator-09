@@ -74,8 +74,8 @@ serve(async (req) => {
     if (expiresAt) {
       const expiryDate = new Date(expiresAt);
       const now = new Date();
-      const oneYearFromNow = new Date();
-      oneYearFromNow.setFullYear(oneYearFromNow.getFullYear() + 1);
+      const tenYearsFromNow = new Date();
+      tenYearsFromNow.setFullYear(tenYearsFromNow.getFullYear() + 10);
 
       if (expiryDate <= now) {
         return new Response(JSON.stringify({ error: "Expiry date must be in the future" }), {
@@ -84,8 +84,8 @@ serve(async (req) => {
         });
       }
 
-      if (expiryDate > oneYearFromNow) {
-        return new Response(JSON.stringify({ error: "Expiry date cannot be more than 1 year in the future" }), {
+      if (expiryDate > tenYearsFromNow) {
+        return new Response(JSON.stringify({ error: "Expiry date cannot be more than 10 years in the future" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });

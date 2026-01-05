@@ -281,7 +281,10 @@ export default function Account() {
                         {totalPages.toLocaleString()}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {t('account.pagesPerMonth')}
+                        {expiresAt 
+                          ? `Total pages until ${format(new Date(expiresAt), 'MMM dd, yyyy')}`
+                          : t('account.pagesPerMonth')
+                        }
                       </p>
                     </div>
                   </div>
@@ -290,12 +293,12 @@ export default function Account() {
                     <div className="flex items-start gap-3 p-4 rounded-lg bg-muted/50">
                       <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
-                        <p className="text-sm font-medium">{t('account.renewsOn')}</p>
+                        <p className="text-sm font-medium">Subscription Expires</p>
                         <p className="text-lg font-semibold mt-1">
                           {format(new Date(expiresAt), 'MMM dd, yyyy')}
                         </p>
                         <p className="text-xs text-muted-foreground mt-1">
-                          {t('account.nextBillingDate')}
+                          Contact admin to renew
                         </p>
                       </div>
                     </div>

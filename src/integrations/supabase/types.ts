@@ -379,7 +379,15 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      storage_metrics: {
+        Row: {
+          bucket_id: string | null
+          file_count: number | null
+          file_type: string | null
+          total_mb: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       apply_job_update: {

@@ -68,8 +68,18 @@ export default function NewCase() {
         }
       })
       .catch((e) => {
-        console.error(e);
-        toast({ title: "Failed to create case" });
+        console.error('Case creation error:', e);
+        // Extract meaningful error message from Supabase/Postgres error
+        const errorMessage = e?.message || e?.error?.message || "Failed to create case";
+        const isPageLimitError = errorMessage.toLowerCase().includes('page limit') || 
+                                  errorMessage.toLowerCase().includes('subscription');
+        toast({ 
+          title: "Failed to create case",
+          description: isPageLimitError 
+            ? errorMessage 
+            : "Please try again or contact support.",
+          variant: "destructive"
+        });
       })
       .finally(() => setSubmitting(false));
   };

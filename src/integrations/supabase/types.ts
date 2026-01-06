@@ -235,11 +235,15 @@ export type Database = {
       }
       jobs: {
         Row: {
+          attempt_count: number
           created_at: string | null
           error: string | null
           id: string
           idempotency_key: string | null
           input_url: string
+          locked_at: string | null
+          locked_by: string | null
+          result_file_id: string | null
           session_id: string | null
           status: string
           task: string
@@ -248,11 +252,15 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          attempt_count?: number
           created_at?: string | null
           error?: string | null
           id: string
           idempotency_key?: string | null
           input_url: string
+          locked_at?: string | null
+          locked_by?: string | null
+          result_file_id?: string | null
           session_id?: string | null
           status?: string
           task: string
@@ -261,11 +269,15 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          attempt_count?: number
           created_at?: string | null
           error?: string | null
           id?: string
           idempotency_key?: string | null
           input_url?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          result_file_id?: string | null
           session_id?: string | null
           status?: string
           task?: string
@@ -273,7 +285,15 @@ export type Database = {
           url?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "jobs_result_file_id_fkey"
+            columns: ["result_file_id"]
+            isOneToOne: false
+            referencedRelation: "result_files"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -446,37 +466,107 @@ export type Database = {
       }
     }
     Functions: {
-      apply_job_update: {
-        Args: {
-          p_error: string
-          p_id: string
-          p_idempotency_key: string
-          p_input_url: string
-          p_session_id: string
-          p_status: string
-          p_task: string
-          p_updated_at: string
-          p_url: string
-          p_user_id: string
-        }
+      apply_job_update:
+        | {
+            Args: {
+              p_error: string
+              p_id: string
+              p_idempotency_key: string
+              p_input_url: string
+              p_session_id: string
+              p_status: string
+              p_task: string
+              p_updated_at: string
+              p_url: string
+              p_user_id: string
+            }
+            Returns: {
+              attempt_count: number
+              created_at: string | null
+              error: string | null
+              id: string
+              idempotency_key: string | null
+              input_url: string
+              locked_at: string | null
+              locked_by: string | null
+              result_file_id: string | null
+              session_id: string | null
+              status: string
+              task: string
+              updated_at: string | null
+              url: string | null
+              user_id: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "jobs"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_attempt_count?: number
+              p_error: string
+              p_id: string
+              p_idempotency_key: string
+              p_input_url: string
+              p_result_file_id?: string
+              p_session_id: string
+              p_status: string
+              p_task: string
+              p_updated_at: string
+              p_url: string
+              p_user_id: string
+            }
+            Returns: {
+              attempt_count: number
+              created_at: string | null
+              error: string | null
+              id: string
+              idempotency_key: string | null
+              input_url: string
+              locked_at: string | null
+              locked_by: string | null
+              result_file_id: string | null
+              session_id: string | null
+              status: string
+              task: string
+              updated_at: string | null
+              url: string | null
+              user_id: string | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "jobs"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      get_pending_jobs_for_replay: {
+        Args: { p_lock_expiry_minutes?: number; p_max_age_hours?: number }
         Returns: {
+          attempt_count: number
           created_at: string | null
           error: string | null
           id: string
           idempotency_key: string | null
           input_url: string
+          locked_at: string | null
+          locked_by: string | null
+          result_file_id: string | null
           session_id: string | null
           status: string
           task: string
           updated_at: string | null
           url: string | null
           user_id: string | null
-        }
+        }[]
         SetofOptions: {
           from: "*"
           to: "jobs"
-          isOneToOne: true
-          isSetofReturn: false
+          isOneToOne: false
+          isSetofReturn: true
         }
       }
       get_subscription_status: {
@@ -489,6 +579,10 @@ export type Database = {
         }[]
       }
       has_role: { Args: { _role: string; _user_id: string }; Returns: boolean }
+      lock_job_for_processing: {
+        Args: { p_job_id: string; p_worker_id: string }
+        Returns: boolean
+      }
       log_admin_action: {
         Args: {
           p_action: string

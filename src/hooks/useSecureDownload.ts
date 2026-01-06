@@ -7,7 +7,6 @@ interface SecureFileInfo {
   fileName: string;
   fileSize: number;
   createdAt: string;
-  storagePath: string;
 }
 
 /**

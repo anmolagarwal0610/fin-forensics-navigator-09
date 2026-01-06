@@ -108,7 +108,6 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         result_file_id: resultFile.id,
-        storage_path: storagePath,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

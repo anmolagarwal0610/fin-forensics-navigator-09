@@ -150,7 +150,6 @@ serve(async (req) => {
         fileName: resultFile.file_name,
         fileSize: resultFile.file_size_bytes,
         createdAt: resultFile.created_at,
-        storagePath: resultFile.storage_path,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

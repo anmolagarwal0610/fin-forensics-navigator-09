@@ -324,7 +324,7 @@ async function updateCaseStatus(supabase: any, payload: any) {
       
       // NEW SECURE FLOW: Check for result_file_id (uploaded via upload-result-file)
       if (payload.result_file_id) {
-        console.log(`[Secure Storage] Using result_file_id: ${payload.result_file_id}, storage_path: ${payload.storage_path}`);
+        console.log(`[Secure Storage] Using result_file_id: ${payload.result_file_id}`);
         // File already uploaded via upload-result-file edge function
         // Frontend will use get-result-file to fetch signed URL
         // Don't set result_zip_url - this signals to frontend to use secure flow

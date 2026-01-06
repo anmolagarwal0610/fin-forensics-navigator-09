@@ -578,11 +578,11 @@ export default function CaseAnalysisResults() {
           <CardContent className="pt-6">
             <div className="text-center py-12">
               <Loader2 className="h-12 w-12 mx-auto mb-4 text-primary animate-spin" />
-              <h3 className="text-lg font-medium mb-2">Loading Analysis Results</h3>
+              <h3 className="text-lg font-medium mb-2">Securely Loading Results</h3>
               <p className="text-muted-foreground text-sm">
                 {caseLoading ? 'Fetching case data...' : 
                  resultStatusLoading ? 'Checking file availability...' : 
-                 'Downloading and parsing results...'}
+                 'Downloading encrypted files...'}
               </p>
             </div>
           </CardContent>

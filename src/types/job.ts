@@ -1,10 +1,10 @@
 export type JobTask = 'initial-parse' | 'final-analysis' | 'parse-statements';
 
-export type JobStatus = 'STARTED' | 'SUCCEEDED' | 'FAILED';
+export type JobStatus = 'PENDING' | 'RUNNING' | 'STARTED' | 'SUCCEEDED' | 'FAILED';
 
 export interface JobResp {
   job_id: string;
-  status: 'STARTED';
+  status: JobStatus;
 }
 
 export interface JobRow {

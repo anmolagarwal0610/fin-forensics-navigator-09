@@ -27,18 +27,21 @@ export function JobStatus({ jobId, onComplete }: JobStatusProps) {
 
   if (!job) return <div>Loading job...</div>;
 
+  // Helper to check if status is "in progress"
+  const isInProgress = ['PENDING', 'RUNNING', 'STARTED'].includes(job.status);
+
   return (
     <Card>
       <CardContent className="pt-6">
         <div className="flex items-center gap-3">
-          {job.status === 'STARTED' && <Loader2 className="h-5 w-5 animate-spin" />}
+          {isInProgress && <Loader2 className="h-5 w-5 animate-spin" />}
           {job.status === 'SUCCEEDED' && <CheckCircle className="h-5 w-5 text-green-600" />}
           {job.status === 'FAILED' && <XCircle className="h-5 w-5 text-red-600" />}
           
           <div className="flex-1">
             <div className="font-medium">Task: {job.task}</div>
             <Badge variant={
-              job.status === 'STARTED' ? 'secondary' :
+              isInProgress ? 'secondary' :
               job.status === 'SUCCEEDED' ? 'success' : 'error'
             }>
               {job.status}

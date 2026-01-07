@@ -251,7 +251,8 @@ async function updateCaseStatus(supabase: any, payload: any) {
   const caseId = payload.session_id || payload.sessionId;
   console.log(`Updating case ${caseId} status for task ${payload.task} with status ${payload.status}`);
 
-  if (payload.status === "STARTED") {
+  // Treat PENDING, RUNNING, and STARTED as "Processing" statuses
+  if (["PENDING", "RUNNING", "STARTED"].includes(payload.status)) {
     // Set case to Processing
     const { error: caseError } = await supabase
       .from("cases")
@@ -265,7 +266,7 @@ async function updateCaseStatus(supabase: any, payload: any) {
     if (caseError) {
       console.error("Failed to update case to Processing:", caseError);
     } else {
-      console.log(`Case ${caseId} set to Processing`);
+      console.log(`Case ${caseId} set to Processing (status: ${payload.status})`);
     }
 
   } else if (payload.status === "SUCCEEDED") {

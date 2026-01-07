@@ -269,21 +269,6 @@ export default function CaseUpload() {
         throw new Error("Authentication required");
       }
 
-      // Track page usage IMMEDIATELY before starting job (only for new files)
-      if (totalPages > 0) {
-        const { error: trackingError } = await supabase.rpc("track_page_usage", {
-          p_user_id: user.id,
-          p_pages_processed: totalPages,
-        });
-
-        if (trackingError) {
-          console.error("Failed to track page usage:", trackingError);
-          throw new Error("Failed to update page usage. Please try again.");
-        }
-
-        console.log(`✅ Tracked ${totalPages} pages for user ${user.id}`);
-      }
-
       // Convert FileItem[] to File[]
       const uploadFiles = files.map((f) => f.file);
 
@@ -303,7 +288,7 @@ export default function CaseUpload() {
       // Import the startJobFlow function
       const { startJobFlow } = await import("@/hooks/useStartJob");
 
-      // Start job flow with Realtime tracking
+      // Start job flow with Realtime tracking - do this FIRST before tracking pages
       const { job_id } = await startJobFlow(
         uploadFiles,
         task,
@@ -333,6 +318,21 @@ export default function CaseUpload() {
         },
         isAddFilesMode, // skipFileInsertion - skip for add files mode since files already exist
       );
+
+      // Track page usage ONLY AFTER job successfully started (prevents double-charging on retries)
+      if (totalPages > 0) {
+        const { error: trackingError } = await supabase.rpc("track_page_usage", {
+          p_user_id: user.id,
+          p_pages_processed: totalPages,
+        });
+
+        if (trackingError) {
+          console.error("Failed to track page usage (job already started):", trackingError);
+          // Don't throw - job is already running, just log the issue
+        } else {
+          console.log(`✅ Tracked ${totalPages} pages for user ${user.id}`);
+        }
+      }
 
       // Add event for tracking with page count
       await addEvent(case_.id, "analysis_submitted", {

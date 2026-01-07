@@ -9,7 +9,7 @@ interface AddFilesDialogProps {
   onClose: () => void;
   caseId: string;
   caseName: string;
-  resultZipUrl: string;
+  resultZipUrl?: string; // Optional for backward compatibility
 }
 
 export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }: AddFilesDialogProps) {
@@ -17,11 +17,12 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
   const navigate = useNavigate();
 
   const handleAddToExistingCase = () => {
-    // Navigate to upload page with source result URL
-    const params = new URLSearchParams({
-      addFiles: 'true',
-      sourceResultUrl: resultZipUrl
-    });
+    // Navigate to upload page - will fetch files securely
+    const params = new URLSearchParams({ addFiles: 'true' });
+    // Only include legacy URL if available (backward compatibility)
+    if (resultZipUrl) {
+      params.set('sourceResultUrl', resultZipUrl);
+    }
     navigate(`/app/cases/${caseId}/upload?${params.toString()}`);
     onClose();
   };
@@ -31,8 +32,11 @@ export function AddFilesDialog({ open, onClose, caseId, caseName, resultZipUrl }
     const params = new URLSearchParams({
       sourceCaseId: caseId,
       sourceCaseName: caseName,
-      sourceResultUrl: resultZipUrl
     });
+    // Only include legacy URL if available (backward compatibility)
+    if (resultZipUrl) {
+      params.set('sourceResultUrl', resultZipUrl);
+    }
     navigate(`/app/cases/new?${params.toString()}`);
     onClose();
   };

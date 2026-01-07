@@ -481,13 +481,13 @@ export default function CaseDetail() {
         />
       )}
 
-      {case_.result_zip_url && (
+      {hasResults && (
         <AddFilesDialog
           open={addFilesDialogOpen}
           onClose={() => setAddFilesDialogOpen(false)}
           caseId={case_.id}
           caseName={case_.name}
-          resultZipUrl={case_.result_zip_url}
+          resultZipUrl={case_.result_zip_url || undefined}
         />
       )}
     </>;

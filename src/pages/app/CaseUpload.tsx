@@ -20,6 +20,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
+import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save } from "lucide-react";
 import { Link } from "react-router-dom";
 import JSZip from "jszip";
@@ -51,10 +52,11 @@ export default function CaseUpload() {
   const [useHitl, setUseHitl] = useState(false);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
+  const { fetchFileForParsing } = useSecureDownload();
 
   // Check if this is "add files" mode
   const isAddFilesMode = searchParams.get("addFiles") === "true";
-  const sourceResultUrl = searchParams.get("sourceResultUrl");
+  const sourceResultUrl = searchParams.get("sourceResultUrl"); // Legacy URL fallback
 
   // Calculate total pages from files (pre-existing files count as 0)
   const totalPages = files.reduce((sum, f) => (f.isPreExisting ? sum : sum + (f.pageCount || 0)), 0);
@@ -176,18 +178,21 @@ export default function CaseUpload() {
 
   // Load pre-existing files from result ZIP when in add files mode
   useEffect(() => {
-    if (isAddFilesMode && sourceResultUrl && !loadingPreExisting && files.length === 0) {
-      loadPreExistingFiles(sourceResultUrl);
+    if (isAddFilesMode && id && !loadingPreExisting && files.length === 0) {
+      loadPreExistingFiles(id, sourceResultUrl || undefined);
     }
-  }, [isAddFilesMode, sourceResultUrl]);
+  }, [isAddFilesMode, id, sourceResultUrl]);
 
-  const loadPreExistingFiles = async (zipUrl: string) => {
+  const loadPreExistingFiles = async (caseId: string, legacyUrl?: string) => {
     setLoadingPreExisting(true);
     try {
-      const response = await fetch(zipUrl);
-      if (!response.ok) throw new Error("Failed to fetch result ZIP");
+      // Use secure download hook (handles both secure storage and legacy URLs)
+      const arrayBuffer = await fetchFileForParsing(caseId, legacyUrl || null, 'result_zip');
+      
+      if (!arrayBuffer) {
+        throw new Error("Failed to fetch result ZIP");
+      }
 
-      const arrayBuffer = await response.arrayBuffer();
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
 

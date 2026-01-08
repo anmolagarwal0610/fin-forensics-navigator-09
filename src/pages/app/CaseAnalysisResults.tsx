@@ -377,25 +377,34 @@ export default function CaseAnalysisResults() {
           .replace(/\.csv$/i, '')
           .replace(/\s+/g, '_');
 
-        // Find Raw Transactions (Pattern: raw_transactions_[filename].xlsx)
+        // Extract base filename without extension for exact matching
+        // Backend creates: raw_transactions_{base}.xlsx and summary_{base}.xlsx
+        const originalBaseName = originalFile.file_name.replace(/\.(pdf|csv|xlsx?)$/i, '');
+        
+        // Find Raw Transactions (Pattern: raw_transactions_[base].xlsx) - EXACT MATCH ONLY
         const rawTransactionsFile = analysisFileNames.find(zipFileName => {
           if (!zipFileName.startsWith('raw_transactions_')) return false;
           
-          const zipContentName = zipFileName.replace('raw_transactions_', '');
-          const zipNormalized = normalizeString(zipContentName);
+          // Extract base name: "raw_transactions_SHIVAM_AGARWAL_2024-25.xlsx" -> "SHIVAM_AGARWAL_2024-25"
+          const zipBaseName = zipFileName
+            .replace('raw_transactions_', '')
+            .replace(/\.xlsx$/i, '');
           
-          // Check for match (exact normalized match is best, but we can check inclusion if names got truncated)
-          return zipNormalized === originalNormalized || zipNormalized.includes(originalNormalized) || originalNormalized.includes(zipNormalized);
+          // Exact case-insensitive match
+          return zipBaseName.toLowerCase() === originalBaseName.toLowerCase();
         });
         
-        // Find Summary (Pattern: summary_[filename].xlsx)
+        // Find Summary (Pattern: summary_[base].xlsx) - EXACT MATCH ONLY
         const summaryFile = analysisFileNames.find(zipFileName => {
           if (!zipFileName.startsWith('summary_')) return false;
           
-          const zipContentName = zipFileName.replace('summary_', '');
-          const zipNormalized = normalizeString(zipContentName);
+          // Extract base name: "summary_SHIVAM_AGARWAL_2024-25.xlsx" -> "SHIVAM_AGARWAL_2024-25"
+          const zipBaseName = zipFileName
+            .replace('summary_', '')
+            .replace(/\.xlsx$/i, '');
           
-          return zipNormalized === originalNormalized || zipNormalized.includes(originalNormalized) || originalNormalized.includes(zipNormalized);
+          // Exact case-insensitive match
+          return zipBaseName.toLowerCase() === originalBaseName.toLowerCase();
         });
         
         // Find Sankey HTML for this file from sankeyPerFileMap

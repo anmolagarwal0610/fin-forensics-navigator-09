@@ -143,22 +143,53 @@ export default function ExcelViewer({
         // Multi-file: Load POI file
         setPOIDialogOpen(true);
         
-        // Construct POI filename: replace spaces with underscores
-        const poiFileName = `POI_${beneficiaryName.replace(/\s+/g, '_')}.xlsx`;
+        // Mirror backend: re.sub(r'[^\w.-]+', '_', beneficiary.strip())
+        // Replace all chars that are NOT word chars (\w), dots (.), or dashes (-) with underscore
+        const sanitizeBeneficiaryName = (name: string): string => {
+          return name.trim().replace(/[^\w.-]+/g, '_');
+        };
+        
+        // Normalize for fuzzy fallback matching (remove all non-alphanumeric)
+        const normalizeForMatch = (str: string): string => {
+          return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+        };
+        
+        // Construct expected POI filename using backend-identical sanitization
+        const safeBeneficiary = sanitizeBeneficiaryName(beneficiaryName);
+        const expectedPoiFileName = `POI_${safeBeneficiary}.xlsx`;
+        
+        // First try exact match
+        let poiFile = zipData.file(expectedPoiFileName);
+        let matchedFileName = expectedPoiFileName;
+        
+        // If not found, use fuzzy normalized matching as fallback
+        if (!poiFile) {
+          const normalizedBeneficiary = normalizeForMatch(beneficiaryName);
+          const allPoiFiles = Object.keys(zipData.files).filter(
+            name => name.startsWith('POI_') && name.endsWith('.xlsx')
+          );
+          
+          const foundFileName = allPoiFiles.find(fileName => {
+            const namePart = fileName.replace(/^POI_/, '').replace(/\.xlsx$/, '');
+            return normalizeForMatch(namePart) === normalizedBeneficiary;
+          });
+          
+          if (foundFileName) {
+            matchedFileName = foundFileName;
+            poiFile = zipData.file(matchedFileName);
+          }
+        }
         
         let poiData: CellData[][] | null = null;
         
-        // Check cache first
-        if (poiDataCache?.has(poiFileName)) {
-          poiData = poiDataCache.get(poiFileName)!;
-        } else {
+        // Check cache first (use matched filename for cache key)
+        if (poiDataCache?.has(matchedFileName)) {
+          poiData = poiDataCache.get(matchedFileName)!;
+        } else if (poiFile) {
           // Load from ZIP
-          const poiFile = zipData.file(poiFileName);
-          if (poiFile) {
-            const content = await poiFile.async("arraybuffer");
-            poiData = await parseExcelFile(content);
-            onCachePOIData?.(poiFileName, poiData);
-          }
+          const content = await poiFile.async("arraybuffer");
+          poiData = await parseExcelFile(content);
+          onCachePOIData?.(matchedFileName, poiData);
         }
         
         if (poiData && poiData.length > 1) {

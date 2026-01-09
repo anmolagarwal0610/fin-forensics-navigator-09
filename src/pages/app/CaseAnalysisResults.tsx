@@ -120,8 +120,9 @@ export default function CaseAnalysisResults() {
   const hasAnyResults = !!(activeResultUrl || hasSecureResultFile);
 
   // Fetch and parse analysis data with caching - uses secure storage with legacy fallback
+  // Include case_.updated_at in queryKey to auto-refresh when new results arrive
   const { data: analysisData, isLoading: analysisLoading, error: analysisError } = useQuery({
-    queryKey: ['analysis-data', id, activeResultUrl, hasSecureResultFile, viewingPreviousResults],
+    queryKey: ['analysis-data', id, activeResultUrl, hasSecureResultFile, viewingPreviousResults, case_?.updated_at],
     queryFn: async () => {
       console.log('[Analysis] Fetching analysis files for case:', id);
       console.log('[Analysis] Legacy URL:', activeResultUrl ? 'available' : 'none');

@@ -1,34 +1,15 @@
 import { supabase } from '@/integrations/supabase/client';
 import JSZip from 'jszip';
 import { addFiles } from '@/api/cases';
+import { sanitizeFilename } from '@/lib/utils';
 
 export interface PasswordEntry {
   filename: string;
   password: string;
 }
 
-/**
- * Sanitize filename for Supabase Storage compatibility
- * Removes invalid characters while preserving extension
- */
-function sanitizeFilename(filename: string): string {
-  const lastDotIndex = filename.lastIndexOf('.');
-  const name = lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename;
-  const ext = lastDotIndex > 0 ? filename.substring(lastDotIndex) : '';
-  
-  // Remove invalid characters: [ ] { } ^ % ` > < ~ # | and spaces
-  const sanitized = name
-    .replace(/[\[\]\{\}\^%`><~#\|]/g, '_')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_|_$/g, '');
-  
-  // Truncate if too long (max 255 chars)
-  const maxLength = 255 - ext.length;
-  const truncated = sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
-  
-  return truncated + ext;
-}
+// Re-export for backward compatibility
+export { sanitizeFilename };
 
 /**
  * Upload files to Supabase Storage, create ZIP, and return ZIP signed URL

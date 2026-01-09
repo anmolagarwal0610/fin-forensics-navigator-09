@@ -433,22 +433,32 @@ export default function CaseUpload() {
       // Import uploadInput to save files to storage
       const { uploadInput } = await import("@/lib/uploadInput");
 
-      // Extract passwords for protected files
+      // --- START FIX ---
+      
+      // 1. Create NEW File objects with sanitized names for saving
+      const filesToSave = newFiles.map((f) => {
+        const cleanName = sanitizeFilename(f.name);
+        return new File([f.file], cleanName, { type: f.file.type });
+      });
+
+      // 2. Extract passwords using SANITIZED filenames
       const passwords = newFiles
         .filter((f) => f.needsPassword && f.passwordVerified && f.password)
         .map((f) => ({
-          filename: f.name,
+          filename: sanitizeFilename(f.name), // Use sanitized name
           password: f.password!,
         }));
 
-      // Upload files without starting analysis (skipFileInsertion: false to save file records)
+      // Upload files (pass the sanitized filesToSave instead of newFiles.map...)
       await uploadInput(
-        newFiles.map((f) => f.file),
+        filesToSave, // <--- Use the new file objects here
         user.id,
         case_.id,
-        false, // Don't skip file insertion - we want to save the files
+        false, 
         passwords,
       );
+      
+      // --- END FIX ---
 
       // Add event for tracking
       await addEvent(case_.id, "files_uploaded", {

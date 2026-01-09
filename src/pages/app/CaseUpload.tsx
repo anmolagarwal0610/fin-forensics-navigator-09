@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
@@ -25,6 +26,7 @@ import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save } from "l
 import { Link } from "react-router-dom";
 import JSZip from "jszip";
 import { countFilePages } from "@/utils/pageCounter";
+import { sanitizeFilename } from "@/lib/utils";
 
 interface FileItem {
   name: string;
@@ -42,6 +44,7 @@ interface FileItem {
 export default function CaseUpload() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams] = useSearchParams();
   const [case_, setCase] = useState<CaseRecord | null>(null);
   const [files, setFiles] = useState<FileItem[]>([]);
@@ -288,7 +291,11 @@ export default function CaseUpload() {
       // Import the startJobFlow function
       const { startJobFlow } = await import("@/hooks/useStartJob");
 
+      // Separate new files from pre-existing files
+      const newFiles = files.filter(f => !f.isPreExisting);
+
       // Start job flow with Realtime tracking - do this FIRST before tracking pages
+      // Always skip file insertion here - we handle new files separately below
       const { job_id } = await startJobFlow(
         uploadFiles,
         task,
@@ -301,6 +308,10 @@ export default function CaseUpload() {
         (finalJob) => {
           console.log("Job completed:", finalJob);
           if (finalJob.status === "SUCCEEDED") {
+            // Invalidate cache so results page loads fresh file list
+            queryClient.invalidateQueries({ queryKey: ['case-results', case_.id] });
+            queryClient.invalidateQueries({ queryKey: ['analysis-data', case_.id] });
+            
             toast({
               title: "Analysis Complete!",
               description: useHitl
@@ -316,8 +327,23 @@ export default function CaseUpload() {
             });
           }
         },
-        isAddFilesMode, // skipFileInsertion - skip for add files mode since files already exist
+        true, // skipFileInsertion - always skip, we handle new files insertion separately
       );
+
+      // Insert ONLY NEW file records into database (for Add Files mode)
+      if (isAddFilesMode && newFiles.length > 0) {
+        try {
+          const fileRecords = newFiles.map(f => ({
+            name: sanitizeFilename(f.name),
+            url: `${user.id}/${case_.id}/${sanitizeFilename(f.name)}`
+          }));
+          await addFiles(case_.id, fileRecords);
+          console.log(`✅ Inserted ${newFiles.length} new file records into database`);
+        } catch (insertError) {
+          console.error("Failed to insert new file records:", insertError);
+          // Don't throw - job is already running, just log the issue
+        }
+      }
 
       // Track page usage ONLY AFTER job successfully started (prevents double-charging on retries)
       if (totalPages > 0) {

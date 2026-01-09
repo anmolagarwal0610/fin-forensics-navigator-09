@@ -277,14 +277,21 @@ export default function CaseUpload() {
         throw new Error("Authentication required");
       }
 
-      // Convert FileItem[] to File[]
-      const uploadFiles = files.map((f) => f.file);
+
+      // 1. Create NEW File objects with the sanitized names
+      const uploadFiles = files.map((f) => {
+        // We use your utility to get the clean name
+        const cleanName = sanitizeFilename(f.name);
+        
+        // create a new File object with the same content but the NEW name
+        return new File([f.file], cleanName, { type: f.file.type });
+      });
 
       // Extract passwords for protected files
       const passwords = files
         .filter((f) => f.needsPassword && f.passwordVerified && f.password)
         .map((f) => ({
-          filename: f.name,
+          filename: sanitizeFilename(f.name),
           password: f.password!,
         }));
 

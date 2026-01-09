@@ -60,6 +60,7 @@ export default function CaseUpload() {
   // Check if this is "add files" mode
   const isAddFilesMode = searchParams.get("addFiles") === "true";
   const sourceResultUrl = searchParams.get("sourceResultUrl"); // Legacy URL fallback
+  const sourceCaseId = searchParams.get("sourceCaseId"); // Source case for "Add to New Case" flow
 
   // Calculate total pages from files (pre-existing files count as 0)
   const totalPages = files.reduce((sum, f) => (f.isPreExisting ? sum : sum + (f.pageCount || 0)), 0);
@@ -180,11 +181,15 @@ export default function CaseUpload() {
   };
 
   // Load pre-existing files from result ZIP when in add files mode
+  // Use sourceCaseId if available (for "Add to New Case" flow), otherwise use current case id
   useEffect(() => {
-    if (isAddFilesMode && id && !loadingPreExisting && files.length === 0) {
-      loadPreExistingFiles(id, sourceResultUrl || undefined);
+    if (isAddFilesMode && !loadingPreExisting && files.length === 0) {
+      const caseIdForFetch = sourceCaseId || id;
+      if (caseIdForFetch) {
+        loadPreExistingFiles(caseIdForFetch, sourceResultUrl || undefined);
+      }
     }
-  }, [isAddFilesMode, id, sourceResultUrl]);
+  }, [isAddFilesMode, id, sourceCaseId, sourceResultUrl]);
 
   const loadPreExistingFiles = async (caseId: string, legacyUrl?: string) => {
     setLoadingPreExisting(true);
@@ -294,8 +299,12 @@ export default function CaseUpload() {
       // Separate new files from pre-existing files
       const newFiles = files.filter(f => !f.isPreExisting);
 
+      // Determine skipFileInsertion:
+      // - For NEW cases: false → uploadInput.ts inserts all files
+      // - For ADD FILES mode: true → we manually insert only new files below
+      const skipFileInsertion = isAddFilesMode;
+
       // Start job flow with Realtime tracking - do this FIRST before tracking pages
-      // Always skip file insertion here - we handle new files separately below
       const { job_id } = await startJobFlow(
         uploadFiles,
         task,
@@ -327,7 +336,7 @@ export default function CaseUpload() {
             });
           }
         },
-        true, // skipFileInsertion - always skip, we handle new files insertion separately
+        skipFileInsertion,
       );
 
       // Insert ONLY NEW file records into database (for Add Files mode)

@@ -56,12 +56,15 @@ export default function NewCase() {
       .then((c) => {
         toast({ title: "Case created." });
         
-        // If we have a source result URL, navigate to upload with add files mode
-        if (sourceResultUrl) {
+        // If we have a source case, navigate to upload with add files mode
+        if (sourceCaseId) {
           const params = new URLSearchParams({
             addFiles: 'true',
-            sourceResultUrl: sourceResultUrl
+            sourceCaseId: sourceCaseId, // Pass source case ID for secure storage fetch
           });
+          if (sourceResultUrl) {
+            params.set('sourceResultUrl', sourceResultUrl); // Legacy fallback
+          }
           navigate(`/app/cases/${c.id}/upload?${params.toString()}`);
         } else {
           navigate(`/app/cases/${c.id}/upload`);

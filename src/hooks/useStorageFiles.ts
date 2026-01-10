@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+const SUPABASE_URL = "https://rwzpffsaivgjuuthvkfa.supabase.co";
+
 export interface StorageFile {
   id: string;
   name: string;
@@ -49,22 +51,12 @@ export function useStorageFiles(params: FetchFilesParams = {}) {
       queryParams.set("limit", limit.toString());
       queryParams.set("offset", offset.toString());
 
-      const response = await supabase.functions.invoke("admin-storage-files", {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: null,
-        method: "GET",
-      });
-
-      // Handle the invoke response - need to call the function with query params via fetch
-      const { data: { session: sess } } = await supabase.auth.getSession();
-      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL || "https://rwzpffsaivgjuuthvkfa.supabase.co"}/functions/v1/admin-storage-files?${queryParams.toString()}`;
+      const functionUrl = `${SUPABASE_URL}/functions/v1/admin-storage-files?${queryParams.toString()}`;
       
       const res = await fetch(functionUrl, {
         method: "GET",
         headers: {
-          Authorization: `Bearer ${sess?.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
           "Content-Type": "application/json",
         },
       });
@@ -93,7 +85,7 @@ export function useDeleteStorageFiles() {
         throw new Error("Not authenticated");
       }
 
-      const functionUrl = `${import.meta.env.VITE_SUPABASE_URL || "https://rwzpffsaivgjuuthvkfa.supabase.co"}/functions/v1/admin-delete-files`;
+      const functionUrl = `${SUPABASE_URL}/functions/v1/admin-delete-files`;
       
       const res = await fetch(functionUrl, {
         method: "POST",

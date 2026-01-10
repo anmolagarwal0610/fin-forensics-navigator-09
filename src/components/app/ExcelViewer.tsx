@@ -293,6 +293,7 @@ export default function ExcelViewer({
                 balance: txRow[colMap['balance']]?.value ?? '',
                 beneficiary: String(txRow[beneficiaryColIdx]?.value || ''),
                 date: String(txRow[colMap['date']]?.value || ''),
+                transaction_type: String(txRow[colMap['transaction_type']]?.value || ''),
               });
             }
           }

@@ -284,6 +284,7 @@ export default function SummaryTableViewer({
             balance: row[columnMap["balance"]]?.value ?? 0,
             beneficiary: String(row[rawBeneficiaryIdx]?.value || ""),
             date: String(row[columnMap["date"]]?.value || ""),
+            transaction_type: String(row[columnMap["transaction_type"]]?.value || ""),
           };
           matchingRows.push(transaction);
         }

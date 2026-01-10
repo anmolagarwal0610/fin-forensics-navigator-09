@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
-import { FileSearch, Clock, CheckCircle, FileText, FileEdit } from "lucide-react";
+import { FileSearch, Clock, CheckCircle, Files } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Card, CardContent } from "@/components/ui/card";
+import { useFilesProcessed } from "@/hooks/useFilesProcessed";
 import type { CaseRecord } from "@/api/cases";
 
 interface KPICardsProps {
@@ -12,8 +13,8 @@ export default function KPICards({
   cases
 }: KPICardsProps) {
   const { t } = useTranslation();
+  const { data: filesProcessed = 0 } = useFilesProcessed();
   
-  const draftCount = cases.filter(c => c.status === "Draft").length;
   const reviewCount = cases.filter(c => c.status === "Review").length;
   const processingCount = cases.filter(c => c.status === "Processing").length;
   const readyCount = cases.filter(c => c.status === "Ready").length;
@@ -34,9 +35,9 @@ export default function KPICards({
     labelKey: "status.processing",
     color: "text-orange-600 dark:text-orange-400"
   }, {
-    icon: FileEdit,
-    value: draftCount,
-    labelKey: "status.draft",
+    icon: Files,
+    value: filesProcessed,
+    labelKey: "stats.filesProcessed",
     color: "text-blue-600 dark:text-blue-400"
   }];
   

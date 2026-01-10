@@ -309,6 +309,7 @@ export type Database = {
           subscription_granted_at: string | null
           subscription_granted_by: string | null
           subscription_tier: Database["public"]["Enums"]["subscription_tier"]
+          total_files_processed: number
           total_pages_granted: number | null
           updated_at: string
           user_id: string
@@ -326,6 +327,7 @@ export type Database = {
           subscription_granted_at?: string | null
           subscription_granted_by?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          total_files_processed?: number
           total_pages_granted?: number | null
           updated_at?: string
           user_id: string
@@ -343,6 +345,7 @@ export type Database = {
           subscription_granted_at?: string | null
           subscription_granted_by?: string | null
           subscription_tier?: Database["public"]["Enums"]["subscription_tier"]
+          total_files_processed?: number
           total_pages_granted?: number | null
           updated_at?: string
           user_id?: string

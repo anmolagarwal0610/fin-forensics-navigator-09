@@ -77,59 +77,107 @@ Deno.serve(async (req) => {
     const limit = parseInt(url.searchParams.get("limit") || "100");
     const offset = parseInt(url.searchParams.get("offset") || "0");
 
-    // Fetch storage objects using service role
-    let query = serviceClient
-      .from("objects")
-      .select("id, name, bucket_id, created_at, metadata")
-      .schema("storage");
+    // Call the RPC function that can access storage.objects
+    const { data: objects, error: rpcError } = await serviceClient.rpc(
+      "admin_list_storage_objects",
+      {
+        p_bucket_id: bucket || null,
+        p_file_type_category: fileType || null,
+        p_sort_by: sortBy === "size" ? "size" : "created_at",
+        p_sort_order: sortOrder === "asc" ? "asc" : "desc",
+        p_limit: Math.min(limit, 200),
+        p_offset: offset,
+      }
+    );
 
-    if (bucket) {
-      query = query.eq("bucket_id", bucket);
-    }
-
-    // Apply sorting
-    query = query.order(sortBy === "size" ? "metadata->size" : "created_at", {
-      ascending: sortOrder === "asc",
-    });
-
-    query = query.range(offset, offset + limit - 1);
-
-    const { data: objects, error: objectsError } = await query;
-
-    if (objectsError) {
-      console.error("Error fetching objects:", objectsError);
+    if (rpcError) {
+      console.error("Error calling admin_list_storage_objects:", rpcError);
       return new Response(
-        JSON.stringify({ error: "Failed to fetch storage files" }),
+        JSON.stringify({ error: rpcError.message, code: rpcError.code }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Get all users for email lookup
-    const { data: { users: allUsers } } = await serviceClient.auth.admin.listUsers();
-    const userMap = new Map(allUsers?.map(u => [u.id, { email: u.email, name: u.user_metadata?.full_name }]) || []);
+    // Extract unique user IDs and case IDs from paths for enrichment
+    const userIds = new Set<string>();
+    const caseIds = new Set<string>();
 
-    // Get all cases for case name lookup
-    const { data: allCases } = await serviceClient
-      .from("cases")
-      .select("id, name, creator_id");
-    const caseMap = new Map(allCases?.map(c => [c.id, { name: c.name, creator_id: c.creator_id }]) || []);
+    for (const obj of objects || []) {
+      const pathParts = obj.name.split('/');
+      if (pathParts.length >= 2) {
+        // Pattern: user_id/case_id/filename
+        if (pathParts[0].match(/^[a-f0-9-]{36}$/i)) {
+          userIds.add(pathParts[0]);
+        }
+        if (pathParts[1].match(/^[a-f0-9-]{36}$/i)) {
+          caseIds.add(pathParts[1]);
+        }
+      }
+      // Also check for case_xxx pattern in filename
+      const caseMatch = obj.name.match(/case_([a-f0-9-]{36})/i);
+      if (caseMatch) {
+        caseIds.add(caseMatch[1]);
+      }
+    }
+
+    // Fetch users for email lookup (only the ones we need)
+    const userMap = new Map<string, { email: string; name: string | null }>();
+    if (userIds.size > 0) {
+      const { data: { users: allUsers } } = await serviceClient.auth.admin.listUsers();
+      for (const u of allUsers || []) {
+        if (userIds.has(u.id)) {
+          userMap.set(u.id, { email: u.email || '', name: u.user_metadata?.full_name || null });
+        }
+      }
+    }
+
+    // Fetch cases for case name lookup (only the ones we need)
+    const caseMap = new Map<string, { name: string; creator_id: string }>();
+    if (caseIds.size > 0) {
+      const { data: cases } = await serviceClient
+        .from("cases")
+        .select("id, name, creator_id")
+        .in("id", Array.from(caseIds));
+      
+      for (const c of cases || []) {
+        caseMap.set(c.id, { name: c.name, creator_id: c.creator_id });
+        // Also add the creator to userIds for lookup
+        if (c.creator_id && !userMap.has(c.creator_id)) {
+          userIds.add(c.creator_id);
+        }
+      }
+
+      // Fetch any additional users we discovered from cases
+      if (userIds.size > userMap.size) {
+        const { data: { users: moreUsers } } = await serviceClient.auth.admin.listUsers();
+        for (const u of moreUsers || []) {
+          if (userIds.has(u.id) && !userMap.has(u.id)) {
+            userMap.set(u.id, { email: u.email || '', name: u.user_metadata?.full_name || null });
+          }
+        }
+      }
+    }
+
+    // Get total count from first result (all rows have the same total_count)
+    const totalCount = objects?.length > 0 ? objects[0].total_count : 0;
 
     // Process and enrich files
     const files: StorageFile[] = (objects || []).map((obj: any) => {
-      // Extract file type from name
+      // Extract file extension from name
       const ext = obj.name.split('.').pop()?.toLowerCase() || 'unknown';
-      const sizeBytes = obj.metadata?.size || 0;
 
       // Try to extract case_id and user_id from path
-      // Pattern: {user_id}/{case_id}/filename OR case_{case_id}_*
       const pathParts = obj.name.split('/');
       let userId: string | null = null;
       let caseId: string | null = null;
 
       if (pathParts.length >= 2) {
-        // Pattern: user_id/case_id/filename
-        userId = pathParts[0];
-        caseId = pathParts[1];
+        if (pathParts[0].match(/^[a-f0-9-]{36}$/i)) {
+          userId = pathParts[0];
+        }
+        if (pathParts[1].match(/^[a-f0-9-]{36}$/i)) {
+          caseId = pathParts[1];
+        }
       }
 
       // Also check for case_xxx pattern in filename
@@ -147,43 +195,30 @@ Deno.serve(async (req) => {
       // If we got case info, use the case creator for user info
       const finalUserInfo = caseInfo ? userMap.get(caseInfo.creator_id) : userInfo;
 
-      // Filter by file type if specified
-      if (fileType && ext.toLowerCase() !== fileType.toLowerCase()) {
-        return null;
-      }
-
       return {
         id: obj.id,
         name: obj.name.split('/').pop() || obj.name,
         path: obj.name,
         bucket_id: obj.bucket_id,
         file_type: ext,
-        size_bytes: sizeBytes,
+        size_bytes: obj.size_bytes || 0,
         created_at: obj.created_at,
         user_email: finalUserInfo?.email || null,
         user_name: finalUserInfo?.name || null,
         case_name: caseInfo?.name || null,
         case_id: caseId,
       };
-    }).filter(Boolean);
-
-    // Sort by size if requested (metadata sorting might not work perfectly)
-    if (sortBy === "size") {
-      files.sort((a, b) => {
-        const diff = (a?.size_bytes || 0) - (b?.size_bytes || 0);
-        return sortOrder === "asc" ? diff : -diff;
-      });
-    }
+    });
 
     return new Response(
-      JSON.stringify({ files, total: files.length }),
+      JSON.stringify({ files, total: totalCount }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
     console.error("Error in admin-storage-files:", error);
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: "Internal server error", details: error.message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

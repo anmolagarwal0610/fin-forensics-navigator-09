@@ -466,6 +466,25 @@ export type Database = {
       }
     }
     Functions: {
+      admin_list_storage_objects: {
+        Args: {
+          p_bucket_id?: string
+          p_file_type_category?: string
+          p_limit?: number
+          p_offset?: number
+          p_sort_by?: string
+          p_sort_order?: string
+        }
+        Returns: {
+          bucket_id: string
+          created_at: string
+          file_type_category: string
+          id: string
+          name: string
+          size_bytes: number
+          total_count: number
+        }[]
+      }
       apply_job_update:
         | {
             Args: {

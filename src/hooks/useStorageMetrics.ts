@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
-interface StorageMetric {
+export interface StorageMetric {
   bucket_id: string | null;
   file_type: string | null;
   file_count: number | null;

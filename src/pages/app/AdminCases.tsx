@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2 } from "lucide-react";
+import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { StorageDashboard } from "@/components/app/StorageDashboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -300,6 +300,10 @@ export default function AdminCases() {
             <Users className="h-4 w-4 mr-2" />
             Users
           </TabsTrigger>
+          <TabsTrigger value="storage">
+            <HardDrive className="h-4 w-4 mr-2" />
+            Storage
+          </TabsTrigger>
           <TabsTrigger value="settings">
             <Settings className="h-4 w-4 mr-2" />
             Settings
@@ -401,6 +405,10 @@ export default function AdminCases() {
           <AdminUsers />
         </TabsContent>
 
+        <TabsContent value="storage">
+          <StorageDashboard />
+        </TabsContent>
+
         <TabsContent value="settings" className="space-y-6">
           <h1 className="text-2xl font-semibold">System Settings</h1>
           
@@ -432,9 +440,6 @@ export default function AdminCases() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Storage Dashboard */}
-          <StorageDashboard />
 
           {/* Custom Subscription Tiers */}
           <Card>

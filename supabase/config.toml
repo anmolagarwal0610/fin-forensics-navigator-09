@@ -62,3 +62,9 @@ verify_jwt = false
 
 [functions.get-result-file]
 verify_jwt = true
+
+[functions.admin-storage-files]
+verify_jwt = true
+
+[functions.admin-delete-files]
+verify_jwt = true

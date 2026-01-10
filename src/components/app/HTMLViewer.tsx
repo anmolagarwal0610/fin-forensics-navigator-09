@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { RotateCcw, Maximize2, Download, Image } from "lucide-react";
+import { RotateCcw, Maximize2, Download, Image, Loader2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface HTMLViewerProps {
@@ -14,6 +14,7 @@ interface HTMLViewerProps {
 
 export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadPng, className = "" }: HTMLViewerProps) {
   const [key, setKey] = useState(0);
+  const [isCapturing, setIsCapturing] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Memoize Blob URL to prevent recreation on every render
@@ -29,6 +30,33 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
     };
   }, [blobUrl]);
 
+  // Handle postMessage for PNG capture response
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'CHART_PNG_DATA' && event.data?.imageData) {
+        // Create download link
+        const link = document.createElement('a');
+        link.href = event.data.imageData;
+        link.download = `${title?.replace(/[^a-zA-Z0-9]/g, '_') || 'chart'}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setIsCapturing(false);
+        toast({ title: "Chart downloaded as PNG" });
+      } else if (event.data?.type === 'CHART_PNG_ERROR') {
+        setIsCapturing(false);
+        toast({ 
+          title: "Unable to capture chart", 
+          description: event.data.error || "Unknown error",
+          variant: "destructive" 
+        });
+      }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [title]);
+
   const handleRefresh = () => {
     setKey(prev => prev + 1);
     toast({ title: "Graph refreshed" });
@@ -41,6 +69,113 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
       }
     }
   };
+
+  // Capture chart as PNG by injecting script into iframe
+  const captureChartAsPng = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe || isCapturing) return;
+    
+    setIsCapturing(true);
+    
+    try {
+      const iframeDoc = iframe.contentDocument;
+      if (!iframeDoc) {
+        setIsCapturing(false);
+        toast({ title: "Cannot access chart content", variant: "destructive" });
+        return;
+      }
+      
+      // Inject capture script
+      const captureScript = iframeDoc.createElement('script');
+      captureScript.textContent = `
+        (function() {
+          try {
+            // Try ECharts first
+            if (typeof echarts !== 'undefined') {
+              var chartContainers = document.querySelectorAll('[_echarts_instance_]');
+              if (chartContainers.length > 0) {
+                var chart = echarts.getInstanceByDom(chartContainers[0]);
+                if (chart) {
+                  var dataURL = chart.getDataURL({
+                    pixelRatio: 2,
+                    backgroundColor: '#fff'
+                  });
+                  window.parent.postMessage({ 
+                    type: 'CHART_PNG_DATA', 
+                    imageData: dataURL 
+                  }, '*');
+                  return;
+                }
+              }
+            }
+            
+            // Try Plotly
+            if (typeof Plotly !== 'undefined') {
+              var plotlyDiv = document.querySelector('.plotly-graph-div');
+              if (plotlyDiv) {
+                Plotly.toImage(plotlyDiv, { 
+                  format: 'png', 
+                  width: 1920, 
+                  height: 1080,
+                  scale: 2 
+                }).then(function(dataURL) {
+                  window.parent.postMessage({ 
+                    type: 'CHART_PNG_DATA', 
+                    imageData: dataURL 
+                  }, '*');
+                }).catch(function(err) {
+                  window.parent.postMessage({ 
+                    type: 'CHART_PNG_ERROR', 
+                    error: 'Plotly capture failed: ' + err.message 
+                  }, '*');
+                });
+                return;
+              }
+            }
+            
+            // Fallback: Try to find any canvas element
+            var canvas = document.querySelector('canvas');
+            if (canvas) {
+              var dataURL = canvas.toDataURL('image/png');
+              window.parent.postMessage({ 
+                type: 'CHART_PNG_DATA', 
+                imageData: dataURL 
+              }, '*');
+              return;
+            }
+            
+            window.parent.postMessage({ 
+              type: 'CHART_PNG_ERROR', 
+              error: 'No chart found to capture' 
+            }, '*');
+          } catch (e) {
+            window.parent.postMessage({ 
+              type: 'CHART_PNG_ERROR', 
+              error: e.message 
+            }, '*');
+          }
+        })();
+      `;
+      iframeDoc.body.appendChild(captureScript);
+      
+      // Timeout fallback
+      setTimeout(() => {
+        setIsCapturing(prev => {
+          if (prev) {
+            toast({ title: "Capture timed out. Try again.", variant: "destructive" });
+          }
+          return false;
+        });
+      }, 5000);
+    } catch (error) {
+      setIsCapturing(false);
+      toast({ 
+        title: "Cannot capture chart", 
+        description: "Cross-origin restriction or access denied",
+        variant: "destructive" 
+      });
+    }
+  }, [isCapturing]);
 
   // Function to resize charts when entering/exiting fullscreen
   const resizeChartsInIframe = useCallback(() => {
@@ -176,6 +311,9 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
     return () => iframe.removeEventListener('load', handleLoad);
   }, [key, blobUrl]);
 
+  // Determine which PNG handler to use
+  const handlePngDownload = onDownloadPng || captureChartAsPng;
+
   return (
     <div className={`relative bg-card border rounded-lg overflow-hidden shadow-sm flex flex-col ${className}`}>
       {/* Header with controls */}
@@ -220,17 +358,20 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
               <Download className="h-4 w-4" />
             </Button>
           )}
-          {onDownloadPng && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onDownloadPng}
-              className="h-8 w-8 p-0"
-              title="Download PNG"
-            >
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handlePngDownload}
+            disabled={isCapturing}
+            className="h-8 w-8 p-0"
+            title="Download PNG"
+          >
+            {isCapturing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
               <Image className="h-4 w-4" />
-            </Button>
-          )}
+            )}
+          </Button>
         </div>
       </div>
 

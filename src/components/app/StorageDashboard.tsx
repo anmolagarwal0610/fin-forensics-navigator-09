@@ -49,6 +49,7 @@ import {
   Mail,
   Calendar,
   FileIcon,
+  ChevronLeft,
 } from "lucide-react";
 import { useStorageMetrics, StorageMetric } from "@/hooks/useStorageMetrics";
 import { useStorageFiles, useDeleteStorageFiles, StorageFile } from "@/hooks/useStorageFiles";
@@ -93,32 +94,44 @@ function formatFileSize(bytes: number): string {
 interface ExpandedRowProps {
   bucket: string;
   fileType: string;
-  sortBy: "created_at" | "size";
-  sortOrder: "asc" | "desc";
   selectedFiles: Set<string>;
   onToggleFile: (file: StorageFile) => void;
   onSelectAll: (files: StorageFile[]) => void;
 }
 
+const PAGE_SIZE = 25;
+
 function ExpandedFileList({
   bucket,
   fileType,
-  sortBy,
-  sortOrder,
   selectedFiles,
   onToggleFile,
   onSelectAll,
 }: ExpandedRowProps) {
+  const [page, setPage] = useState(0);
+  const [sortBy, setSortBy] = useState<"created_at" | "size">("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   const { data, isLoading, error } = useStorageFiles({
     bucket,
     fileType,
     sortBy,
     sortOrder,
-    limit: 50,
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
   });
 
   const files = data?.files || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const hasNext = page < totalPages - 1;
+  const hasPrev = page > 0;
+
   const allSelected = files.length > 0 && files.every((f) => selectedFiles.has(`${f.bucket_id}:${f.path}`));
+
+  const toggleSortOrder = () => {
+    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
+  };
 
   if (isLoading) {
     return (
@@ -145,7 +158,7 @@ function ExpandedFileList({
     );
   }
 
-  if (files.length === 0) {
+  if (files.length === 0 && page === 0) {
     return (
       <TableRow>
         <TableCell colSpan={6} className="bg-muted/30">
@@ -158,10 +171,36 @@ function ExpandedFileList({
     );
   }
 
+  const startItem = page * PAGE_SIZE + 1;
+  const endItem = Math.min((page + 1) * PAGE_SIZE, total);
+
   return (
     <TableRow>
       <TableCell colSpan={6} className="p-0 bg-muted/20">
         <div className="border-y border-border/50">
+          {/* Sort Controls and Pagination Info */}
+          <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-b border-border/30">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Sort:</span>
+              <Select value={sortBy} onValueChange={(v) => { setSortBy(v as "created_at" | "size"); setPage(0); }}>
+                <SelectTrigger className="w-[90px] h-7 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created_at">Date</SelectItem>
+                  <SelectItem value="size">Size</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" className="h-7 px-2" onClick={toggleSortOrder}>
+                <ArrowUpDown className="h-3 w-3" />
+                <span className="ml-1 text-xs">{sortOrder === "asc" ? "Asc" : "Desc"}</span>
+              </Button>
+            </div>
+            <span className="text-xs text-muted-foreground">
+              Showing {startItem}-{endItem} of {total} files
+            </span>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/40 hover:bg-muted/40">
@@ -239,6 +278,35 @@ function ExpandedFileList({
               })}
             </TableBody>
           </Table>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 bg-muted/30 border-t border-border/30">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={!hasPrev}
+                onClick={() => setPage((p) => p - 1)}
+              >
+                <ChevronLeft className="h-3 w-3 mr-1" />
+                Previous
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Page {page + 1} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={!hasNext}
+                onClick={() => setPage((p) => p + 1)}
+              >
+                Next
+                <ChevronRight className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          )}
         </div>
       </TableCell>
     </TableRow>
@@ -251,8 +319,6 @@ export function StorageDashboard() {
 
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [selectedFiles, setSelectedFiles] = useState<Map<string, StorageFile>>(new Map());
-  const [sortBy, setSortBy] = useState<"created_at" | "size">("created_at");
-  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   const toggleRow = (key: string) => {
@@ -304,10 +370,6 @@ export function StorageDashboard() {
         },
       }
     );
-  };
-
-  const toggleSortOrder = () => {
-    setSortOrder((prev) => (prev === "asc" ? "desc" : "asc"));
   };
 
   const pieData = [
@@ -538,24 +600,7 @@ export function StorageDashboard() {
       {/* Detailed Table with Expandable Rows */}
       <Card>
         <CardHeader className="pb-2">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-sm font-medium">Detailed Breakdown</CardTitle>
-            <div className="flex items-center gap-2">
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as "created_at" | "size")}>
-                <SelectTrigger className="w-[130px] h-8 text-xs">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="created_at">Date</SelectItem>
-                  <SelectItem value="size">Size</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={toggleSortOrder}>
-                <ArrowUpDown className="h-4 w-4" />
-                <span className="ml-1 text-xs">{sortOrder === "asc" ? "Asc" : "Desc"}</span>
-              </Button>
-            </div>
-          </div>
+          <CardTitle className="text-sm font-medium">Detailed Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg overflow-hidden">
@@ -645,8 +690,6 @@ export function StorageDashboard() {
                             key={`${rowKey}-expanded`}
                             bucket={metric.bucket_id || ""}
                             fileType={metric.file_type || ""}
-                            sortBy={sortBy}
-                            sortOrder={sortOrder}
                             selectedFiles={new Set(selectedFiles.keys())}
                             onToggleFile={toggleFileSelection}
                             onSelectAll={toggleSelectAll}

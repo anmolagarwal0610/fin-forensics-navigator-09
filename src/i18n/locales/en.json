@@ -107,6 +107,9 @@
     "archived": "Archived",
     "active": "Active"
   },
+  "stats": {
+    "filesProcessed": "Files Processed"
+  },
   "analysisResults": {
     "title": "Analysis Results",
     "backToCase": "Back to Case",

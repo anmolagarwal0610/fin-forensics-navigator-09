@@ -107,6 +107,9 @@
     "archived": "संग्रहित",
     "active": "सक्रिय"
   },
+  "stats": {
+    "filesProcessed": "प्रोसेस की गई फाइलें"
+  },
   "analysisResults": {
     "title": "विश्लेषण परिणाम",
     "backToCase": "केस पर वापस जाएं",

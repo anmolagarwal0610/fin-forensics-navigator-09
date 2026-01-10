@@ -9,6 +9,7 @@ import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
 import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { StorageDashboard } from "@/components/app/StorageDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminCases } from "@/hooks/useAdminCases";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
@@ -431,6 +432,9 @@ export default function AdminCases() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Storage Dashboard */}
+          <StorageDashboard />
 
           {/* Custom Subscription Tiers */}
           <Card>

@@ -28,7 +28,7 @@ export default function FundTrailViewer({
   const savedPositionsRef = useRef<{ positions: any; filters: any } | null>(null);
   const hasLoadedInitialRef = useRef(false);
 
-  // Fetch saved positions from DB (only on initial load)
+  // Fetch saved positions from DB
   const { data: savedView, isLoading: loadingView } = useQuery({
     queryKey: ['fund-trail-view', caseId],
     queryFn: async () => {
@@ -44,9 +44,9 @@ export default function FundTrailViewer({
       }
       return data;
     },
-    staleTime: Infinity, // Never refetch automatically
+    staleTime: 5 * 60 * 1000, // 5 minutes
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
+    refetchOnMount: true, // Refetch on mount to get latest saved view
   });
 
   // Store initial saved view in ref
@@ -83,7 +83,7 @@ export default function FundTrailViewer({
     }
   });
 
-  // Create modified HTML with injected positions - only uses initial saved view
+  // Create modified HTML with injected positions - SYNCHRONOUS injection
   const modifiedHtml = useMemo(() => {
     if (!htmlContent) return '';
     
@@ -92,32 +92,40 @@ export default function FundTrailViewer({
     const positionsJson = viewData?.positions ? JSON.stringify(viewData.positions) : 'null';
     const filtersJson = viewData?.filters ? JSON.stringify(viewData.filters) : 'null';
     
-    // Injection script that patches DATA object and overrides saveView
+    let modified = htmlContent;
+    
+    // SYNCHRONOUS injection - modify DATA object directly where it's defined
+    // This ensures savedPositions is set BEFORE line 898 reads it
+    if (viewData?.positions) {
+      // Find the DATA object definition and inject savedPositions into it
+      // Pattern: const DATA = { ... savedPositions: null ... };
+      modified = modified.replace(
+        /(const\s+DATA\s*=\s*\{[^}]*savedPositions\s*:\s*)null/,
+        `$1${positionsJson}`
+      );
+      
+      // Also patch savedPositions variable if it exists separately
+      modified = modified.replace(
+        /(let\s+savedPositions\s*=\s*)null/,
+        `$1${positionsJson}`
+      );
+    }
+    
+    if (viewData?.filters) {
+      // Patch savedFilters if exists in DATA
+      modified = modified.replace(
+        /(savedFilters\s*:\s*)null/,
+        `$1${filtersJson}`
+      );
+    }
+    
+    // Additional script for saveView override (runs after DOM ready)
     const injection = `
       <script>
         (function() {
-          var savedPos = ${positionsJson};
-          var savedFilters = ${filtersJson};
-          
-          // Wait for DOM and then patch DATA object
+          // Override saveView to post message instead of alert
           document.addEventListener('DOMContentLoaded', function() {
-            // Patch DATA.savedPositions if DATA exists
-            if (typeof DATA !== 'undefined') {
-              if (savedPos) {
-                DATA.savedPositions = savedPos;
-              }
-              if (savedFilters) {
-                DATA.savedFilters = savedFilters;
-              }
-            }
-            
-            // Also set on window as fallback
-            window.SAVED_POSITIONS = savedPos;
-            window.SAVED_FILTERS = savedFilters;
-            
-            // Override saveView to post message instead of alert
             if (typeof window.saveView === 'function') {
-              var originalSaveView = window.saveView;
               window.saveView = function() {
                 // Collect current positions from d3 nodes
                 var positions = {};
@@ -172,13 +180,13 @@ export default function FundTrailViewer({
     `;
     
     // Insert before </head> if exists, otherwise before </html>
-    if (htmlContent.includes('</head>')) {
-      return htmlContent.replace('</head>', `${injection}</head>`);
-    } else if (htmlContent.includes('</html>')) {
-      return htmlContent.replace('</html>', `${injection}</html>`);
+    if (modified.includes('</head>')) {
+      return modified.replace('</head>', `${injection}</head>`);
+    } else if (modified.includes('</html>')) {
+      return modified.replace('</html>', `${injection}</html>`);
     }
-    return injection + htmlContent;
-  }, [htmlContent, savedView]); // Only recalculate when htmlContent or initial savedView changes
+    return injection + modified;
+  }, [htmlContent, savedView]);
 
   // Listen for save events from iframe
   const handleMessage = useCallback(async (event: MessageEvent) => {
@@ -249,18 +257,15 @@ export default function FundTrailViewer({
     <div 
       ref={containerRef}
       className={cn(
-        "relative",
-        isFullscreen && "fixed inset-0 z-50 bg-background",
+        "flex flex-col",
+        isFullscreen && "fixed inset-0 z-50 bg-background p-4",
         className
       )}
     >
-      {/* Action buttons overlay - positioned in top-right */}
-      <div className={cn(
-        "absolute top-2 right-2 z-10 flex items-center gap-2",
-        isFullscreen && "top-4 right-4"
-      )}>
+      {/* Toolbar - positioned ABOVE iframe */}
+      <div className="flex items-center justify-end gap-2 mb-2">
         {isSaving && (
-          <span className="flex items-center gap-1 text-xs bg-background/80 backdrop-blur-sm px-2 py-1 rounded">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
             <Loader2 className="h-3 w-3 animate-spin" />
             Saving...
           </span>
@@ -269,23 +274,22 @@ export default function FundTrailViewer({
           onClick={handleDownload} 
           variant="outline" 
           size="sm"
-          className="bg-background/80 backdrop-blur-sm"
         >
-          <Download className="h-4 w-4" />
+          <Download className="h-4 w-4 mr-1.5" />
+          Download
         </Button>
         <Button 
           onClick={onShare} 
           variant="outline" 
           size="sm"
-          className="bg-background/80 backdrop-blur-sm"
         >
-          <Share2 className="h-4 w-4" />
+          <Share2 className="h-4 w-4 mr-1.5" />
+          Share
         </Button>
         <Button
           onClick={toggleFullscreen}
           variant="outline"
           size="sm"
-          className="bg-background/80 backdrop-blur-sm"
         >
           {isFullscreen ? (
             <Minimize2 className="h-4 w-4" />
@@ -295,13 +299,13 @@ export default function FundTrailViewer({
         </Button>
       </div>
       
-      {/* Iframe with Fund Trail - full height, no header */}
+      {/* Iframe with Fund Trail - takes remaining height */}
       <iframe
         ref={iframeRef}
         srcDoc={modifiedHtml}
         className={cn(
-          "w-full border rounded-lg bg-white",
-          isFullscreen ? "h-full" : "h-[75vh]"
+          "w-full border rounded-lg bg-white flex-1",
+          isFullscreen ? "h-full" : "h-[72vh]"
         )}
         sandbox="allow-scripts allow-same-origin"
         title="Fund Trail Analysis"

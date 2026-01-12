@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Loader2, RefreshCw } from "lucide-react";
@@ -21,38 +20,46 @@ export default function SharedFundTrail() {
       }
 
       try {
-        // Call edge function to get shared content
-        const { data, error: fnError } = await supabase.functions.invoke('get-shared-fund-trail', {
-          body: null,
-          headers: {},
-        });
-
-        // The function returns HTML directly, but we need to pass the code as query param
-        // So we'll make a direct fetch call instead
         const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL || 'https://rwzpffsaivgjuuthvkfa.supabase.co'}/functions/v1/get-shared-fund-trail?code=${code}`,
+          `https://rwzpffsaivgjuuthvkfa.supabase.co/functions/v1/get-shared-fund-trail?code=${encodeURIComponent(code)}`,
           {
             method: 'GET',
             headers: {
-              'Content-Type': 'application/json',
+              'Accept': 'text/html, application/json',
             },
           }
         );
 
+        const contentType = response.headers.get('content-type') || '';
+        
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || 'Failed to load shared content');
+          // For error responses, try to parse as JSON
+          if (contentType.includes('application/json')) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to load shared content');
+          } else {
+            throw new Error(`Failed to load: ${response.status} ${response.statusText}`);
+          }
         }
 
-        const contentType = response.headers.get('content-type');
-        
-        if (contentType?.includes('text/html')) {
+        // For successful responses, check content type
+        if (contentType.includes('text/html')) {
           const html = await response.text();
           setHtmlContent(html);
-        } else {
+        } else if (contentType.includes('application/json')) {
+          // Might be a JSON error response with 200 status
           const data = await response.json();
           if (data.error) {
             throw new Error(data.error);
+          }
+          throw new Error('Unexpected response format');
+        } else {
+          // Unknown content type, try as text
+          const text = await response.text();
+          if (text.startsWith('<!') || text.startsWith('<html')) {
+            setHtmlContent(text);
+          } else {
+            throw new Error('Invalid response format');
           }
         }
       } catch (err) {

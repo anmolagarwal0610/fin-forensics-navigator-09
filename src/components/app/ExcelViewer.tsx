@@ -366,11 +366,8 @@ export default function ExcelViewer({
 
     // Apply merges from preview JSON if available
     if (previewData?.merges) {
-      console.log('Applying merges from preview:', previewData.merges);
-      
       previewData.merges.forEach(rangeStr => {
         const range = parseRange(rangeStr);
-        console.log(`Processing merge range ${rangeStr}:`, range);
         
         // Set merged range on the top-left cell
         if (processed[range.startRow] && processed[range.startRow][range.startCol]) {
@@ -413,8 +410,6 @@ export default function ExcelViewer({
         currencyColumns.push(colIndex);
       }
     });
-    
-    console.log('💰 Identified currency columns:', currencyColumns);
     setCurrencyColumnIndices(currencyColumns);
   }, [processedData]);
 
@@ -428,8 +423,6 @@ export default function ExcelViewer({
         
         // Check if fileUrl is already a JSON blob URL (from ZIP extraction)
         if (fileUrl.includes('blob:')) {
-          // Try to determine if this is a JSON blob by checking if we can fetch JSON from it
-          console.log('🔍 Detected blob URL, attempting to fetch content to determine type');
           previewUrl = fileUrl;
         }
         // For test files, use static path
@@ -441,59 +434,46 @@ export default function ExcelViewer({
           previewUrl = fileUrl.replace(/\.xlsx$/i, '.preview.json');
         }
         
-        console.log('🔍 Attempting to fetch preview JSON from:', previewUrl);
         const response = await fetch(previewUrl);
         
         if (response.status === 200) {
           // Check content type to avoid binary data
           const contentType = response.headers.get('content-type');
-          console.log('📄 Response content-type:', contentType);
           
           // For blob URLs, content-type might not be set correctly, so also check the actual content
           const responseText = await response.text();
-          console.log('📄 Response text length:', responseText.length, 'First 100 chars:', responseText.substring(0, 100));
           
           // Check if this looks like JSON content
           const looksLikeJson = responseText.trim().startsWith('{') && responseText.includes('"schema"');
           const hasValidContentType = contentType && (contentType.includes('application/json') || contentType.includes('text/'));
           
           if (!hasValidContentType && !looksLikeJson) {
-            console.error('❌ Content does not appear to be JSON, content-type:', contentType);
             setPreviewData(null);
             return;
           }
           
           // Check if response starts with binary markers
           if (responseText.startsWith('PK') || responseText.includes('\x00')) {
-            console.error('❌ Binary content detected, skipping JSON parsing');
             setPreviewData(null);
             return;
           }
           
           try {
             const preview = JSON.parse(responseText);
-            console.log('✅ Preview JSON parsed successfully:', preview);
             
             // Validate schema
             if (preview.schema === "ffn.preview.v1") {
-              console.log('✅ Preview schema validation passed');
               setPreviewData(preview);
-              console.log('✅ Successfully loaded preview data with', Object.keys(preview.cell_bg || {}).length, 'cell background colors');
             } else {
-              console.warn('❌ Invalid preview schema:', preview.schema, 'Expected: ffn.preview.v1');
               setPreviewData(null);
             }
           } catch (parseError) {
-            console.error('❌ JSON parsing failed:', parseError);
-            console.error('📄 Raw response text:', responseText.substring(0, 200));
             setPreviewData(null);
           }
         } else {
-          console.log(`⚠️ Preview JSON not found (${response.status}), using Excel data only`);
           setPreviewData(null);
         }
       } catch (error) {
-        console.error('❌ Network error loading preview JSON:', error);
         setPreviewData(null);
       }
     };

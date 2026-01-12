@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Share2, Save, Loader2, Maximize2, Minimize2, Download } from "lucide-react";
+import { Share2, Loader2, Maximize2, Minimize2, Download } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FundTrailViewerProps {
@@ -23,9 +23,12 @@ export default function FundTrailViewer({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
+  
+  // Use ref to store positions locally without triggering re-render
+  const savedPositionsRef = useRef<{ positions: any; filters: any } | null>(null);
+  const hasLoadedInitialRef = useRef(false);
 
-  // Fetch saved positions from DB
+  // Fetch saved positions from DB (only on initial load)
   const { data: savedView, isLoading: loadingView } = useQuery({
     queryKey: ['fund-trail-view', caseId],
     queryFn: async () => {
@@ -41,10 +44,20 @@ export default function FundTrailViewer({
       }
       return data;
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes
+    staleTime: Infinity, // Never refetch automatically
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
   });
 
-  // Save view mutation
+  // Store initial saved view in ref
+  useEffect(() => {
+    if (savedView && !hasLoadedInitialRef.current) {
+      savedPositionsRef.current = savedView;
+      hasLoadedInitialRef.current = true;
+    }
+  }, [savedView]);
+
+  // Save view mutation - NO query invalidation to prevent re-render
   const saveViewMutation = useMutation({
     mutationFn: async ({ positions, filters }: { positions: any; filters: any }) => {
       const { error } = await supabase
@@ -57,9 +70,11 @@ export default function FundTrailViewer({
         }, { onConflict: 'case_id' });
       
       if (error) throw error;
+      
+      // Update local ref without re-render
+      savedPositionsRef.current = { positions, filters };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['fund-trail-view', caseId] });
       toast({ title: "View saved successfully" });
     },
     onError: (error) => {
@@ -68,36 +83,91 @@ export default function FundTrailViewer({
     }
   });
 
-  // Inject saved positions into HTML before rendering
+  // Create modified HTML with injected positions - only uses initial saved view
   const modifiedHtml = useMemo(() => {
     if (!htmlContent) return '';
     
-    // Create injection script with saved positions
-    const positionsJson = savedView?.positions ? JSON.stringify(savedView.positions) : 'null';
-    const filtersJson = savedView?.filters ? JSON.stringify(savedView.filters) : 'null';
+    // Use ref for positions if available, otherwise use query data
+    const viewData = savedPositionsRef.current || savedView;
+    const positionsJson = viewData?.positions ? JSON.stringify(viewData.positions) : 'null';
+    const filtersJson = viewData?.filters ? JSON.stringify(viewData.filters) : 'null';
     
+    // Injection script that patches DATA object and overrides saveView
     const injection = `
       <script>
-        window.SAVED_POSITIONS = ${positionsJson};
-        window.SAVED_FILTERS = ${filtersJson};
-        window.IS_EMBEDDED = true;
-        
-        // Override saveView to post message to parent
-        window.addEventListener('DOMContentLoaded', function() {
-          // Check if the original saveView function exists and wrap it
-          if (typeof window.saveView === 'function') {
-            const originalSaveView = window.saveView;
-            window.saveView = function() {
-              const data = originalSaveView.apply(this, arguments);
-              // Post to parent window
-              window.parent.postMessage({
-                type: 'FUNDTRAIL_SAVE',
-                payload: data
-              }, '*');
-              return data;
-            };
-          }
-        });
+        (function() {
+          var savedPos = ${positionsJson};
+          var savedFilters = ${filtersJson};
+          
+          // Wait for DOM and then patch DATA object
+          document.addEventListener('DOMContentLoaded', function() {
+            // Patch DATA.savedPositions if DATA exists
+            if (typeof DATA !== 'undefined') {
+              if (savedPos) {
+                DATA.savedPositions = savedPos;
+              }
+              if (savedFilters) {
+                DATA.savedFilters = savedFilters;
+              }
+            }
+            
+            // Also set on window as fallback
+            window.SAVED_POSITIONS = savedPos;
+            window.SAVED_FILTERS = savedFilters;
+            
+            // Override saveView to post message instead of alert
+            if (typeof window.saveView === 'function') {
+              var originalSaveView = window.saveView;
+              window.saveView = function() {
+                // Collect current positions from d3 nodes
+                var positions = {};
+                if (typeof d3 !== 'undefined') {
+                  d3.selectAll('.node').each(function(d) {
+                    if (d && d.id) {
+                      positions[d.id] = { x: d.x, y: d.y };
+                    }
+                  });
+                }
+                
+                // Get current filter state
+                var filters = {
+                  selectedOwners: typeof selectedOwners !== 'undefined' ? Array.from(selectedOwners) : [],
+                  topN: typeof topN !== 'undefined' ? topN : 25
+                };
+                
+                var data = {
+                  positions: positions,
+                  filters: filters,
+                  timestamp: new Date().toISOString(),
+                  version: '1.0'
+                };
+                
+                // Post to parent window for saving
+                window.parent.postMessage({
+                  type: 'FUNDTRAIL_SAVE',
+                  payload: data
+                }, '*');
+                
+                // Update internal state without alert
+                if (typeof savedPositions !== 'undefined') {
+                  savedPositions = positions;
+                }
+                if (typeof hasSavedView !== 'undefined') {
+                  hasSavedView = true;
+                }
+                if (typeof hasUnsavedChanges !== 'undefined') {
+                  hasUnsavedChanges = false;
+                }
+                if (typeof updateUIState === 'function') {
+                  updateUIState();
+                }
+                
+                console.log('Fund Trail View Saved:', data);
+                return data;
+              };
+            }
+          });
+        })();
       </script>
     `;
     
@@ -108,26 +178,26 @@ export default function FundTrailViewer({
       return htmlContent.replace('</html>', `${injection}</html>`);
     }
     return injection + htmlContent;
-  }, [htmlContent, savedView]);
+  }, [htmlContent, savedView]); // Only recalculate when htmlContent or initial savedView changes
 
   // Listen for save events from iframe
-  useEffect(() => {
-    const handleMessage = async (event: MessageEvent) => {
-      if (event.data?.type === 'FUNDTRAIL_SAVE') {
-        setIsSaving(true);
-        const { positions, filters } = event.data.payload;
-        
-        try {
-          await saveViewMutation.mutateAsync({ positions, filters });
-        } finally {
-          setIsSaving(false);
-        }
+  const handleMessage = useCallback(async (event: MessageEvent) => {
+    if (event.data?.type === 'FUNDTRAIL_SAVE') {
+      setIsSaving(true);
+      const { positions, filters } = event.data.payload;
+      
+      try {
+        await saveViewMutation.mutateAsync({ positions, filters });
+      } finally {
+        setIsSaving(false);
       }
-    };
+    }
+  }, [saveViewMutation]);
 
+  useEffect(() => {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [saveViewMutation]);
+  }, [handleMessage]);
 
   // Handle fullscreen toggle
   const toggleFullscreen = () => {
@@ -184,63 +254,54 @@ export default function FundTrailViewer({
         className
       )}
     >
-      {/* Header with controls */}
+      {/* Action buttons overlay - positioned in top-right */}
       <div className={cn(
-        "flex items-center justify-between gap-2 mb-2 px-1",
-        isFullscreen && "absolute top-2 left-2 right-2 z-10"
+        "absolute top-2 right-2 z-10 flex items-center gap-2",
+        isFullscreen && "top-4 right-4"
       )}>
-        <div className="flex items-center gap-2">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            Fund Trail Analysis
-          </h3>
-          {isSaving && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Saving...
-            </span>
+        {isSaving && (
+          <span className="flex items-center gap-1 text-xs bg-background/80 backdrop-blur-sm px-2 py-1 rounded">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Saving...
+          </span>
+        )}
+        <Button 
+          onClick={handleDownload} 
+          variant="outline" 
+          size="sm"
+          className="bg-background/80 backdrop-blur-sm"
+        >
+          <Download className="h-4 w-4" />
+        </Button>
+        <Button 
+          onClick={onShare} 
+          variant="outline" 
+          size="sm"
+          className="bg-background/80 backdrop-blur-sm"
+        >
+          <Share2 className="h-4 w-4" />
+        </Button>
+        <Button
+          onClick={toggleFullscreen}
+          variant="outline"
+          size="sm"
+          className="bg-background/80 backdrop-blur-sm"
+        >
+          {isFullscreen ? (
+            <Minimize2 className="h-4 w-4" />
+          ) : (
+            <Maximize2 className="h-4 w-4" />
           )}
-        </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={handleDownload} 
-            variant="outline" 
-            size="sm"
-            className="gap-2"
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Download</span>
-          </Button>
-          <Button 
-            onClick={onShare} 
-            variant="outline" 
-            size="sm"
-            className="gap-2"
-          >
-            <Share2 className="h-4 w-4" />
-            <span className="hidden sm:inline">Share</span>
-          </Button>
-          <Button
-            onClick={toggleFullscreen}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            {isFullscreen ? (
-              <Minimize2 className="h-4 w-4" />
-            ) : (
-              <Maximize2 className="h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        </Button>
       </div>
       
-      {/* Iframe with Fund Trail */}
+      {/* Iframe with Fund Trail - full height, no header */}
       <iframe
         ref={iframeRef}
         srcDoc={modifiedHtml}
         className={cn(
           "w-full border rounded-lg bg-white",
-          isFullscreen ? "h-[calc(100%-48px)]" : "h-[80vh]"
+          isFullscreen ? "h-full" : "h-[75vh]"
         )}
         sandbox="allow-scripts allow-same-origin"
         title="Fund Trail Analysis"

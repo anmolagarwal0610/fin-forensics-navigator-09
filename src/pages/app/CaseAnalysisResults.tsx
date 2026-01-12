@@ -21,6 +21,8 @@ import FileSankeyModal from "@/components/app/FileSankeyModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
+import FundTrailViewer from "@/components/app/FundTrailViewer";
+import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
 import JSZip from "jszip";
@@ -38,6 +40,7 @@ interface ParsedAnalysisData {
   mainGraphPngUrl?: string | null;
   mainNodeGraphHtml: string | null;      // poi_flows_main.html
   mainSankeyGraphHtml: string | null;    // poi_flows_sankey.html
+  fundTrailHtml: string | null;          // fund_trail_main.html - NEW
   egoImages: Array<{ name: string; url: string }>;
   poiHtmlFiles: Array<{ name: string; htmlContent: string; title: string; pngUrl?: string }>;
   poiFileCount: number;
@@ -70,6 +73,9 @@ export default function CaseAnalysisResults() {
   
   // State for viewing previous results
   const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
+  
+  // State for Fund Trail share dialog
+  const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);
   
   // Check for secure result files (new flow)
   const { hasResultFile: hasSecureResultFile, isLoading: resultStatusLoading } = useResultFileStatus(id);
@@ -168,6 +174,7 @@ export default function CaseAnalysisResults() {
         mainGraphPngUrl: null,
         mainNodeGraphHtml: null,      // poi_flows_main.html
         mainSankeyGraphHtml: null,    // poi_flows_sankey.html
+        fundTrailHtml: null,          // fund_trail_main.html - NEW
         egoImages: [],
         poiHtmlFiles: [],
         poiFileCount: 0,
@@ -176,6 +183,13 @@ export default function CaseAnalysisResults() {
         rawDataMap: new Map(), // Initialize empty - will be lazily populated
         poiDataMap: new Map(), // Initialize empty - will be lazily populated
       };
+
+      // Process fund_trail_main.html first (highest priority)
+      const fundTrailFile = zipData.file("fund_trail_main.html");
+      if (fundTrailFile) {
+        parsedData.fundTrailHtml = await fundTrailFile.async("text");
+        console.log('[Analysis] ✓ Fund Trail HTML extracted');
+      }
 
       // Process beneficiaries_by_file.xlsx with enhanced formatting
       const beneficiariesFile = zipData.file("beneficiaries_by_file.xlsx");
@@ -757,8 +771,8 @@ export default function CaseAnalysisResults() {
           />
         )}
 
-        {/* Main Flow Graph - with Tabs for Sankey and Node graphs */}
-        {(analysisData.mainSankeyGraphHtml || analysisData.mainNodeGraphHtml || analysisData.mainGraphHtml || analysisData.mainGraphUrl) && (
+        {/* Main Flow Graph - with Tabs for Fund Trail, Sankey and Node graphs */}
+        {(analysisData.fundTrailHtml || analysisData.mainSankeyGraphHtml || analysisData.mainNodeGraphHtml || analysisData.mainGraphHtml || analysisData.mainGraphUrl) && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
@@ -770,75 +784,136 @@ export default function CaseAnalysisResults() {
               </p>
             </CardHeader>
             <CardContent className="p-6">
-              {/* Show tabs if both graphs exist */}
-              {analysisData.mainSankeyGraphHtml && analysisData.mainNodeGraphHtml ? (
-                <Tabs defaultValue="sankey" className="w-full">
-                  <TabsList className="mb-4 bg-muted/60">
-                    <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
-                      Sankey Graph
-                    </TabsTrigger>
-                    <TabsTrigger value="node" className="data-[state=active]:bg-background">
-                      Node Graph
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="sankey">
+              {/* Determine available tabs */}
+              {(() => {
+                const hasFundTrail = !!analysisData.fundTrailHtml;
+                const hasSankey = !!analysisData.mainSankeyGraphHtml;
+                const hasNode = !!analysisData.mainNodeGraphHtml;
+                const hasLegacy = !!analysisData.mainGraphHtml || !!analysisData.mainGraphUrl;
+                const tabCount = [hasFundTrail, hasSankey, hasNode, hasLegacy].filter(Boolean).length;
+                
+                // Default to fundtrail if available, otherwise sankey
+                const defaultTab = hasFundTrail ? "fundtrail" : hasSankey ? "sankey" : "node";
+                
+                if (tabCount > 1) {
+                  return (
+                    <Tabs defaultValue={defaultTab} className="w-full">
+                      <TabsList className="mb-4 bg-muted/60">
+                        {hasFundTrail && (
+                          <TabsTrigger value="fundtrail" className="data-[state=active]:bg-background">
+                            Fund Trail
+                          </TabsTrigger>
+                        )}
+                        {hasSankey && (
+                          <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
+                            Sankey Graph
+                          </TabsTrigger>
+                        )}
+                        {hasNode && (
+                          <TabsTrigger value="node" className="data-[state=active]:bg-background">
+                            Node Graph
+                          </TabsTrigger>
+                        )}
+                      </TabsList>
+                      {hasFundTrail && (
+                        <TabsContent value="fundtrail">
+                          <FundTrailViewer
+                            htmlContent={analysisData.fundTrailHtml!}
+                            caseId={id!}
+                            onShare={() => setShareFundTrailOpen(true)}
+                            className="h-[80vh]"
+                          />
+                        </TabsContent>
+                      )}
+                      {hasSankey && (
+                        <TabsContent value="sankey">
+                          <HTMLViewer
+                            htmlContent={analysisData.mainSankeyGraphHtml!}
+                            title="Sankey Graph"
+                            onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                            className="h-[70vh]"
+                          />
+                        </TabsContent>
+                      )}
+                      {hasNode && (
+                        <TabsContent value="node">
+                          <HTMLViewer
+                            htmlContent={analysisData.mainNodeGraphHtml!}
+                            title="Node Graph"
+                            onDownload={() => downloadIndividualFile('poi_flows_main.html')}
+                            onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                            className="h-[70vh]"
+                          />
+                        </TabsContent>
+                      )}
+                    </Tabs>
+                  );
+                }
+                
+                // Single graph - show directly
+                if (hasFundTrail) {
+                  return (
+                    <FundTrailViewer
+                      htmlContent={analysisData.fundTrailHtml!}
+                      caseId={id!}
+                      onShare={() => setShareFundTrailOpen(true)}
+                      className="h-[80vh]"
+                    />
+                  );
+                }
+                if (hasSankey) {
+                  return (
                     <HTMLViewer
-                      htmlContent={analysisData.mainSankeyGraphHtml}
+                      htmlContent={analysisData.mainSankeyGraphHtml!}
                       title="Sankey Graph"
                       onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
                       className="h-[70vh]"
                     />
-                  </TabsContent>
-                  <TabsContent value="node">
+                  );
+                }
+                if (hasNode) {
+                  return (
                     <HTMLViewer
-                      htmlContent={analysisData.mainNodeGraphHtml}
+                      htmlContent={analysisData.mainNodeGraphHtml!}
                       title="Node Graph"
                       onDownload={() => downloadIndividualFile('poi_flows_main.html')}
                       onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
                       className="h-[70vh]"
                     />
-                  </TabsContent>
-                </Tabs>
-              ) : analysisData.mainSankeyGraphHtml ? (
-                // Only Sankey exists
-                <HTMLViewer
-                  htmlContent={analysisData.mainSankeyGraphHtml}
-                  title="Sankey Graph"
-                  onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
-                  className="h-[70vh]"
-                />
-              ) : analysisData.mainNodeGraphHtml ? (
-                // Only Node graph exists
-                <HTMLViewer
-                  htmlContent={analysisData.mainNodeGraphHtml}
-                  title="Node Graph"
-                  onDownload={() => downloadIndividualFile('poi_flows_main.html')}
-                  onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
-                  className="h-[70vh]"
-                />
-              ) : analysisData.mainGraphHtml ? (
-                // Fallback to old poi_flows.html
-                <HTMLViewer
-                  htmlContent={analysisData.mainGraphHtml}
-                  title="Transaction Flow Analysis"
-                  onDownload={() => downloadIndividualFile('poi_flows.html')}
-                  onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
-                  className="h-[70vh]"
-                />
-              ) : analysisData.mainGraphUrl ? (
-                <div className="relative group">
-                  <img 
-                    src={analysisData.mainGraphUrl} 
-                    alt="POI Flow Analysis" 
-                    className="w-full h-auto rounded-lg border shadow-sm"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                    onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
-                  >
-                    <Download className="h-4 w-4" />
+                  );
+                }
+                if (analysisData.mainGraphHtml) {
+                  return (
+                    <HTMLViewer
+                      htmlContent={analysisData.mainGraphHtml}
+                      title="Transaction Flow Analysis"
+                      onDownload={() => downloadIndividualFile('poi_flows.html')}
+                      onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                      className="h-[70vh]"
+                    />
+                  );
+                }
+                if (analysisData.mainGraphUrl) {
+                  return (
+                    <div className="relative group">
+                      <img 
+                        src={analysisData.mainGraphUrl} 
+                        alt="POI Flow Analysis" 
+                        className="w-full h-auto rounded-lg border shadow-sm"
+                      />
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                        onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
                   </Button>
                 </div>
               ) : null}

@@ -30,6 +30,7 @@ import CaseAnalysisResults from "@/pages/app/CaseAnalysisResults";
 import Account from "@/pages/app/Account";
 import AdminCases from "@/pages/app/AdminCases";
 import RaiseTicket from "@/pages/app/RaiseTicket";
+import SharedFundTrail from "@/pages/SharedFundTrail";
 
 // Create QueryClient outside component to prevent recreation on re-renders
 const queryClient = new QueryClient({
@@ -76,6 +77,9 @@ function App() {
               <Route path="/app/account" element={<ProtectedRoute><Account /></ProtectedRoute>} />
               <Route path="/app/support/raise-ticket" element={<ProtectedRoute><RaiseTicket /></ProtectedRoute>} />
               <Route path="/app/admin/cases" element={<ProtectedRoute><AdminCases /></ProtectedRoute>} />
+              
+              {/* Public shared routes */}
+              <Route path="/s/:code" element={<SharedFundTrail />} />
               
               {/* 404 route */}
               <Route path="*" element={<Layout><NotFound /></Layout>} />

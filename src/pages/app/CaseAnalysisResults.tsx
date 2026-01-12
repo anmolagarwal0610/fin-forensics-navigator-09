@@ -914,9 +914,6 @@ export default function CaseAnalysisResults() {
                 }
                 return null;
               })()}
-                  </Button>
-                </div>
-              ) : null}
             </CardContent>
           </Card>
         )}
@@ -1274,6 +1271,16 @@ export default function CaseAnalysisResults() {
           />
         );
       })()}
+
+      {/* Share Fund Trail Dialog */}
+      {analysisData.fundTrailHtml && (
+        <ShareFundTrailDialog
+          open={shareFundTrailOpen}
+          onOpenChange={setShareFundTrailOpen}
+          caseId={id!}
+          fundTrailHtml={analysisData.fundTrailHtml}
+        />
+      )}
     </>
   );
 }

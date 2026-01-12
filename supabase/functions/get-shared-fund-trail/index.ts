@@ -85,53 +85,54 @@ Deno.serve(async (req) => {
       .eq('case_id', share.case_id)
       .maybeSingle();
 
-    // Inject saved positions into HTML if available
-    if (savedView?.positions || savedView?.filters) {
-      const positionsJson = savedView.positions ? JSON.stringify(savedView.positions) : 'null';
-      const filtersJson = savedView.filters ? JSON.stringify(savedView.filters) : 'null';
+    // SYNCHRONOUS injection - modify DATA object directly where it's defined
+    if (savedView?.positions) {
+      const positionsJson = JSON.stringify(savedView.positions);
       
-      const injection = `
-        <script>
-          (function() {
-            var savedPos = ${positionsJson};
-            var savedFilters = ${filtersJson};
-            
-            document.addEventListener('DOMContentLoaded', function() {
-              // Patch DATA.savedPositions if DATA exists
-              if (typeof DATA !== 'undefined') {
-                if (savedPos) {
-                  DATA.savedPositions = savedPos;
-                }
-                if (savedFilters) {
-                  DATA.savedFilters = savedFilters;
-                }
-              }
-              
-              // Also set on window as fallback
-              window.SAVED_POSITIONS = savedPos;
-              window.SAVED_FILTERS = savedFilters;
-              
-              // Disable save functionality in shared view
-              window.IS_SHARED_VIEW = true;
-              if (typeof window.saveView === 'function') {
-                window.saveView = function() {
-                  console.log('Save is disabled in shared view');
-                  return null;
-                };
-              }
-            });
-          })();
-        </script>
-      `;
+      // Find the DATA object definition and inject savedPositions into it
+      html = html.replace(
+        /(const\s+DATA\s*=\s*\{[^}]*savedPositions\s*:\s*)null/,
+        `$1${positionsJson}`
+      );
       
-      // Insert before </head> if exists
-      if (html.includes('</head>')) {
-        html = html.replace('</head>', `${injection}</head>`);
-      } else if (html.includes('</html>')) {
-        html = html.replace('</html>', `${injection}</html>`);
-      } else {
-        html = injection + html;
-      }
+      // Also patch savedPositions variable if it exists separately
+      html = html.replace(
+        /(let\s+savedPositions\s*=\s*)null/,
+        `$1${positionsJson}`
+      );
+    }
+    
+    if (savedView?.filters) {
+      const filtersJson = JSON.stringify(savedView.filters);
+      html = html.replace(
+        /(savedFilters\s*:\s*)null/,
+        `$1${filtersJson}`
+      );
+    }
+    
+    // Additional script to disable save in shared view
+    const injection = `
+      <script>
+        (function() {
+          document.addEventListener('DOMContentLoaded', function() {
+            window.IS_SHARED_VIEW = true;
+            if (typeof window.saveView === 'function') {
+              window.saveView = function() {
+                console.log('Save is disabled in shared view');
+                return null;
+              };
+            }
+          });
+        })();
+      </script>
+    `;
+    
+    if (html.includes('</head>')) {
+      html = html.replace('</head>', `${injection}</head>`);
+    } else if (html.includes('</html>')) {
+      html = html.replace('</html>', `${injection}</html>`);
+    } else {
+      html = injection + html;
     }
 
     // Return HTML content directly

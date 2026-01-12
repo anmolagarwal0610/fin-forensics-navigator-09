@@ -233,6 +233,44 @@ export type Database = {
           },
         ]
       }
+      fund_trail_views: {
+        Row: {
+          case_id: string
+          created_at: string | null
+          filters: Json | null
+          id: string
+          positions: Json
+          updated_at: string | null
+          version: string | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string | null
+          filters?: Json | null
+          id?: string
+          positions: Json
+          updated_at?: string | null
+          version?: string | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string | null
+          filters?: Json | null
+          id?: string
+          positions?: Json
+          updated_at?: string | null
+          version?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fund_trail_views_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: true
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           attempt_count: number
@@ -398,6 +436,50 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "result_files_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shared_fund_trails: {
+        Row: {
+          case_id: string
+          created_at: string | null
+          expires_at: string | null
+          id: string
+          is_revoked: boolean | null
+          short_code: string
+          storage_path: string
+          user_id: string
+          view_count: number | null
+        }
+        Insert: {
+          case_id: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_revoked?: boolean | null
+          short_code: string
+          storage_path: string
+          user_id: string
+          view_count?: number | null
+        }
+        Update: {
+          case_id?: string
+          created_at?: string | null
+          expires_at?: string | null
+          id?: string
+          is_revoked?: boolean | null
+          short_code?: string
+          storage_path?: string
+          user_id?: string
+          view_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shared_fund_trails_case_id_fkey"
             columns: ["case_id"]
             isOneToOne: false
             referencedRelation: "cases"

@@ -76,7 +76,63 @@ Deno.serve(async (req) => {
       );
     }
 
-    const html = await file.text();
+    let html = await file.text();
+
+    // Fetch saved view positions for this case
+    const { data: savedView } = await supabase
+      .from('fund_trail_views')
+      .select('positions, filters')
+      .eq('case_id', share.case_id)
+      .maybeSingle();
+
+    // Inject saved positions into HTML if available
+    if (savedView?.positions || savedView?.filters) {
+      const positionsJson = savedView.positions ? JSON.stringify(savedView.positions) : 'null';
+      const filtersJson = savedView.filters ? JSON.stringify(savedView.filters) : 'null';
+      
+      const injection = `
+        <script>
+          (function() {
+            var savedPos = ${positionsJson};
+            var savedFilters = ${filtersJson};
+            
+            document.addEventListener('DOMContentLoaded', function() {
+              // Patch DATA.savedPositions if DATA exists
+              if (typeof DATA !== 'undefined') {
+                if (savedPos) {
+                  DATA.savedPositions = savedPos;
+                }
+                if (savedFilters) {
+                  DATA.savedFilters = savedFilters;
+                }
+              }
+              
+              // Also set on window as fallback
+              window.SAVED_POSITIONS = savedPos;
+              window.SAVED_FILTERS = savedFilters;
+              
+              // Disable save functionality in shared view
+              window.IS_SHARED_VIEW = true;
+              if (typeof window.saveView === 'function') {
+                window.saveView = function() {
+                  console.log('Save is disabled in shared view');
+                  return null;
+                };
+              }
+            });
+          })();
+        </script>
+      `;
+      
+      // Insert before </head> if exists
+      if (html.includes('</head>')) {
+        html = html.replace('</head>', `${injection}</head>`);
+      } else if (html.includes('</html>')) {
+        html = html.replace('</html>', `${injection}</html>`);
+      } else {
+        html = injection + html;
+      }
+    }
 
     // Return HTML content directly
     return new Response(html, {

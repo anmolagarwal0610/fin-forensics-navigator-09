@@ -24,7 +24,6 @@ interface FileItem {
 }
 
 const ticketSchema = z.object({
-  queryType: z.string().min(1, "Please select a query type"),
   subject: z.string().min(3, "Subject must be at least 3 characters").max(200, "Subject must be less than 200 characters"),
   description: z.string().min(20, "Description must be at least 20 characters").max(2000, "Description must be less than 2000 characters"),
   caseId: z.string().optional(),
@@ -42,7 +41,6 @@ export default function RaiseTicket() {
   const form = useForm<TicketFormData>({
     resolver: zodResolver(ticketSchema),
     defaultValues: {
-      queryType: "",
       subject: "",
       description: "",
       caseId: "",
@@ -133,7 +131,6 @@ export default function RaiseTicket() {
         {
           body: {
             ticketType: "manual",
-            queryType: data.queryType,
             subject: data.subject,
             description: data.description,
             userEmail: user.email,
@@ -201,38 +198,6 @@ export default function RaiseTicket() {
         <CardContent>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              <FormField
-                control={form.control}
-                name="queryType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Query Type *</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select issue category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="PDF Processing Failed">PDF Processing Failed</SelectItem>
-                        <SelectItem value="Beneficiary Data Missing">Beneficiary Data Missing</SelectItem>
-                        <SelectItem value="Graph/Chart Issues">Graph/Chart Issues</SelectItem>
-                        <SelectItem value="Data Extraction Errors">Data Extraction Errors</SelectItem>
-                        <SelectItem value="CSV File Corrections Not Applied">CSV File Corrections Not Applied</SelectItem>
-                        <SelectItem value="Analysis Results Incomplete">Analysis Results Incomplete</SelectItem>
-                        <SelectItem value="File Upload Issues">File Upload Issues</SelectItem>
-                        <SelectItem value="Review Page Issues">Review Page Issues</SelectItem>
-                        <SelectItem value="Performance/Timeout Issues">Performance/Timeout Issues</SelectItem>
-                        <SelectItem value="Account/Billing">Account/Billing</SelectItem>
-                        <SelectItem value="Feature Request">Feature Request</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="caseId"

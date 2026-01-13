@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Download, Search, X } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CellData } from '@/utils/excelParser';
 import JSZip from 'jszip';
@@ -72,18 +71,6 @@ export default function ExcelViewer({
   const [filteredTransactions, setFilteredTransactions] = useState<TransactionRow[]>([]);
   const [poiTransactions, setPOITransactions] = useState<POITransactionRow[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
-  
-  // Search state for beneficiary name column
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  
-  // Focus search input when opened
-  useEffect(() => {
-    if (isSearchOpen && searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isSearchOpen]);
 
   // Find column indices from Row 2 (index 1) headers for beneficiary drill-down
   const columnIndices = useMemo(() => {
@@ -324,11 +311,11 @@ export default function ExcelViewer({
     }
   }, [enableBeneficiaryClick, zipData, columnIndices, processedData, findSourceFile, rawDataCache, poiDataCache, onCacheRawData, onCachePOIData]);
 
-  // Check if a cell should be clickable (beneficiary column - now at index 1 due to S.No column)
+  // Check if a cell should be clickable (beneficiary column)
   const isBeneficiaryCell = useCallback((rowIndex: number, colIndex: number): boolean => {
     if (!enableBeneficiaryClick || !zipData || rowIndex < 2) return false;
-    // Beneficiary name is now at column index 1 (after S.No column), starting from row 2 (index 2)
-    return colIndex === 1;
+    // First column (index 0) contains beneficiary names, starting from row 2 (index 2)
+    return colIndex === 0;
   }, [enableBeneficiaryClick, zipData]);
 
   // Helper function to convert 0-based array indices to 1-based A1 notation
@@ -515,36 +502,7 @@ export default function ExcelViewer({
     );
   }
 
-  // Filter and add index column to displayData
-  const displayData = useMemo(() => {
-    let data = processedData;
-    
-    // Apply search filter on first column (Beneficiary Name) - only filter data rows (index 2+)
-    if (searchQuery.trim() && data.length > 2) {
-      const query = searchQuery.toLowerCase().trim();
-      const headers = data.slice(0, 2); // Keep first 2 header rows
-      const dataRows = data.slice(2).filter((row) => {
-        const cellValue = String(row[0]?.value || "").toLowerCase();
-        return cellValue.includes(query);
-      });
-      data = [...headers, ...dataRows];
-    }
-    
-    // Add S.No index column and limit rows
-    const slicedData = data.slice(0, maxRows + 2); // +2 for header rows
-    return slicedData.map((row, idx) => {
-      if (idx === 0) {
-        // First header row - add empty cell
-        return [{ value: "", style: row[0]?.style || {} }, ...row];
-      }
-      if (idx === 1) {
-        // Second header row - add "S.No" header
-        return [{ value: "S.No", style: { fontWeight: 'bold' } }, ...row];
-      }
-      // Data rows - add serial number (idx - 1 to start from 1)
-      return [{ value: idx - 1, style: {} }, ...row];
-    });
-  }, [processedData, searchQuery, maxRows]);
+  const displayData = processedData.slice(0, maxRows);
 
   const getCellStyle = useCallback((cell: CellData, rowIndex: number, colIndex: number) => {
     const style: React.CSSProperties = {};
@@ -680,44 +638,12 @@ export default function ExcelViewer({
       <CardHeader className="p-4 sm:p-6">
         <CardTitle className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
           <span className="text-base sm:text-lg">{title}</span>
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* Search for beneficiary name */}
-            {isSearchOpen ? (
-              <div className="flex items-center gap-1 flex-1 sm:flex-initial">
-                <Input
-                  ref={searchInputRef}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search beneficiary..."
-                  className="h-8 w-full sm:w-48"
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0"
-                  onClick={() => { setIsSearchOpen(false); setSearchQuery(""); }}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
-                onClick={() => setIsSearchOpen(true)}
-                title="Search beneficiary name"
-              >
-                <Search className="h-4 w-4" />
-              </Button>
-            )}
-            {onDownload && (
-              <Button onClick={onDownload} variant="outline" size="sm" className="w-full sm:w-auto">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
-            )}
-          </div>
+          {onDownload && (
+            <Button onClick={onDownload} variant="outline" size="sm" className="w-full sm:w-auto">
+              <Download className="w-4 h-4 mr-2" />
+              Download
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">

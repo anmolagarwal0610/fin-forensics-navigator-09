@@ -270,30 +270,30 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       ref={containerRef}
       className={cn("flex flex-col", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
     >
-      <div className="flex items-center justify-end gap-2 mb-2">
+      <div className="flex items-center justify-end gap-1.5 py-0.5">
         {isSaving && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
+          <span className="flex items-center gap-1 text-xs text-muted-foreground mr-1">
             <Loader2 className="h-3 w-3 animate-spin" />
             Saving...
           </span>
         )}
-        <Button onClick={handleDownload} variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-1.5" />
+        <Button onClick={handleDownload} variant="outline" size="sm" className="h-7 px-2 text-xs">
+          <Download className="h-3.5 w-3.5 mr-1" />
           Download
         </Button>
-        <Button onClick={onShare} variant="outline" size="sm">
-          <Share2 className="h-4 w-4 mr-1.5" />
+        <Button onClick={onShare} variant="outline" size="sm" className="h-7 px-2 text-xs">
+          <Share2 className="h-3.5 w-3.5 mr-1" />
           Share
         </Button>
-        <Button onClick={toggleFullscreen} variant="outline" size="sm">
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+        <Button onClick={toggleFullscreen} variant="outline" size="sm" className="h-7 w-7 p-0">
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         </Button>
       </div>
 
       <iframe
         ref={iframeRef}
         srcDoc={modifiedHtml}
-        className={cn("w-full border rounded-lg bg-white flex-1", isFullscreen ? "h-full" : "h-[72vh]")}
+        className={cn("w-full border rounded-lg bg-white flex-1", isFullscreen ? "h-full" : "h-[76vh]")}
         sandbox="allow-scripts allow-same-origin"
         title="Fund Trail Analysis"
       />

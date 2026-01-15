@@ -325,9 +325,15 @@ export default function CaseAnalysisResults() {
         if (file) {
           const htmlContent = await file.async("text");
           // Extract original filename from sankey_*.html
-          // e.g., "poi_flows_per_file_sankeys/sankey_Raghav_Goyal_gupta.html" -> "Raghav_Goyal_gupta"
-          const fileName = sankeyPath.replace(sankeyFolderPrefix, '').replace('sankey_', '').replace('.html', '');
+          // e.g., "poi_flows_per_file_sankeys/sankey_AGARWAL_BROTHERS.xlsx.html" -> "AGARWAL_BROTHERS"
+          // Remove .html, then remove backend extensions (.xlsx, .pdf, .csv)
+          const fileName = sankeyPath
+            .replace(sankeyFolderPrefix, '')
+            .replace('sankey_', '')
+            .replace('.html', '')
+            .replace(/\.(xlsx|pdf|csv)$/i, '');
           sankeyPerFileMap.set(fileName, htmlContent);
+          console.log('[Sankey Map] Added key:', fileName, 'from path:', sankeyPath);
         }
       }
 
@@ -430,19 +436,29 @@ export default function CaseAnalysisResults() {
         // Sankey files are named: sankey_[filename_with_underscores].html
         let sankeyHtml: string | null = null;
         
-        // Try exact match with underscores
+        // Try exact match with underscores first
         if (sankeyPerFileMap.has(originalWithUnderscores)) {
           sankeyHtml = sankeyPerFileMap.get(originalWithUnderscores)!;
+          console.log('[Sankey Match] Exact match for:', originalFile.file_name, '-> key:', originalWithUnderscores);
+        } else if (sankeyPerFileMap.has(originalBaseName)) {
+          // Try with original base name (handles case differences)
+          sankeyHtml = sankeyPerFileMap.get(originalBaseName)!;
+          console.log('[Sankey Match] Base name match for:', originalFile.file_name, '-> key:', originalBaseName);
         } else {
-          // Try normalized matching
+          // Try case-insensitive EXACT match on normalized strings ONLY - NO includes()
           for (const [sankeyFileName, sankeyContent] of sankeyPerFileMap) {
             const sankeyNormalized = normalizeString(sankeyFileName);
-            if (sankeyNormalized === originalNormalized || 
-                sankeyNormalized.includes(originalNormalized) || 
-                originalNormalized.includes(sankeyNormalized)) {
+            // STRICT EQUALITY ONLY - prevents partial matching like "agarwalbrothers" matching "agarwalbrothers202425"
+            if (sankeyNormalized === originalNormalized) {
               sankeyHtml = sankeyContent;
+              console.log('[Sankey Match] Normalized match for:', originalFile.file_name, '-> key:', sankeyFileName);
               break;
             }
+          }
+          if (!sankeyHtml) {
+            console.log('[Sankey Match] NO MATCH for:', originalFile.file_name, 
+              '| Looking for:', originalWithUnderscores, 'or normalized:', originalNormalized,
+              '| Available keys:', Array.from(sankeyPerFileMap.keys()));
           }
         }
 

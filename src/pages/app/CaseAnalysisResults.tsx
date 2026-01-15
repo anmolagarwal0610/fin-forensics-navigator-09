@@ -753,10 +753,10 @@ export default function CaseAnalysisResults() {
         {/* Enhanced Beneficiaries Preview */}
         {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
           <ExcelViewer
-            title={`Top ${Math.min(50, analysisData.totalBeneficiaryCount)} Beneficiaries`}
+            title={`Top ${Math.min(100, analysisData.totalBeneficiaryCount)} Beneficiaries`}
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
-            maxRows={52}
+            maxRows={102}
             fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
             enableBeneficiaryClick={true}
             zipData={analysisData.zipData}

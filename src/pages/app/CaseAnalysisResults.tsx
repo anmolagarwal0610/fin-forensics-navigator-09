@@ -77,6 +77,10 @@ export default function CaseAnalysisResults() {
   // State for Fund Trail share dialog
   const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);
   
+  // State for sharing individual graphs (Sankey/Node)
+  const [shareGraphOpen, setShareGraphOpen] = useState(false);
+  const [shareGraphHtml, setShareGraphHtml] = useState<string>('');
+  
   // Check for secure result files (new flow)
   const { hasResultFile: hasSecureResultFile, isLoading: resultStatusLoading } = useResultFileStatus(id);
   
@@ -831,6 +835,10 @@ export default function CaseAnalysisResults() {
                             htmlContent={analysisData.mainSankeyGraphHtml!}
                             title="Sankey Graph"
                             onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                            onShare={() => {
+                              setShareGraphHtml(analysisData.mainSankeyGraphHtml!);
+                              setShareGraphOpen(true);
+                            }}
                             className="h-[70vh]"
                           />
                         </TabsContent>
@@ -842,6 +850,10 @@ export default function CaseAnalysisResults() {
                             title="Node Graph"
                             onDownload={() => downloadIndividualFile('poi_flows_main.html')}
                             onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                            onShare={() => {
+                              setShareGraphHtml(analysisData.mainNodeGraphHtml!);
+                              setShareGraphOpen(true);
+                            }}
                             className="h-[70vh]"
                           />
                         </TabsContent>
@@ -867,6 +879,10 @@ export default function CaseAnalysisResults() {
                       htmlContent={analysisData.mainSankeyGraphHtml!}
                       title="Sankey Graph"
                       onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                      onShare={() => {
+                        setShareGraphHtml(analysisData.mainSankeyGraphHtml!);
+                        setShareGraphOpen(true);
+                      }}
                       className="h-[70vh]"
                     />
                   );
@@ -878,6 +894,10 @@ export default function CaseAnalysisResults() {
                       title="Node Graph"
                       onDownload={() => downloadIndividualFile('poi_flows_main.html')}
                       onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
+                      onShare={() => {
+                        setShareGraphHtml(analysisData.mainNodeGraphHtml!);
+                        setShareGraphOpen(true);
+                      }}
                       className="h-[70vh]"
                     />
                   );
@@ -1279,6 +1299,19 @@ export default function CaseAnalysisResults() {
           onOpenChange={setShareFundTrailOpen}
           caseId={id!}
           fundTrailHtml={analysisData.fundTrailHtml}
+        />
+      )}
+
+      {/* Share Individual Graph Dialog */}
+      {shareGraphHtml && (
+        <ShareFundTrailDialog
+          open={shareGraphOpen}
+          onOpenChange={(open) => {
+            setShareGraphOpen(open);
+            if (!open) setShareGraphHtml('');
+          }}
+          caseId={id!}
+          fundTrailHtml={shareGraphHtml}
         />
       )}
     </>

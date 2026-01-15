@@ -1,21 +1,24 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { RotateCcw, Maximize2, Download, Image, Loader2 } from "lucide-react";
+import { RotateCcw, Maximize2, Download, Image, Loader2, Share2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
 
 interface HTMLViewerProps {
   htmlContent: string;
   title?: string;
   onDownload?: () => void;
   onDownloadPng?: () => void;
+  onShare?: () => void;
   className?: string;
 }
 
-export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadPng, className = "" }: HTMLViewerProps) {
+export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadPng, onShare, className = "" }: HTMLViewerProps) {
   const [key, setKey] = useState(0);
   const [isCapturing, setIsCapturing] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { resolvedTheme } = useTheme();
 
   // Memoize Blob URL to prevent recreation on every render
   const blobUrl = useMemo(() => {
@@ -249,13 +252,20 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
       try {
         const iframeDoc = iframe.contentDocument;
         if (iframeDoc) {
+          // Set data-theme attribute on html element for dark mode support
+          const htmlElement = iframeDoc.documentElement;
+          if (htmlElement) {
+            htmlElement.setAttribute('data-theme', resolvedTheme === 'dark' ? 'dark' : 'light');
+          }
+
           // Inject custom styles for better integration and fullscreen support
+          const isDark = resolvedTheme === 'dark';
           const style = iframeDoc.createElement('style');
           style.textContent = `
             html, body { 
               margin: 0; 
               padding: 16px;
-              background: #ffffff !important;
+              ${!isDark ? 'background: #ffffff !important;' : ''}
               width: 100% !important;
               height: 100% !important;
               overflow: auto;
@@ -309,7 +319,7 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
 
     iframe.addEventListener('load', handleLoad);
     return () => iframe.removeEventListener('load', handleLoad);
-  }, [key, blobUrl]);
+  }, [key, blobUrl, resolvedTheme]);
 
   // Determine which PNG handler to use
   const handlePngDownload = onDownloadPng || captureChartAsPng;
@@ -329,6 +339,17 @@ export default function HTMLViewer({ htmlContent, title, onDownload, onDownloadP
           >
             <RotateCcw className="h-4 w-4 text-foreground" />
           </Button>
+          {onShare && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onShare}
+              className="h-8 w-8 p-0"
+              title="Share graph"
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
+          )}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

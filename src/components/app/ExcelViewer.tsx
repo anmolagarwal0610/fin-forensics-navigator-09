@@ -130,7 +130,7 @@ export default function ExcelViewer({
     if (!enableBeneficiaryClick || !zipData || !columnIndices || rowIndex < 2) return;
     
     const row = processedData[rowIndex];
-    const beneficiaryName = String(row[0]?.value || '').trim();
+    const beneficiaryName = String(row[1]?.value || '').trim();
     if (!beneficiaryName) return;
     
     setSelectedBeneficiary(beneficiaryName);
@@ -314,8 +314,8 @@ export default function ExcelViewer({
   // Check if a cell should be clickable (beneficiary column)
   const isBeneficiaryCell = useCallback((rowIndex: number, colIndex: number): boolean => {
     if (!enableBeneficiaryClick || !zipData || rowIndex < 2) return false;
-    // First column (index 0) contains beneficiary names, starting from row 2 (index 2)
-    return colIndex === 0;
+    // Second column (index 1) contains beneficiary names, starting from row 2 (index 2)
+    return colIndex === 1;
   }, [enableBeneficiaryClick, zipData]);
 
   // Helper function to convert 0-based array indices to 1-based A1 notation

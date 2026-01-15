@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Share2, Loader2, Maximize2, Minimize2, Download } from "lucide-react";
+import { Share2, Loader2, Maximize2, Minimize2, Download, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FundTrailViewerProps {
@@ -16,6 +16,7 @@ interface FundTrailViewerProps {
 export default function FundTrailViewer({ htmlContent, caseId, onShare, className }: FundTrailViewerProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [iframeKey, setIframeKey] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -257,6 +258,11 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     URL.revokeObjectURL(url);
   };
 
+  const handleRefresh = () => {
+    setIframeKey(prev => prev + 1);
+    toast({ title: "Graph refreshed" });
+  };
+
   if (loadingView) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -285,12 +291,16 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
           <Share2 className="h-4 w-4 mr-1.5" />
           Share
         </Button>
+        <Button onClick={handleRefresh} variant="outline" size="sm" title="Refresh graph">
+          <RotateCcw className="h-4 w-4" />
+        </Button>
         <Button onClick={toggleFullscreen} variant="outline" size="sm">
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
 
       <iframe
+        key={iframeKey}
         ref={iframeRef}
         srcDoc={modifiedHtml}
         className={cn("w-full border rounded-lg bg-white flex-1", isFullscreen ? "h-full" : "h-[72vh]")}

@@ -689,12 +689,19 @@ export default function ExcelViewer({
 
                             const cellContent = truncateText(displayValue);
 
+                            // Determine sticky column classes
+                            const stickyClass = colIndex === 0 
+                              ? 'sticky left-0 z-30 bg-background w-10 min-w-[40px] max-w-[60px]' 
+                              : colIndex === 1 
+                                ? 'sticky left-[40px] z-30 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
+                                : '';
+
                             return (
                               <th
                                 key={colIndex}
                                 {...span}
                                 style={{ ...style, backgroundColor: style.backgroundColor || 'hsl(var(--background))' }}
-                                className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px] text-left font-semibold ${colIndex === 0 ? 'sticky left-0 z-30 bg-background' : ''}`}
+                                className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left font-semibold ${stickyClass}`}
                               >
                                 {cellContent.truncated ? (
                                   <Tooltip>
@@ -759,12 +766,19 @@ export default function ExcelViewer({
                               const cellContent = truncateText(displayValue);
                               const isClickable = isBeneficiaryCell(rowIndex, colIndex);
 
+                              // Determine sticky column classes for body cells
+                              const bodyStickyClass = colIndex === 0 
+                                ? 'sticky left-0 z-10 bg-background w-10 min-w-[40px] max-w-[60px]' 
+                                : colIndex === 1 
+                                  ? 'sticky left-[40px] z-10 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
+                                  : '';
+
                               return (
                                 <td
                                   key={colIndex}
                                   {...span}
                                   style={style}
-                                  className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px] text-left ${colIndex === 0 ? 'sticky left-0 z-10 bg-background' : ''}`}
+                                  className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left ${bodyStickyClass}`}
                                 >
                                   {isClickable ? (
                                     <button
@@ -824,7 +838,7 @@ export default function ExcelViewer({
         </div>
         {processedData.length > maxRows && (
           <p className="mt-4 text-sm text-muted-foreground">
-            Showing top {maxRows} rows of {Math.max(0, processedData.length - 2)} total rows
+            Showing top {Math.max(0, maxRows - 2)} rows of {Math.max(0, processedData.length - 2)} total rows
           </p>
         )}
       </CardContent>

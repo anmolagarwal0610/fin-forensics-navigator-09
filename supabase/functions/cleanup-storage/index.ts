@@ -12,6 +12,8 @@ interface CleanupResult {
   oldResultFilesDeleted: number;
   orphanedResultRecordsDeleted: number;
   orphanedResultStorageDeleted: number;
+  sharedFundTrailsDeleted: number;
+  orphanedSharedTrailsDeleted: number;
   totalBytesFreed: number;
 }
 
@@ -35,6 +37,8 @@ Deno.serve(async (req) => {
       oldResultFilesDeleted: 0,
       orphanedResultRecordsDeleted: 0,
       orphanedResultStorageDeleted: 0,
+      sharedFundTrailsDeleted: 0,
+      orphanedSharedTrailsDeleted: 0,
       totalBytesFreed: 0,
     };
 
@@ -197,18 +201,15 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
-    // STEP 4: Delete old non-current result files (older than 24 hours)
+    // STEP 4: Delete ALL non-current result files (immediate cleanup)
     // ============================================
-    console.log("\n📦 Step 4: Cleaning old result file versions in result-files bucket...");
+    console.log("\n📦 Step 4: Cleaning ALL non-current result file versions...");
     try {
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-
+      // Delete ALL non-current result files - no 24-hour delay
       const { data: oldResultFiles } = await supabase
         .from('result_files')
         .select('id, storage_path, file_size_bytes')
-        .eq('is_current', false)
-        .lt('created_at', oneDayAgo.toISOString());
+        .eq('is_current', false);
 
       if (oldResultFiles && oldResultFiles.length > 0) {
         const pathsToDelete = oldResultFiles.map(f => f.storage_path);
@@ -231,9 +232,11 @@ Deno.serve(async (req) => {
             result.totalBytesFreed += oldResultFiles.reduce(
               (sum, f) => sum + (f.file_size_bytes || 0), 0
             );
-            console.log(`  ✓ Deleted ${oldResultFiles.length} old result file versions`);
+            console.log(`  ✓ Deleted ${oldResultFiles.length} non-current result file versions`);
           }
         }
+      } else {
+        console.log("  ✓ No non-current result files to clean");
       }
     } catch (err) {
       console.warn("⚠️ Step 4 error:", err);
@@ -329,6 +332,94 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
+    // STEP 7: Clean revoked/expired shared fund trail files
+    // ============================================
+    console.log("\n🔗 Step 7: Cleaning revoked/expired shared fund trail files...");
+    try {
+      const now = new Date().toISOString();
+      
+      // Get revoked or expired shares
+      const { data: revokedOrExpiredShares } = await supabase
+        .from('shared_fund_trails')
+        .select('id, storage_path')
+        .or(`is_revoked.eq.true,expires_at.lt.${now}`);
+      
+      if (revokedOrExpiredShares && revokedOrExpiredShares.length > 0) {
+        const pathsToDelete = revokedOrExpiredShares
+          .map(s => s.storage_path)
+          .filter(Boolean);
+        
+        if (pathsToDelete.length > 0) {
+          // Delete from storage
+          const { error: storageError } = await supabase.storage
+            .from('shared-fund-trails')
+            .remove(pathsToDelete);
+          
+          if (!storageError) {
+            // Delete the database records completely
+            const idsToDelete = revokedOrExpiredShares.map(s => s.id);
+            const { error: dbError } = await supabase
+              .from('shared_fund_trails')
+              .delete()
+              .in('id', idsToDelete);
+            
+            if (!dbError) {
+              result.sharedFundTrailsDeleted = pathsToDelete.length;
+              console.log(`  ✓ Deleted ${pathsToDelete.length} revoked/expired shared fund trail files`);
+            }
+          } else {
+            console.warn("  ⚠️ Error deleting from storage:", storageError);
+          }
+        }
+      } else {
+        console.log("  ✓ No revoked/expired shared fund trails to clean");
+      }
+    } catch (err) {
+      console.warn("⚠️ Step 7 error:", err);
+    }
+
+    // ============================================
+    // STEP 8: Clean orphaned shared fund trails (case deleted)
+    // ============================================
+    console.log("\n🗑️ Step 8: Cleaning orphaned shared fund trails (case deleted)...");
+    try {
+      const { data: allShares } = await supabase
+        .from('shared_fund_trails')
+        .select('id, storage_path, case_id');
+      
+      if (allShares && allShares.length > 0) {
+        const orphanedShares = allShares.filter(s => !caseIds.has(s.case_id));
+        
+        if (orphanedShares.length > 0) {
+          const pathsToDelete = orphanedShares.map(s => s.storage_path).filter(Boolean);
+          
+          // Delete from storage
+          if (pathsToDelete.length > 0) {
+            await supabase.storage
+              .from('shared-fund-trails')
+              .remove(pathsToDelete);
+          }
+          
+          // Delete records
+          const idsToDelete = orphanedShares.map(s => s.id);
+          const { error: dbError } = await supabase
+            .from('shared_fund_trails')
+            .delete()
+            .in('id', idsToDelete);
+          
+          if (!dbError) {
+            result.orphanedSharedTrailsDeleted = orphanedShares.length;
+            console.log(`  ✓ Deleted ${orphanedShares.length} orphaned shared fund trail records`);
+          }
+        } else {
+          console.log("  ✓ No orphaned shared fund trails to clean");
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ Step 8 error:", err);
+    }
+
+    // ============================================
     // Summary
     // ============================================
     const totalDeleted = 
@@ -337,7 +428,9 @@ Deno.serve(async (req) => {
       result.archivedCsvDeleted +
       result.oldResultFilesDeleted +
       result.orphanedResultRecordsDeleted +
-      result.orphanedResultStorageDeleted;
+      result.orphanedResultStorageDeleted +
+      result.sharedFundTrailsDeleted +
+      result.orphanedSharedTrailsDeleted;
 
     console.log("\n✅ Cleanup complete!");
     console.log("📊 Summary:", JSON.stringify(result, null, 2));
@@ -356,6 +449,8 @@ Deno.serve(async (req) => {
           oldResultVersions: result.oldResultFilesDeleted,
           orphanedResultRecords: result.orphanedResultRecordsDeleted,
           orphanedResultStorage: result.orphanedResultStorageDeleted,
+          sharedFundTrails: result.sharedFundTrailsDeleted,
+          orphanedSharedTrails: result.orphanedSharedTrailsDeleted,
         }
       }),
       {

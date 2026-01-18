@@ -26,6 +26,7 @@ interface SharedFundTrail {
   is_revoked: boolean;
   created_at: string;
   view_count: number;
+  storage_path: string;
 }
 
 export default function ShareFundTrailDialog({
@@ -90,23 +91,34 @@ export default function ShareFundTrailDialog({
     }
   });
 
-  // Revoke share mutation
+  // Revoke share mutation - deletes storage file and database record immediately
   const revokeShareMutation = useMutation({
-    mutationFn: async (shareId: string) => {
+    mutationFn: async (share: { id: string; storage_path: string }) => {
+      // First delete the storage file
+      const { error: storageError } = await supabase.storage
+        .from('shared-fund-trails')
+        .remove([share.storage_path]);
+      
+      if (storageError) {
+        console.warn('Failed to delete storage file:', storageError);
+        // Continue anyway - will be cleaned up by cron
+      }
+      
+      // Then delete the database record completely (not just revoke)
       const { error } = await supabase
         .from('shared_fund_trails')
-        .update({ is_revoked: true })
-        .eq('id', shareId);
+        .delete()
+        .eq('id', share.id);
       
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['fund-trail-shares', caseId] });
-      toast({ title: "Share link revoked" });
+      toast({ title: "Share link deleted" });
     },
     onError: (error) => {
-      console.error('Error revoking share:', error);
-      toast({ title: "Failed to revoke share link", variant: "destructive" });
+      console.error('Error deleting share:', error);
+      toast({ title: "Failed to delete share link", variant: "destructive" });
     }
   });
 
@@ -290,7 +302,10 @@ export default function ShareFundTrailDialog({
                           size="icon" 
                           variant="ghost"
                           className="h-8 w-8 text-destructive hover:text-destructive"
-                          onClick={() => revokeShareMutation.mutate(share.id)}
+                          onClick={() => revokeShareMutation.mutate({ 
+                            id: share.id, 
+                            storage_path: share.storage_path 
+                          })}
                           disabled={revokeShareMutation.isPending}
                         >
                           <Trash2 className="h-3.5 w-3.5" />

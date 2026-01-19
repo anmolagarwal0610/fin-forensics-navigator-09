@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,6 +43,7 @@ interface FileItem {
 }
 
 export default function CaseUpload() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -172,8 +174,8 @@ export default function CaseUpload() {
 
     if (loadedFiles.length > 0) {
       toast({
-        title: "Previous files loaded",
-        description: `${loadedFiles.length} file(s) from your draft are ready.`,
+        title: t("upload.previousFilesLoaded"),
+        description: `${loadedFiles.length} ${t("upload.filesFromDraft")}`,
       });
     }
 
@@ -238,8 +240,8 @@ export default function CaseUpload() {
 
       if (preExistingFiles.length > 0) {
         toast({
-          title: "Previous files loaded",
-          description: `${preExistingFiles.length} file(s) from previous analysis are ready. Add new files as needed.`,
+          title: t("upload.previousFilesLoaded"),
+          description: `${preExistingFiles.length} ${t("upload.filesFromPreviousAnalysis")}`,
         });
       }
     } catch (error) {
@@ -488,7 +490,7 @@ export default function CaseUpload() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <div className="text-lg font-medium mb-2">Loading case...</div>
+          <div className="text-lg font-medium mb-2">{t("caseUpload.loadingCase")}</div>
         </div>
       </div>
     );
@@ -505,7 +507,7 @@ export default function CaseUpload() {
       <div className="space-y-4">
         <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back
+          {t("actions.back")}
         </Button>
         <div className="flex items-center gap-2">
           <span
@@ -517,7 +519,7 @@ export default function CaseUpload() {
           <h1 className="text-2xl font-semibold">{case_.name}</h1>
           {isAddFilesMode && (
             <Badge variant="secondary" className="ml-2">
-              Adding Files
+              {t("caseUpload.addingFiles")}
             </Badge>
           )}
         </div>
@@ -526,10 +528,10 @@ export default function CaseUpload() {
       {isMaintenanceMode && (
         <Alert className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
           <Wrench className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-          <AlertTitle className="text-amber-900 dark:text-amber-100 font-semibold">Scheduled Maintenance</AlertTitle>
+          <AlertTitle className="text-amber-900 dark:text-amber-100 font-semibold">{t("caseUpload.scheduledMaintenance")}</AlertTitle>
           <AlertDescription className="text-amber-800 dark:text-amber-200">
             <p className="mb-2">{maintenanceMessage}</p>
-            <p className="text-sm">File submission is temporarily disabled during maintenance.</p>
+            <p className="text-sm">{t("caseUpload.maintenanceDisabled")}</p>
           </AlertDescription>
         </Alert>
       )}
@@ -537,13 +539,13 @@ export default function CaseUpload() {
       {!hasAccess && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Subscription Limit Reached</AlertTitle>
+          <AlertTitle>{t("newCase.subscriptionLimitReached")}</AlertTitle>
           <AlertDescription className="flex items-center justify-between">
-            <span>You have {pagesRemaining} pages remaining. Upgrade your plan to start analysis.</span>
+            <span>{t("newCase.pagesRemaining", { count: pagesRemaining })}</span>
             <Button asChild size="sm" className="ml-4">
               <Link to="/pricing">
                 <Zap className="mr-2 h-4 w-4" />
-                Upgrade Now
+                {t("newCase.upgradeNow")}
               </Link>
             </Button>
           </AlertDescription>
@@ -553,13 +555,13 @@ export default function CaseUpload() {
       {isAddFilesMode && (
         <Alert className="border-primary/50 bg-primary/5">
           <Info className="h-4 w-4 text-primary" />
-          <AlertTitle className="text-primary font-semibold">Adding Files to Existing Case</AlertTitle>
+          <AlertTitle className="text-primary font-semibold">{t("caseUpload.addingFilesToExisting")}</AlertTitle>
           <AlertDescription className="text-muted-foreground">
             <p>
-              Files from your previous analysis have been pre-loaded. Add new files to include in the updated analysis.
+              {t("caseUpload.addingFilesDesc")}
             </p>
             <p className="text-sm mt-1">
-              Previous results will be preserved and accessible after the new analysis completes.
+              {t("caseUpload.previousResultsPreserved")}
             </p>
           </AlertDescription>
         </Alert>
@@ -567,16 +569,14 @@ export default function CaseUpload() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{isAddFilesMode ? "Add Files for Re-Analysis" : "Upload Files for Analysis"}</CardTitle>
+          <CardTitle>{isAddFilesMode ? t("caseUpload.titleAddFiles") : t("caseUpload.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* File naming guidance */}
           <Alert className="border-primary/30 bg-primary/5">
             <Info className="h-4 w-4 text-primary" />
             <AlertDescription className="text-muted-foreground">
-              <span className="font-medium text-foreground">Tip:</span> Name your files after the bank statement owner
-              (e.g., <span className="font-mono text-sm bg-muted px-1 rounded">Ankush_Kumar.pdf</span>). File names are
-              used as headings in generated reports for easier identification.
+              <span className="font-medium text-foreground">{t("caseUpload.tip")}:</span> {t("caseUpload.tipMessage", { example: "Ankush_Kumar.pdf" })}
             </AlertDescription>
           </Alert>
           <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
@@ -584,12 +584,12 @@ export default function CaseUpload() {
               <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div className="space-y-1">
                 <Label htmlFor="hitl-mode" className="text-base font-medium cursor-pointer">
-                  HITL (Human-In-The-Loop) Flow
+                  {t("caseUpload.hitlTitle")}
                 </Label>
                 <p className="text-sm text-muted-foreground">
                   {useHitl
-                    ? "Review and correct extracted data before final analysis"
-                    : "Direct analysis without review step"}
+                    ? t("caseUpload.hitlEnabled")
+                    : t("caseUpload.hitlDisabled")}
                 </p>
               </div>
             </div>
@@ -599,7 +599,7 @@ export default function CaseUpload() {
           {loadingPreExisting ? (
             <div className="text-center py-8 text-muted-foreground">
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-4" />
-              <p>Loading files from previous analysis...</p>
+              <p>{t("caseUpload.loadingPreviousFiles")}</p>
             </div>
           ) : (
             <FileUploader
@@ -612,7 +612,7 @@ export default function CaseUpload() {
                     className="text-xs gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800"
                   >
                     <CheckCircle2 className="h-3 w-3" />
-                    Already Processed
+                    {t("caseUpload.alreadyProcessed")}
                   </Badge>
                 ) : null
               }
@@ -622,40 +622,40 @@ export default function CaseUpload() {
           {files.length > 0 && (
             <Alert className={totalPages > pagesRemaining ? "border-destructive" : "border-emerald-500"}>
               <Info className="h-4 w-4" />
-              <AlertTitle>Page Summary</AlertTitle>
+              <AlertTitle>{t("caseUpload.pageSummary")}</AlertTitle>
               <AlertDescription>
                 <div className="space-y-1 mt-2">
                   {isAddFilesMode && preExistingCount > 0 && (
                     <div className="flex justify-between text-muted-foreground">
-                      <span>Pre-existing files (no charge):</span>
+                      <span>{t("caseUpload.preExistingFiles")}:</span>
                       <span>{preExistingCount}</span>
                     </div>
                   )}
                   {newFilesCount > 0 && (
                     <div className="flex justify-between">
-                      <span>New files to process:</span>
+                      <span>{t("caseUpload.newFilesToProcess")}:</span>
                       <span className="font-semibold">{newFilesCount}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span>Total pages to process:</span>
+                    <span>{t("caseUpload.totalPages")}:</span>
                     <span className="font-semibold">{totalPages}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Pages remaining in plan:</span>
+                    <span>{t("caseUpload.pagesRemainingPlan")}:</span>
                     <span className={totalPages > pagesRemaining ? "text-destructive font-semibold" : "font-semibold"}>
                       {pagesRemaining}
                     </span>
                   </div>
-                  {!allPagesCounted && <p className="text-sm text-muted-foreground mt-2">⏳ Counting pages...</p>}
+                  {!allPagesCounted && <p className="text-sm text-muted-foreground mt-2">⏳ {t("caseUpload.countingPages")}</p>}
                   {hasLockedFiles && (
                     <p className="text-sm text-amber-600 dark:text-amber-400 mt-2">
-                      🔒 Some files are password-protected. Please verify passwords to continue.
+                      🔒 {t("caseUpload.passwordProtectedWarning")}
                     </p>
                   )}
                   {totalPages > pagesRemaining && (
                     <p className="text-sm text-destructive mt-2">
-                      ⚠️ Insufficient pages. Please upgrade or remove files.
+                      ⚠️ {t("caseUpload.insufficientPages")}
                     </p>
                   )}
                 </div>
@@ -665,8 +665,8 @@ export default function CaseUpload() {
 
           {files.length === 0 && !loadingPreExisting ? (
             <div className="text-center py-8 text-muted-foreground">
-              <p>No files uploaded yet.</p>
-              <p className="text-sm mt-1">Upload files to begin analysis</p>
+              <p>{t("caseUpload.noFilesYet")}</p>
+              <p className="text-sm mt-1">{t("caseUpload.uploadToBegin")}</p>
             </div>
           ) : (
             <div className="flex justify-end gap-3">
@@ -680,7 +680,7 @@ export default function CaseUpload() {
                   className="gap-2"
                 >
                   <Save className="h-4 w-4" />
-                  {savingForLater ? "Saving..." : "Save for Later"}
+                  {savingForLater ? t("caseUpload.saving") : t("caseUpload.saveForLater")}
                 </Button>
               )}
               <Button
@@ -689,18 +689,18 @@ export default function CaseUpload() {
                 size="lg"
               >
                 {submitting
-                  ? "Submitting..."
+                  ? t("caseUpload.submitting")
                   : isMaintenanceMode
-                    ? "Maintenance Mode Active"
+                    ? t("caseUpload.maintenanceActive")
                     : loadingPreExisting
-                      ? "Loading previous files..."
+                      ? t("caseUpload.loadingPreviousFilesBtn")
                       : !allPagesCounted
-                        ? "Counting pages..."
+                        ? t("caseUpload.countingPages")
                         : isAddFilesMode
-                          ? "Re-Run Analysis"
+                          ? t("caseUpload.reRunAnalysis")
                           : useHitl
-                            ? "Start Initial Parse"
-                            : "Start Analysis"}
+                            ? t("caseUpload.startInitialParse")
+                            : t("caseUpload.startAnalysis")}
               </Button>
             </div>
           )}

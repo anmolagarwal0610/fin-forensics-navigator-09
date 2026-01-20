@@ -326,9 +326,13 @@ export default function CaseUpload() {
         (finalJob) => {
           console.log("Job completed:", finalJob);
           if (finalJob.status === "SUCCEEDED") {
-            // Invalidate cache so results page loads fresh file list
-            queryClient.invalidateQueries({ queryKey: ['case-results', case_.id] });
-            queryClient.invalidateQueries({ queryKey: ['analysis-data', case_.id] });
+            // Remove cached data completely to force fresh fetch on Results page
+            // This is critical for Add Files flow where new results replace old ones
+            queryClient.removeQueries({ queryKey: ['case-results', case_.id] });
+            queryClient.removeQueries({ 
+              predicate: (query) => 
+                query.queryKey[0] === 'analysis-data' && query.queryKey[1] === case_.id 
+            });
             
             toast({
               title: "Analysis Complete!",

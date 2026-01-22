@@ -8,7 +8,7 @@ import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck, FilePlus } from "lucide-react";
+import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck, FilePlus, Loader2 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
@@ -17,6 +17,7 @@ import FilePreviewModal from "@/components/app/FilePreviewModal";
 import { getCaseCsvFiles } from "@/api/cases";
 import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
+import JSZip from "jszip";
 export default function CaseDetail() {
   const {
     id
@@ -32,6 +33,7 @@ export default function CaseDetail() {
   const [csvFileCount, setCsvFileCount] = useState(0);
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
   const [addFilesDialogOpen, setAddFilesDialogOpen] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
   
   // Check for secure result files (new flow where result_zip_url is null)
   const { hasResultFile: hasSecureResultFile } = useResultFileStatus(id);
@@ -215,6 +217,62 @@ export default function CaseDetail() {
       });
     }
   };
+
+  const handleDownloadAllFiles = async () => {
+    if (files.length === 0 || !case_) return;
+    
+    setDownloadingAll(true);
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error("Authentication required");
+      }
+      
+      const zip = new JSZip();
+      let filesAdded = 0;
+      
+      for (const file of files) {
+        const filePath = `${user.id}/${case_.id}/${file.file_name}`;
+        const { data, error } = await supabase.storage
+          .from('case-files')
+          .download(filePath);
+        
+        if (error || !data) {
+          console.warn(`Failed to download ${file.file_name}:`, error);
+          continue;
+        }
+        zip.file(file.file_name, data);
+        filesAdded++;
+      }
+      
+      if (filesAdded === 0) {
+        throw new Error("No files could be downloaded");
+      }
+      
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${case_.name}_files.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: `${filesAdded} file${filesAdded > 1 ? 's' : ''} downloaded`
+      });
+    } catch (error) {
+      console.error("Failed to download files:", error);
+      toast({
+        title: "Failed to download files",
+        description: error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
   if (loading) {
     return <div className="flex items-center justify-center py-12">
         <div className="text-center">
@@ -285,27 +343,55 @@ export default function CaseDetail() {
                   <FileText className="h-5 w-5" />
                   Files ({files.length})
                 </div>
-                {/* Add More Files for Ready cases */}
-                {case_.status === 'Ready' && hasResults && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => setAddFilesDialogOpen(true)}
-                          className="gap-2"
-                        >
-                          <FilePlus className="h-4 w-4" />
-                          Add More Files
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Add more files to this case or create a new case</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
+                <div className="flex items-center gap-2">
+                  {/* Download All Files */}
+                  {files.length > 0 && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleDownloadAllFiles}
+                            disabled={downloadingAll}
+                            className="gap-2 text-muted-foreground hover:text-foreground"
+                          >
+                            {downloadingAll ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Download className="h-4 w-4" />
+                            )}
+                            Download All
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Download all files as ZIP</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {/* Add or Remove Files for Ready cases */}
+                  {case_.status === 'Ready' && hasResults && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAddFilesDialogOpen(true)}
+                            className="gap-2"
+                          >
+                            <FilePlus className="h-4 w-4" />
+                            Add or Remove Files
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Add or remove files from this case</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
                 {/* Continue Analysis for Draft cases with files */}
                 {case_.status === 'Draft' && files.length > 0 && (
                   <Button

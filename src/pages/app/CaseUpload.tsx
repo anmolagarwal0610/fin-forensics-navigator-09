@@ -15,6 +15,8 @@ import {
   addFiles,
   addEvent,
   updateCaseStatus,
+  deleteCaseFilesByBaseName,
+  getFileBaseName,
   type CaseRecord,
   type CaseFileRecord,
 } from "@/api/cases";
@@ -55,6 +57,7 @@ export default function CaseUpload() {
   const [submitting, setSubmitting] = useState(false);
   const [savingForLater, setSavingForLater] = useState(false);
   const [useHitl, setUseHitl] = useState(false);
+  const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]); // Track original pre-existing filenames
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
   const { fetchFileForParsing } = useSecureDownload();
@@ -237,6 +240,8 @@ export default function CaseUpload() {
       }
 
       setFiles(preExistingFiles);
+      // Store original pre-existing filenames for removal tracking
+      setOriginalPreExistingFiles(preExistingFiles.map(f => f.name));
 
       if (preExistingFiles.length > 0) {
         toast({
@@ -363,6 +368,30 @@ export default function CaseUpload() {
           console.log(`✅ Inserted ${newFiles.length} new file records into database`);
         } catch (insertError) {
           console.error("Failed to insert new file records:", insertError);
+          // Don't throw - job is already running, just log the issue
+        }
+      }
+
+      // Delete removed pre-existing files from database/storage (for Add Files mode)
+      if (isAddFilesMode && originalPreExistingFiles.length > 0) {
+        try {
+          // Get current pre-existing files in the file list
+          const currentPreExisting = files.filter(f => f.isPreExisting).map(f => f.name);
+          
+          // Find which original files were removed (by base name comparison)
+          const removedFiles = originalPreExistingFiles.filter(
+            origName => !currentPreExisting.some(
+              currName => getFileBaseName(currName) === getFileBaseName(origName)
+            )
+          );
+          
+          if (removedFiles.length > 0) {
+            const baseNamesToDelete = removedFiles.map(name => getFileBaseName(name));
+            const deletedCount = await deleteCaseFilesByBaseName(case_.id, baseNamesToDelete);
+            console.log(`🗑️ Deleted ${deletedCount} removed files from database/storage`);
+          }
+        } catch (deleteError) {
+          console.error("Failed to delete removed files:", deleteError);
           // Don't throw - job is already running, just log the issue
         }
       }

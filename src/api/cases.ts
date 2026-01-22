@@ -301,3 +301,56 @@ export const updateCaseResultWithHistory = async (caseId: string, newResultZipUr
   if (error) throw error;
   return data as CaseRecord | null;
 };
+
+// Helper to extract base filename without extension (case-insensitive)
+export const getFileBaseName = (fileName: string): string => {
+  return fileName.replace(/\.(pdf|xlsx?|csv|png|jpe?g|webp)$/i, '').toLowerCase();
+};
+
+// Delete a single case file from database and storage
+export const deleteCaseFile = async (caseId: string, fileName: string) => {
+  const { data: auth } = await supabase.auth.getUser();
+  const user_id = auth.user?.id;
+  if (!user_id) throw new Error("Not authenticated");
+
+  // Delete from database
+  const { error: dbError } = await supabase
+    .from("case_files")
+    .delete()
+    .eq("case_id", caseId)
+    .eq("file_name", fileName);
+  
+  if (dbError) throw dbError;
+
+  // Delete from storage (ignore errors - file might already be gone)
+  const filePath = `${user_id}/${caseId}/${fileName}`;
+  await supabase.storage.from('case-files').remove([filePath]);
+  
+  return true;
+};
+
+// Delete case files by matching base names (extension-agnostic)
+export const deleteCaseFilesByBaseName = async (caseId: string, baseNames: string[]) => {
+  if (baseNames.length === 0) return 0;
+  
+  // Fetch all files for the case
+  const files = await getCaseFiles(caseId);
+  
+  // Find files whose base names match
+  const filesToDelete = files.filter(f => 
+    baseNames.includes(getFileBaseName(f.file_name))
+  );
+  
+  // Delete each matching file
+  let deletedCount = 0;
+  for (const file of filesToDelete) {
+    try {
+      await deleteCaseFile(caseId, file.file_name);
+      deletedCount++;
+    } catch (error) {
+      console.error(`Failed to delete file ${file.file_name}:`, error);
+    }
+  }
+  
+  return deletedCount;
+};

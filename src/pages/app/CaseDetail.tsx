@@ -423,8 +423,11 @@ export default function CaseDetail() {
                   <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                   <p>No files uploaded yet.</p>
                 </div> : <div className="space-y-2">
-                  {files.map(file => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
-                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                  {files.map((file, index) => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <span className="text-xs font-medium text-muted-foreground w-5 text-center flex-shrink-0">
+                          {index + 1}
+                        </span>
                         <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <TooltipProvider>
                           <Tooltip>

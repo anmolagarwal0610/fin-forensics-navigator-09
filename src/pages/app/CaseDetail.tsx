@@ -334,167 +334,135 @@ export default function CaseDetail() {
               </Badge>)}
           </div>}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Files */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Files ({files.length})
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Download All Files */}
-                  {files.length > 0 && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleDownloadAllFiles}
-                            disabled={downloadingAll}
-                            className="gap-2 text-muted-foreground hover:text-foreground"
-                          >
-                            {downloadingAll ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <Download className="h-4 w-4" />
-                            )}
-                            Download All
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Download all files as ZIP</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  {/* Add or Remove Files for Ready cases */}
-                  {case_.status === 'Ready' && hasResults && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setAddFilesDialogOpen(true)}
-                            className="gap-2"
-                          >
-                            <FilePlus className="h-4 w-4" />
-                            Add or Remove Files
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Add or remove files from this case</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-                {/* Continue Analysis for Draft cases with files */}
-                {case_.status === 'Draft' && files.length > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
-                    className="gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    Continue Analysis
-                  </Button>
+        {/* Files - Full Width with 2-Column Grid */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                Files ({files.length})
+              </div>
+              <div className="flex items-center gap-2">
+                {/* Download All Files */}
+                {files.length > 0 && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleDownloadAllFiles}
+                          disabled={downloadingAll}
+                          className="gap-2 text-muted-foreground hover:text-foreground"
+                        >
+                          {downloadingAll ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Download className="h-4 w-4" />
+                          )}
+                          Download All
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Download all files as ZIP</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
-                {/* Add Files for Draft cases with no files */}
-                {case_.status === 'Draft' && files.length === 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
-                    className="gap-2"
-                  >
-                    <FilePlus className="h-4 w-4" />
-                    Add Files
-                  </Button>
+                {/* Add or Remove Files for Ready cases */}
+                {case_.status === 'Ready' && hasResults && (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAddFilesDialogOpen(true)}
+                          className="gap-2"
+                        >
+                          <FilePlus className="h-4 w-4" />
+                          Add or Remove Files
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Add or remove files from this case</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No files uploaded yet.</p>
-                </div> : <div className="space-y-2">
-                  {files.map((file, index) => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <span className="text-xs font-medium text-muted-foreground w-5 text-center flex-shrink-0">
-                          {index + 1}
-                        </span>
-                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <TooltipProvider>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <span className="text-sm truncate cursor-default">{file.file_name}</span>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>{file.file_name}</p>
-                            </TooltipContent>
-                          </Tooltip>
-                        </TooltipProvider>
-                      </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
-                        {canPreview(file.file_name) && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handlePreviewFile(file)}
-                            className="h-8 w-8"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                        )}
+              </div>
+              {/* Continue Analysis for Draft cases with files */}
+              {case_.status === 'Draft' && files.length > 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
+                  className="gap-2"
+                >
+                  <Upload className="h-4 w-4" />
+                  Continue Analysis
+                </Button>
+              )}
+              {/* Add Files for Draft cases with no files */}
+              {case_.status === 'Draft' && files.length === 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() => navigate(`/app/cases/${case_.id}/upload`)}
+                  className="gap-2"
+                >
+                  <FilePlus className="h-4 w-4" />
+                  Add Files
+                </Button>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
+                <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No files uploaded yet.</p>
+              </div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                {files.map((file, index) => <div key={file.id} className="flex items-center justify-between p-2 rounded border">
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <span className="text-xs font-medium text-muted-foreground w-5 text-center flex-shrink-0">
+                        {index + 1}
+                      </span>
+                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm truncate cursor-default">{file.file_name}</span>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>{file.file_name}</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {canPreview(file.file_name) && (
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDownloadFile(file)}
+                          onClick={() => handlePreviewFile(file)}
                           className="h-8 w-8"
                         >
-                          <Download className="h-4 w-4" />
+                          <Eye className="h-4 w-4" />
                         </Button>
-                      </div>
-                    </div>)}
-                </div>}
-            </CardContent>
-          </Card>
-
-          {/* Timeline */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Timeline
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {events.length === 0 ? <div className="text-center py-8 text-muted-foreground">
-                  <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No events yet.</p>
-                </div> : <div className="space-y-4">
-                  {events.map(event => <div key={event.id} className="flex items-start gap-3">
-                      <div className="flex-shrink-0 mt-1">
-                        {getEventIcon(event)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium">
-                          {getEventTitle(event)}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(event.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>)}
-                </div>}
-            </CardContent>
-          </Card>
-        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDownloadFile(file)}
+                        className="h-8 w-8"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>)}
+              </div>}
+          </CardContent>
+        </Card>
 
         {/* Review Files Banner - Only shown when status is 'Review' */}
         {case_.status === 'Review' && (
@@ -545,6 +513,36 @@ export default function CaseDetail() {
               </div> : <div className="text-center py-8 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>Results will appear here once analysis is complete.</p>
+              </div>}
+          </CardContent>
+        </Card>
+
+        {/* Timeline - Moved to bottom, dynamic height */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Timeline
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {events.length === 0 ? <div className="text-center py-8 text-muted-foreground">
+                <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                <p>No events yet.</p>
+              </div> : <div className="space-y-4">
+                {events.map(event => <div key={event.id} className="flex items-start gap-3">
+                    <div className="flex-shrink-0 mt-1">
+                      {getEventIcon(event)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium">
+                        {getEventTitle(event)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(event.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>)}
               </div>}
           </CardContent>
         </Card>

@@ -1,223 +1,205 @@
 
 
-# Plan: Add "Download All" Button and File Removal Sync
+# Plan: Case Preview Page Layout Changes & Results Page File Name Truncation
 
 ## Overview
-This plan addresses two features:
-1. **Download All Files** - Add a button to download all uploaded files as a ZIP
-2. **Rename Button & Sync File Removal** - Rename "Add More Files" to "Add or Remove Files" and sync file removals from the upload page back to CaseDetail
+Two separate changes are requested:
+1. **Case Preview Page (CaseDetail.tsx)**: Move Timeline below Analysis Results, make Files section use 2 columns
+2. **Results Analysis Page (CaseAnalysisResults.tsx)**: Truncate long file names in the File Analysis Summary section
 
 ---
 
-## Part 1: Add "Download All" Button
+## Part 1: Case Preview Page Layout Restructure
 
-### Location
-In `src/pages/app/CaseDetail.tsx`, inside the Files card header, to the left of the existing "Add More Files" button.
-
-### Design
-- Subtle outline button with Download icon
-- Only visible when there are files to download
-- Downloads all files as a single ZIP named `{case_name}_files.zip`
-
-### Implementation Steps
-
-**Step 1.1:** Add JSZip import (already available in the project)
-
-**Step 1.2:** Create `handleDownloadAllFiles` function:
-```typescript
-const handleDownloadAllFiles = async () => {
-  if (files.length === 0) return;
-  
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Authentication required");
-    
-    const zip = new JSZip();
-    
-    for (const file of files) {
-      const filePath = `${user.id}/${case_.id}/${file.file_name}`;
-      const { data, error } = await supabase.storage
-        .from('case-files')
-        .download(filePath);
-      
-      if (error || !data) continue;
-      zip.file(file.file_name, data);
-    }
-    
-    const blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${case_.name}_files.zip`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    toast({ title: "Files downloaded successfully" });
-  } catch (error) {
-    toast({ title: "Failed to download files", variant: "destructive" });
-  }
-};
+### Current Layout (lines 337-550)
+```
+┌─────────────────────────────────────────────────┐
+│  grid-cols-1 lg:grid-cols-2                     │
+│  ┌──────────────┐  ┌──────────────┐             │
+│  │    Files     │  │   Timeline   │             │
+│  │  (1 column)  │  │              │             │
+│  └──────────────┘  └──────────────┘             │
+└─────────────────────────────────────────────────┘
+│  Review Files Banner (conditional)              │
+│  Status Messages (conditional)                  │
+│  Analysis Results Card                          │
+└─────────────────────────────────────────────────┘
+│  (Nothing below this)                           │
+└─────────────────────────────────────────────────┘
 ```
 
-**Step 1.3:** Add Download All button in the Files CardHeader (lines 282-333):
-- Place to the left of existing buttons
-- Icon-only button with tooltip for subtlety
-- Only show when `files.length > 0`
-
----
-
-## Part 2: Rename "Add More Files" to "Add or Remove Files"
-
-### Changes Required
-
-**Step 2.1:** Update button text in `CaseDetail.tsx` (line 300):
-```typescript
-// Before:
-Add More Files
-
-// After:
-Add or Remove Files
+### Proposed New Layout
 ```
-
-**Step 2.2:** Update tooltip text (line 304):
-```typescript
-// Before:
-<p>Add more files to this case or create a new case</p>
-
-// After:  
-<p>Add or remove files from this case</p>
-```
-
-**Step 2.3:** Add translation keys to `en.json` and `hi.json`:
-```json
-// en.json
-"caseDetail": {
-  "addOrRemoveFiles": "Add or Remove Files",
-  "addOrRemoveFilesTooltip": "Add or remove files from this case",
-  "downloadAll": "Download All Files"
-}
-
-// hi.json
-"caseDetail": {
-  "addOrRemoveFiles": "फाइलें जोड़ें या हटाएं",
-  "addOrRemoveFilesTooltip": "इस केस में फाइलें जोड़ें या हटाएं",
-  "downloadAll": "सभी फाइलें डाउनलोड करें"
-}
-```
-
----
-
-## Part 3: Sync Removed Files to Database
-
-### The Challenge
-When a user removes a pre-existing file in CaseUpload (Add Files mode), that file should be removed from:
-1. The `case_files` database table
-2. The Supabase Storage bucket
-
-### File Name Matching Logic
-Per your requirement, files in CaseDetail may have `.pdf` or `.xls` extension, while in CaseUpload they appear as `.xlsx`. Match using **base filename without extension**:
-
-```typescript
-const getBaseName = (fileName: string): string => {
-  // Remove extension and return base name (case-insensitive)
-  return fileName.replace(/\.(pdf|xlsx?|csv|png|jpe?g)$/i, '').toLowerCase();
-};
+┌─────────────────────────────────────────────────┐
+│  Files Card (full-width)                        │
+│  ┌─────────────────────────────────────────────┐│
+│  │  2-column grid for files list               ││
+│  │  (responsive: 1 col on mobile, 2 on md+)    ││
+│  └─────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────┘
+│  Review Files Banner (conditional)              │
+│  Status Messages (conditional)                  │
+│  Analysis Results Card                          │
+└─────────────────────────────────────────────────┘
+│  Timeline Card (full-width, dynamic height)     │
+│  - Extends naturally with more entries          │
+└─────────────────────────────────────────────────┘
 ```
 
 ### Implementation Steps
 
-**Step 3.1:** Add `deleteCaseFile` function to `src/api/cases.ts`:
-```typescript
-export const deleteCaseFile = async (caseId: string, fileName: string) => {
-  const { data: auth } = await supabase.auth.getUser();
-  const user_id = auth.user?.id;
-  if (!user_id) throw new Error("Not authenticated");
+#### Step 1.1: Restructure the grid layout (CaseDetail.tsx)
+- **Remove** the `grid-cols-1 lg:grid-cols-2` wrapper around Files and Timeline
+- **Make Files card full-width** instead of half-width
 
-  // Delete from database
-  const { error: dbError } = await supabase
-    .from("case_files")
-    .delete()
-    .eq("case_id", caseId)
-    .eq("file_name", fileName);
-  
-  if (dbError) throw dbError;
+#### Step 1.2: Make Files section use 2 columns
+- Change the files list from `space-y-2` single column to a **2-column grid**
+- Use responsive breakpoints: `grid grid-cols-1 md:grid-cols-2 gap-2`
+- Each file item remains the same, just arranged in 2 columns on larger screens
 
-  // Delete from storage
-  const filePath = `${user_id}/${caseId}/${fileName}`;
-  await supabase.storage.from('case-files').remove([filePath]);
+#### Step 1.3: Move Timeline below Analysis Results
+- Move the entire Timeline `<Card>` block to after the Analysis Results card
+- Make it full-width with no grid constraints
+- Keep dynamic height (already extends naturally with `space-y-4`)
+
+### File Changes: `src/pages/app/CaseDetail.tsx`
+
+**Lines 337-497** - Restructure from:
+```tsx
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+  {/* Files */}
+  <Card>...</Card>
   
-  return true;
-};
+  {/* Timeline */}
+  <Card>...</Card>
+</div>
 ```
 
-**Step 3.2:** Add `deleteCaseFilesByBaseName` function for matching by base name:
+To:
+```tsx
+{/* Files - Full Width with 2-Column Grid */}
+<Card>
+  <CardHeader>
+    {/* Keep existing header unchanged */}
+  </CardHeader>
+  <CardContent>
+    {files.length === 0 ? (
+      <div>No files uploaded yet.</div>
+    ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+        {files.map((file, index) => (
+          {/* Keep existing file item structure */}
+        ))}
+      </div>
+    )}
+  </CardContent>
+</Card>
+
+{/* Review Banner, Status Messages, Analysis Results - unchanged */}
+
+{/* Timeline - Moved to bottom, dynamic height */}
+<Card>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <Clock className="h-5 w-5" />
+      Timeline
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    {events.length === 0 ? (
+      <div>No events yet.</div>
+    ) : (
+      <div className="space-y-4">
+        {events.map(event => (...))}
+      </div>
+    )}
+  </CardContent>
+</Card>
+```
+
+---
+
+## Part 2: Results Page File Name Truncation
+
+### Problem
+In the File Analysis Summary section (lines 1100-1240), long file names like `VERY_LONG_FILENAME_WITH_MANY_DETAILS_JANUARY_2024_UPDATED_VERSION.pdf` overflow and break the layout.
+
+### Solution
+Create a display-only truncation utility function:
+- Truncates the **base name** (not extension) if it exceeds a threshold (e.g., 30 characters)
+- Preserves the file extension
+- Shows full name on hover via tooltip
+
+### Implementation
+
+#### Step 2.1: Create truncation helper function
 ```typescript
-export const deleteCaseFilesByBaseName = async (caseId: string, baseNames: string[]) => {
-  // Fetch all files for the case
-  const files = await getCaseFiles(caseId);
-  
-  // Helper to extract base name
-  const getBaseName = (fn: string) => fn.replace(/\.(pdf|xlsx?|csv|png|jpe?g)$/i, '').toLowerCase();
-  
-  // Find files whose base names match
-  const filesToDelete = files.filter(f => 
-    baseNames.includes(getBaseName(f.file_name))
-  );
-  
-  // Delete each matching file
-  for (const file of filesToDelete) {
-    await deleteCaseFile(caseId, file.file_name);
+const truncateFileName = (fileName: string, maxLength: number = 30): string => {
+  const lastDotIndex = fileName.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    // No extension
+    return fileName.length > maxLength 
+      ? fileName.slice(0, maxLength) + '...'
+      : fileName;
   }
   
-  return filesToDelete.length;
+  const baseName = fileName.slice(0, lastDotIndex);
+  const extension = fileName.slice(lastDotIndex); // includes the dot
+  
+  if (baseName.length <= maxLength) {
+    return fileName; // No truncation needed
+  }
+  
+  return baseName.slice(0, maxLength) + '...' + extension;
 };
 ```
 
-**Step 3.3:** Update `CaseUpload.tsx` to track removed pre-existing files:
+#### Step 2.2: Apply to File Analysis Summary section
+Update line 1112 where `summary.originalFile` is displayed:
 
-In `handleStartAnalysis` function, after the analysis completes successfully:
-
-```typescript
-// Track which pre-existing files were removed (original files minus current files)
-const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]);
-
-// When loading pre-existing files, store original list:
-setOriginalPreExistingFiles(preExistingFiles.map(f => f.name));
-
-// In handleStartAnalysis, before navigating:
-const currentPreExisting = files.filter(f => f.isPreExisting).map(f => f.name);
-const removedFiles = originalPreExistingFiles.filter(
-  name => !currentPreExisting.some(
-    curr => getBaseName(curr) === getBaseName(name)
-  )
-);
-
-if (removedFiles.length > 0) {
-  const baseNamesToDelete = removedFiles.map(name => getBaseName(name));
-  await deleteCaseFilesByBaseName(case_.id, baseNamesToDelete);
-}
+From:
+```tsx
+<span className="text-primary font-mono">{summary.originalFile}</span>
 ```
 
+To:
+```tsx
+<TooltipProvider>
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span className="text-primary font-mono">
+        {truncateFileName(summary.originalFile, 30)}
+      </span>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>{summary.originalFile}</p>
+    </TooltipContent>
+  </Tooltip>
+</TooltipProvider>
+```
+
+### File Changes: `src/pages/app/CaseAnalysisResults.tsx`
+
+1. Add the `truncateFileName` utility function (inside the component or as a helper)
+2. Wrap the file name display with Tooltip for full name on hover
+3. Import `Tooltip, TooltipContent, TooltipProvider, TooltipTrigger` if not already imported
+
 ---
 
-## Summary of File Changes
+## Summary of Changes
 
-| File | Changes |
-|------|---------|
-| `src/pages/app/CaseDetail.tsx` | Add JSZip import, Download All button, rename "Add More Files" |
-| `src/api/cases.ts` | Add `deleteCaseFile` and `deleteCaseFilesByBaseName` functions |
-| `src/pages/app/CaseUpload.tsx` | Track removed pre-existing files, delete them after analysis |
-| `src/i18n/locales/en.json` | Add translation keys for new text |
-| `src/i18n/locales/hi.json` | Add Hindi translations for new text |
+| File | Change | Lines Affected |
+|------|--------|----------------|
+| `src/pages/app/CaseDetail.tsx` | Remove 2-col grid wrapper, make Files full-width with 2-column file list, move Timeline to bottom | 337-550 |
+| `src/pages/app/CaseAnalysisResults.tsx` | Add `truncateFileName` helper, wrap file names with Tooltip | ~1108-1115 |
 
 ---
 
-## Important Notes
+## Key Points
 
-1. **No changes to existing logic** - Only additions for the new functionality
-2. **Graceful failure** - If file deletion fails, log error but don't block the analysis
-3. **Matching is case-insensitive** - `File.pdf` matches `file.xlsx`
-4. **Extension-agnostic matching** - Only base filename is compared
+1. **No logic changes** - Only layout and display modifications
+2. **File matching logic unchanged** - Truncation is display-only, original file names preserved for all operations
+3. **Responsive design maintained** - 2-column grid is responsive (1 col on mobile)
+4. **Timeline remains dynamic** - Uses `space-y-4` which naturally expands with content
+5. **Tooltip for full name** - Users can hover to see complete file name
 

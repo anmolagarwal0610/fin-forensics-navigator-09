@@ -25,8 +25,29 @@ import FundTrailViewer from "@/components/app/FundTrailViewer";
 import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
+
+// Helper function to truncate long file names while preserving extension
+const truncateFileName = (fileName: string, maxLength: number = 30): string => {
+  const lastDotIndex = fileName.lastIndexOf('.');
+  if (lastDotIndex === -1) {
+    // No extension
+    return fileName.length > maxLength 
+      ? fileName.slice(0, maxLength) + '...'
+      : fileName;
+  }
+  
+  const baseName = fileName.slice(0, lastDotIndex);
+  const extension = fileName.slice(lastDotIndex); // includes the dot
+  
+  if (baseName.length <= maxLength) {
+    return fileName; // No truncation needed
+  }
+  
+  return baseName.slice(0, maxLength) + '...' + extension;
+};
 
 interface ParsedAnalysisData {
   beneficiaries: Array<{ [key: string]: any }>;
@@ -1109,7 +1130,18 @@ export default function CaseAnalysisResults() {
                           <span className="text-muted-foreground text-xs font-medium">{index + 1}.</span>
                           <FileText className="h-4 w-4 text-primary" />
                           <span className="text-muted-foreground">Original File:</span>
-                          <span className="text-primary font-mono">{summary.originalFile}</span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="text-primary font-mono cursor-default">
+                                  {truncateFileName(summary.originalFile, 30)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>{summary.originalFile}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                           <Button
                             variant="ghost"
                             size="icon"

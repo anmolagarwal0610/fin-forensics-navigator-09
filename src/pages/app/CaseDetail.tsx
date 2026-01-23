@@ -8,7 +8,7 @@ import { getCaseById, getCaseFiles, getCaseEvents, deleteCase, type CaseRecord, 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { ArrowLeft, FileText, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck, FilePlus, Loader2 } from "lucide-react";
+import { ArrowLeft, FileText, FileSpreadsheet, Clock, CheckCircle, Upload, Trash2, Download, AlertCircle, Eye, FileSearch, FileCheck, FilePlus, Loader2 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import DeleteCaseModal from "@/components/modals/DeleteCaseModal";
 import CaseStatusMessage from "@/components/app/CaseStatusMessage";
@@ -421,13 +421,19 @@ export default function CaseDetail() {
             {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>No files uploaded yet.</p>
-              </div> : <div className="columns-1 md:columns-2 gap-2">
-                {files.map((file, index) => <div key={file.id} className="flex items-center justify-between p-2 rounded border mb-2 break-inside-avoid">
+              </div> : <div className="columns-1 md:columns-2 gap-6">
+                {files.map((file, index) => {
+                  const ext = file.file_name.split('.').pop()?.toLowerCase();
+                  const isPdf = ext === 'pdf';
+                  const isSpreadsheet = ['xlsx', 'xls', 'csv'].includes(ext || '');
+                  const FileIcon = isPdf ? FileText : isSpreadsheet ? FileSpreadsheet : FileText;
+                  
+                  return <div key={file.id} className="flex items-center justify-between p-2 rounded border mb-2 break-inside-avoid">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <span className="text-xs font-medium text-muted-foreground w-5 text-center flex-shrink-0">
                         {index + 1}
                       </span>
-                      <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      <FileIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger asChild>
@@ -459,7 +465,8 @@ export default function CaseDetail() {
                         <Download className="h-4 w-4" />
                       </Button>
                     </div>
-                  </div>)}
+                  </div>
+                  })}
               </div>}
           </CardContent>
         </Card>

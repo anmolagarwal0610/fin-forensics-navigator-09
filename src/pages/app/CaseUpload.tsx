@@ -15,7 +15,7 @@ import {
   addFiles,
   addEvent,
   updateCaseStatus,
-  deleteCaseFilesByBaseName,
+  deleteCaseFile,
   getFileBaseName,
   type CaseRecord,
   type CaseFileRecord,
@@ -57,7 +57,8 @@ export default function CaseUpload() {
   const [submitting, setSubmitting] = useState(false);
   const [savingForLater, setSavingForLater] = useState(false);
   const [useHitl, setUseHitl] = useState(false);
-  const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]); // Track original pre-existing filenames
+  const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]); // Track original pre-existing filenames (from ZIP)
+  const [originalDbFiles, setOriginalDbFiles] = useState<string[]>([]); // Track actual DB file names for accurate deletion
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
   const { fetchFileForParsing } = useSecureDownload();
@@ -199,6 +200,11 @@ export default function CaseUpload() {
   const loadPreExistingFiles = async (caseId: string, legacyUrl?: string) => {
     setLoadingPreExisting(true);
     try {
+      // ALSO fetch actual case_files from database for accurate deletion tracking
+      const dbFiles = await getCaseFiles(caseId);
+      setOriginalDbFiles(dbFiles.map(f => f.file_name));
+      console.log(`📁 Loaded ${dbFiles.length} DB files:`, dbFiles.map(f => f.file_name));
+
       // Use secure download hook (handles both secure storage and legacy URLs)
       const arrayBuffer = await fetchFileForParsing(caseId, legacyUrl || null, 'result_zip');
       
@@ -373,22 +379,26 @@ export default function CaseUpload() {
       }
 
       // Delete removed pre-existing files from database/storage (for Add Files mode)
-      if (isAddFilesMode && originalPreExistingFiles.length > 0) {
+      if (isAddFilesMode && originalDbFiles.length > 0) {
         try {
-          // Get current pre-existing files in the file list
-          const currentPreExisting = files.filter(f => f.isPreExisting).map(f => f.name);
+          // Get current pre-existing files in the file list (by base name)
+          const currentPreExistingBaseNames = files
+            .filter(f => f.isPreExisting)
+            .map(f => getFileBaseName(f.name));
           
-          // Find which original files were removed (by base name comparison)
-          const removedFiles = originalPreExistingFiles.filter(
-            origName => !currentPreExisting.some(
-              currName => getFileBaseName(currName) === getFileBaseName(origName)
-            )
+          // Find which ORIGINAL DB files should be deleted
+          // A DB file should be deleted if its base name is NOT in current pre-existing list
+          const dbFilesToDelete = originalDbFiles.filter(dbFileName => 
+            !currentPreExistingBaseNames.includes(getFileBaseName(dbFileName))
           );
           
-          if (removedFiles.length > 0) {
-            const baseNamesToDelete = removedFiles.map(name => getFileBaseName(name));
-            const deletedCount = await deleteCaseFilesByBaseName(case_.id, baseNamesToDelete);
-            console.log(`🗑️ Deleted ${deletedCount} removed files from database/storage`);
+          if (dbFilesToDelete.length > 0) {
+            console.log(`🗑️ Will delete ${dbFilesToDelete.length} files:`, dbFilesToDelete);
+            // Delete by EXACT file name (not base name) for precision
+            for (const fileName of dbFilesToDelete) {
+              await deleteCaseFile(case_.id, fileName);
+            }
+            console.log(`✅ Deleted ${dbFilesToDelete.length} removed files from database/storage`);
           }
         } catch (deleteError) {
           console.error("Failed to delete removed files:", deleteError);

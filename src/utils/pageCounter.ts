@@ -1,7 +1,7 @@
 // src/utils/pageCounter.ts
 import * as pdfjsLib from "pdfjs-dist";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import * as ExcelJS from "exceljs";
+import * as XLSX from "xlsx";
 
 // Use Vite emitted URL for the pdf.js worker so the browser can fetch it reliably
 if (typeof window !== "undefined") {
@@ -38,22 +38,38 @@ async function countPdfPages(file: File): Promise<{ pages: number; needsPassword
 
 /**
  * Count "pages" in Excel files (50 rows = 1 page, rounded down)
+ * Supports both .xlsx and legacy .xls formats
  */
 async function countExcelPages(file: File): Promise<number> {
   const arrayBuffer = await file.arrayBuffer();
-  const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(arrayBuffer);
+  const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
   let totalRows = 0;
-  workbook.eachSheet((worksheet) => {
-    worksheet.eachRow((row) => {
-      const hasData =
-        row.values &&
-        Array.isArray(row.values) &&
-        row.values.some((val) => val !== null && val !== undefined && val !== "");
+  
+  // Iterate through all sheets
+  for (const sheetName of workbook.SheetNames) {
+    const worksheet = workbook.Sheets[sheetName];
+    
+    // Get the range of the sheet
+    const ref = worksheet['!ref'];
+    if (!ref) continue; // Empty sheet
+    
+    const range = XLSX.utils.decode_range(ref);
+    
+    // Count rows with actual data
+    for (let row = range.s.r; row <= range.e.r; row++) {
+      let hasData = false;
+      for (let col = range.s.c; col <= range.e.c; col++) {
+        const cellAddress = XLSX.utils.encode_cell({ r: row, c: col });
+        const cell = worksheet[cellAddress];
+        if (cell && cell.v !== null && cell.v !== undefined && cell.v !== "") {
+          hasData = true;
+          break;
+        }
+      }
       if (hasData) totalRows++;
-    });
-  });
+    }
+  }
 
   // 50 rows = 1 page, round down
   return Math.floor(totalRows / 50);

@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive } from "lucide-react";
+import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive, Eye } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { StorageDashboard } from "@/components/app/StorageDashboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -341,6 +341,7 @@ export default function AdminCases() {
                           <TableHead>Created</TableHead>
                           <TableHead>Input Files</TableHead>
                           <TableHead>Result URL</TableHead>
+                          <TableHead>Results</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -388,6 +389,17 @@ export default function AdminCases() {
                               >
                                 <LinkIcon className="mr-2 h-4 w-4" />
                                 {c.result_zip_url ? "Update URL" : "Set URL"}
+                              </Button>
+                            </TableCell>
+                            <TableCell>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={c.status !== "Ready" || !c.result_zip_url}
+                                onClick={() => window.open(`/app/cases/${c.id}/results`, '_blank')}
+                              >
+                                <Eye className="mr-2 h-4 w-4" />
+                                View
                               </Button>
                             </TableCell>
                           </TableRow>

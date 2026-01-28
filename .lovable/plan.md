@@ -1,205 +1,109 @@
 
-
-# Plan: Case Preview Page Layout Changes & Results Page File Name Truncation
+# Plan: Add "View Results" Button to Admin Console Case List
 
 ## Overview
-Two separate changes are requested:
-1. **Case Preview Page (CaseDetail.tsx)**: Move Timeline below Analysis Results, make Files section use 2 columns
-2. **Results Analysis Page (CaseAnalysisResults.tsx)**: Truncate long file names in the File Analysis Summary section
+Add a "View Results" button to the Admin Console case list that navigates admins to the case's analysis results page. This requires updating the frontend UI and ensuring RLS policies allow admin access to case data.
+
+## Current Architecture Analysis
+
+### What Already Works
+1. **Edge function `get-result-file`** (lines 98-109) already checks for admin role and allows access
+2. **RLS policies exist** for:
+   - `result_files` table: "Admins can view all result files" policy already exists
+   - `cases` table: Currently only allows users to view their own cases
+3. **Admin cases hook** already fetches `result_zip_url` via edge function (bypassing RLS)
+
+### Gap Identified
+The `CaseAnalysisResults` page uses `getCaseById()` and `getCaseFiles()` which query the `cases` and `case_files` tables directly. These tables have RLS policies that **only allow users to view their own data**. An admin trying to view another user's results page would get a "Case not found" error.
 
 ---
 
-## Part 1: Case Preview Page Layout Restructure
+## Implementation Steps
 
-### Current Layout (lines 337-550)
-```
-┌─────────────────────────────────────────────────┐
-│  grid-cols-1 lg:grid-cols-2                     │
-│  ┌──────────────┐  ┌──────────────┐             │
-│  │    Files     │  │   Timeline   │             │
-│  │  (1 column)  │  │              │             │
-│  └──────────────┘  └──────────────┘             │
-└─────────────────────────────────────────────────┘
-│  Review Files Banner (conditional)              │
-│  Status Messages (conditional)                  │
-│  Analysis Results Card                          │
-└─────────────────────────────────────────────────┘
-│  (Nothing below this)                           │
-└─────────────────────────────────────────────────┘
+### Step 1: Add RLS Policy for Admin Access to Cases Table
+
+Create a new RLS policy that allows admins to **SELECT** from the `cases` table:
+
+```sql
+CREATE POLICY "Admins can view all cases" 
+ON public.cases 
+FOR SELECT 
+USING (has_role(auth.uid(), 'admin'));
 ```
 
-### Proposed New Layout
-```
-┌─────────────────────────────────────────────────┐
-│  Files Card (full-width)                        │
-│  ┌─────────────────────────────────────────────┐│
-│  │  2-column grid for files list               ││
-│  │  (responsive: 1 col on mobile, 2 on md+)    ││
-│  └─────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────┘
-│  Review Files Banner (conditional)              │
-│  Status Messages (conditional)                  │
-│  Analysis Results Card                          │
-└─────────────────────────────────────────────────┘
-│  Timeline Card (full-width, dynamic height)     │
-│  - Extends naturally with more entries          │
-└─────────────────────────────────────────────────┘
+### Step 2: Add RLS Policy for Admin Access to Case Files Table
+
+Create a new RLS policy that allows admins to **SELECT** from the `case_files` table:
+
+```sql
+CREATE POLICY "Admins can view all case files" 
+ON public.case_files 
+FOR SELECT 
+USING (has_role(auth.uid(), 'admin'));
 ```
 
-### Implementation Steps
+### Step 3: Update AdminCases.tsx UI
 
-#### Step 1.1: Restructure the grid layout (CaseDetail.tsx)
-- **Remove** the `grid-cols-1 lg:grid-cols-2` wrapper around Files and Timeline
-- **Make Files card full-width** instead of half-width
+Add a "View Results" button in the case table:
 
-#### Step 1.2: Make Files section use 2 columns
-- Change the files list from `space-y-2` single column to a **2-column grid**
-- Use responsive breakpoints: `grid grid-cols-1 md:grid-cols-2 gap-2`
-- Each file item remains the same, just arranged in 2 columns on larger screens
+| Change | Location | Details |
+|--------|----------|---------|
+| Import `Eye` icon | Line 10 | Already imported, reuse it |
+| Add new table column | Line 343 | Add "Results" column header |
+| Add View Results button | Inside TableRow | Button that navigates to `/app/cases/{id}/results` |
+| Conditional rendering | Button | Only show if case status is "Ready" and has result_zip_url |
 
-#### Step 1.3: Move Timeline below Analysis Results
-- Move the entire Timeline `<Card>` block to after the Analysis Results card
-- Make it full-width with no grid constraints
-- Keep dynamic height (already extends naturally with `space-y-4`)
-
-### File Changes: `src/pages/app/CaseDetail.tsx`
-
-**Lines 337-497** - Restructure from:
-```tsx
-<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-  {/* Files */}
-  <Card>...</Card>
-  
-  {/* Timeline */}
-  <Card>...</Card>
-</div>
-```
-
-To:
-```tsx
-{/* Files - Full Width with 2-Column Grid */}
-<Card>
-  <CardHeader>
-    {/* Keep existing header unchanged */}
-  </CardHeader>
-  <CardContent>
-    {files.length === 0 ? (
-      <div>No files uploaded yet.</div>
-    ) : (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-        {files.map((file, index) => (
-          {/* Keep existing file item structure */}
-        ))}
-      </div>
-    )}
-  </CardContent>
-</Card>
-
-{/* Review Banner, Status Messages, Analysis Results - unchanged */}
-
-{/* Timeline - Moved to bottom, dynamic height */}
-<Card>
-  <CardHeader>
-    <CardTitle className="flex items-center gap-2">
-      <Clock className="h-5 w-5" />
-      Timeline
-    </CardTitle>
-  </CardHeader>
-  <CardContent>
-    {events.length === 0 ? (
-      <div>No events yet.</div>
-    ) : (
-      <div className="space-y-4">
-        {events.map(event => (...))}
-      </div>
-    )}
-  </CardContent>
-</Card>
+**UI Design:**
+```text
+┌──────────────┬──────────┬────────────┬────────────┬──────────────┬─────────────┬─────────────┬──────────┐
+│ Case Name    │ User     │ Email      │ Status     │ Input Files  │ Result URL  │ Results     │          │
+├──────────────┼──────────┼────────────┼────────────┼──────────────┼─────────────┼─────────────┼──────────┤
+│ ● Case ABC   │ John Doe │ j@mail.com │ Ready      │ [Download]   │ [Update]    │ [View] 👁   │          │
+│ ● Case XYZ   │ Jane Doe │ x@mail.com │ Processing │ [Download]   │ [Set URL]   │ (disabled)  │          │
+└──────────────┴──────────┴────────────┴────────────┴──────────────┴─────────────┴─────────────┴──────────┘
 ```
 
 ---
 
-## Part 2: Results Page File Name Truncation
+## Technical Details
 
-### Problem
-In the File Analysis Summary section (lines 1100-1240), long file names like `VERY_LONG_FILENAME_WITH_MANY_DETAILS_JANUARY_2024_UPDATED_VERSION.pdf` overflow and break the layout.
+### File Changes
 
-### Solution
-Create a display-only truncation utility function:
-- Truncates the **base name** (not extension) if it exceeds a threshold (e.g., 30 characters)
-- Preserves the file extension
-- Shows full name on hover via tooltip
+| File | Change Type | Description |
+|------|-------------|-------------|
+| Database | Migration | Add 2 RLS policies for admin access to `cases` and `case_files` |
+| `src/pages/app/AdminCases.tsx` | UI Update | Add "Results" column and "View Results" button |
 
-### Implementation
+### New RLS Policies Summary
 
-#### Step 2.1: Create truncation helper function
-```typescript
-const truncateFileName = (fileName: string, maxLength: number = 30): string => {
-  const lastDotIndex = fileName.lastIndexOf('.');
-  if (lastDotIndex === -1) {
-    // No extension
-    return fileName.length > maxLength 
-      ? fileName.slice(0, maxLength) + '...'
-      : fileName;
-  }
-  
-  const baseName = fileName.slice(0, lastDotIndex);
-  const extension = fileName.slice(lastDotIndex); // includes the dot
-  
-  if (baseName.length <= maxLength) {
-    return fileName; // No truncation needed
-  }
-  
-  return baseName.slice(0, maxLength) + '...' + extension;
-};
-```
+| Table | Policy Name | Command | Using Expression |
+|-------|-------------|---------|------------------|
+| `cases` | Admins can view all cases | SELECT | `has_role(auth.uid(), 'admin')` |
+| `case_files` | Admins can view all case files | SELECT | `has_role(auth.uid(), 'admin')` |
 
-#### Step 2.2: Apply to File Analysis Summary section
-Update line 1112 where `summary.originalFile` is displayed:
+### Security Considerations
 
-From:
-```tsx
-<span className="text-primary font-mono">{summary.originalFile}</span>
-```
+1. **No new edge functions needed** - The existing `get-result-file` already validates admin access
+2. **Read-only access** - Admins can only SELECT, not INSERT/UPDATE/DELETE other users' cases
+3. **Consistent security model** - Uses the same `has_role()` function used throughout the codebase
+4. **Result file access already works** - The `result_files` table already has admin SELECT policy
 
-To:
-```tsx
-<TooltipProvider>
-  <Tooltip>
-    <TooltipTrigger asChild>
-      <span className="text-primary font-mono">
-        {truncateFileName(summary.originalFile, 30)}
-      </span>
-    </TooltipTrigger>
-    <TooltipContent>
-      <p>{summary.originalFile}</p>
-    </TooltipContent>
-  </Tooltip>
-</TooltipProvider>
-```
+### Button Behavior
 
-### File Changes: `src/pages/app/CaseAnalysisResults.tsx`
-
-1. Add the `truncateFileName` utility function (inside the component or as a helper)
-2. Wrap the file name display with Tooltip for full name on hover
-3. Import `Tooltip, TooltipContent, TooltipProvider, TooltipTrigger` if not already imported
+- **Enabled**: Case status is "Ready" AND has `result_zip_url` (legacy) or secure file
+- **Disabled/Hidden**: Case is still processing or has no results
+- **Click action**: Navigate to `/app/cases/{caseId}/results`
+- **Opens in new tab**: Yes (recommended for admin workflow)
 
 ---
 
-## Summary of Changes
+## Testing Checklist
 
-| File | Change | Lines Affected |
-|------|--------|----------------|
-| `src/pages/app/CaseDetail.tsx` | Remove 2-col grid wrapper, make Files full-width with 2-column file list, move Timeline to bottom | 337-550 |
-| `src/pages/app/CaseAnalysisResults.tsx` | Add `truncateFileName` helper, wrap file names with Tooltip | ~1108-1115 |
-
----
-
-## Key Points
-
-1. **No logic changes** - Only layout and display modifications
-2. **File matching logic unchanged** - Truncation is display-only, original file names preserved for all operations
-3. **Responsive design maintained** - 2-column grid is responsive (1 col on mobile)
-4. **Timeline remains dynamic** - Uses `space-y-4` which naturally expands with content
-5. **Tooltip for full name** - Users can hover to see complete file name
-
+After implementation:
+1. Admin navigates to Admin Console → Cases tab
+2. Find a case with "Ready" status
+3. Click "View Results" button
+4. Verify results page loads with full analysis data
+5. Verify downloading results ZIP works
+6. Test with case that has no results (button should be disabled)
+7. Test as non-admin user (should not see admin console)

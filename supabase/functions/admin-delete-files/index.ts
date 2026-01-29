@@ -11,6 +11,18 @@ interface DeleteResult {
   error?: string;
 }
 
+function getClientIP(req: Request): string {
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  const realIP = req.headers.get('x-real-ip');
+  if (realIP) return realIP;
+  const cfIP = req.headers.get('cf-connecting-ip');
+  if (cfIP) return cfIP;
+  return 'unknown';
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -31,6 +43,10 @@ Deno.serve(async (req) => {
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    // Extract client metadata for audit logging
+    const clientIP = getClientIP(req);
+    const userAgent = req.headers.get('user-agent') || 'unknown';
 
     // Create client with user's token to verify they're admin
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -86,6 +102,8 @@ Deno.serve(async (req) => {
       );
     }
 
+    console.log(`Admin ${user.id} deleting ${files.length} files from IP ${clientIP}`);
+
     // Delete files grouped by bucket
     const results: DeleteResult[] = [];
     const bucketGroups = new Map<string, string[]>();
@@ -114,20 +132,22 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Log the admin action
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success).length;
+
+    // Log the admin action with IP and user agent
     await serviceClient.rpc("log_admin_action", {
       p_admin_id: user.id,
       p_target_user_id: user.id,
       p_action: "bulk_delete_storage_files",
       p_details: {
         files_count: files.length,
-        successful: results.filter(r => r.success).length,
-        failed: results.filter(r => !r.success).length,
+        successful: successful,
+        failed: failed,
       },
+      p_ip_address: clientIP,
+      p_user_agent: userAgent,
     });
-
-    const successful = results.filter(r => r.success).length;
-    const failed = results.filter(r => !r.success).length;
 
     return new Response(
       JSON.stringify({

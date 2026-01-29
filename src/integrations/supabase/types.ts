@@ -42,7 +42,9 @@ export type Database = {
           created_at: string
           details: Json | null
           id: string
+          ip_address: string | null
           target_user_id: string
+          user_agent: string | null
         }
         Insert: {
           action: string
@@ -50,7 +52,9 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
+          ip_address?: string | null
           target_user_id: string
+          user_agent?: string | null
         }
         Update: {
           action?: string
@@ -58,7 +62,9 @@ export type Database = {
           created_at?: string
           details?: Json | null
           id?: string
+          ip_address?: string | null
           target_user_id?: string
+          user_agent?: string | null
         }
         Relationships: []
       }
@@ -687,15 +693,27 @@ export type Database = {
         Args: { p_job_id: string; p_worker_id: string }
         Returns: boolean
       }
-      log_admin_action: {
-        Args: {
-          p_action: string
-          p_admin_id: string
-          p_details?: Json
-          p_target_user_id: string
-        }
-        Returns: string
-      }
+      log_admin_action:
+        | {
+            Args: {
+              p_action: string
+              p_admin_id: string
+              p_details?: Json
+              p_target_user_id: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_action: string
+              p_admin_id: string
+              p_details?: Json
+              p_ip_address?: string
+              p_target_user_id: string
+              p_user_agent?: string
+            }
+            Returns: string
+          }
       reset_usage_period: { Args: never; Returns: undefined }
       track_page_usage: {
         Args: { p_pages_processed: number; p_user_id: string }

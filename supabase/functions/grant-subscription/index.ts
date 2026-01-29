@@ -6,6 +6,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function getClientIP(req: Request): string {
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  const realIP = req.headers.get('x-real-ip');
+  if (realIP) return realIP;
+  const cfIP = req.headers.get('cf-connecting-ip');
+  if (cfIP) return cfIP;
+  return 'unknown';
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -15,6 +27,10 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Extract client metadata for audit logging
+    const clientIP = getClientIP(req);
+    const userAgent = req.headers.get('user-agent') || 'unknown';
 
     // Get the authorization header
     const authHeader = req.headers.get("authorization");
@@ -136,16 +152,18 @@ serve(async (req) => {
       logDetails.custom_tier = customTierData;
     }
 
-    // Log the admin action
+    // Log the admin action with IP and user agent
     await supabase.rpc("log_admin_action", {
       p_admin_id: user.id,
       p_target_user_id: userId,
       p_action: "grant_subscription",
       p_details: logDetails,
+      p_ip_address: clientIP,
+      p_user_agent: userAgent,
     });
 
     const tierLabel = customTierData?.isCustom ? customTierData.tierName : tier;
-    console.log(`Admin ${user.email} granted ${tierLabel} subscription (${totalPagesGranted} pages) to user ${userId}`);
+    console.log(`Admin ${user.email} granted ${tierLabel} subscription (${totalPagesGranted} pages) to user ${userId} from IP ${clientIP}`);
 
     // Get target user email for notification (only if sendEmail is true)
     if (sendEmail) {

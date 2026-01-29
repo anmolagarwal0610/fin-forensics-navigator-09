@@ -5,6 +5,18 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+function getClientIP(req: Request): string {
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) {
+    return forwardedFor.split(',')[0].trim();
+  }
+  const realIP = req.headers.get('x-real-ip');
+  if (realIP) return realIP;
+  const cfIP = req.headers.get('cf-connecting-ip');
+  if (cfIP) return cfIP;
+  return 'unknown';
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -14,6 +26,10 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Extract client metadata for audit logging
+    const clientIP = getClientIP(req);
+    const userAgent = req.headers.get('user-agent') || 'unknown';
 
     // Authenticate admin user
     const authHeader = req.headers.get('authorization');
@@ -58,7 +74,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Admin ${user.id} adding ${pages_to_add} bonus pages to user ${target_user_id}`);
+    console.log(`Admin ${user.id} adding ${pages_to_add} bonus pages to user ${target_user_id} from IP ${clientIP}`);
 
     // Fetch current bonus_pages value
     const { data: currentProfile, error: fetchError } = await supabase
@@ -97,7 +113,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Log admin action
+    // Log admin action with IP and user agent
     await supabase.rpc('log_admin_action', {
       p_admin_id: user.id,
       p_target_user_id: target_user_id,
@@ -106,6 +122,8 @@ Deno.serve(async (req) => {
         pages_added: pages_to_add,
         new_total_bonus: updatedProfile.bonus_pages,
       },
+      p_ip_address: clientIP,
+      p_user_agent: userAgent,
     });
 
     console.log(`Successfully added ${pages_to_add} bonus pages to user ${target_user_id}`);

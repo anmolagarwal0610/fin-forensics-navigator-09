@@ -398,8 +398,21 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      // First, try to get POI count from poi_summary.json
-      const poiSummaryFile = zipData.file("poi_summary.json");
+      // First, try to get POI count from poi_summary.json (check root and nested paths)
+      let poiSummaryFile = zipData.file("poi_summary.json");
+      
+      // If not found at root, search all files for it
+      if (!poiSummaryFile) {
+        const allFiles = Object.keys(zipData.files);
+        const poiSummaryPath = allFiles.find(name => 
+          name.endsWith('poi_summary.json') && !name.includes('__MACOSX')
+        );
+        if (poiSummaryPath) {
+          poiSummaryFile = zipData.file(poiSummaryPath);
+          console.log('[Analysis] Found poi_summary.json at nested path:', poiSummaryPath);
+        }
+      }
+      
       if (poiSummaryFile) {
         try {
           const jsonContent = await poiSummaryFile.async("text");

@@ -3,8 +3,9 @@ import { useTranslation } from "react-i18next";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
-import { ChevronUp, ChevronDown, Search, X } from "lucide-react";
+import { ChevronUp, ChevronDown, Search, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import BeneficiaryTransactionsDialog, { TransactionRow } from "./BeneficiaryTransactionsDialog";
 
 interface SummaryTableViewerProps {
@@ -22,6 +23,8 @@ interface SortConfig {
   direction: SortDirection;
 }
 
+const ROWS_PER_PAGE = 500;
+
 export default function SummaryTableViewer({
   data,
   fileName,
@@ -32,6 +35,7 @@ export default function SummaryTableViewer({
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "transactions", direction: "desc" });
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -109,6 +113,11 @@ export default function SummaryTableViewer({
     return 0;
   }
 
+  // Reset page when search/sort changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, sortConfig]);
+
   // Filter and sort data
   const processedData = useMemo(() => {
     if (!data || data.length <= 1) return data || [];
@@ -137,6 +146,19 @@ export default function SummaryTableViewer({
 
     return [headerRow, ...dataRows];
   }, [data, searchQuery, sortConfig, columnIndices, beneficiaryColumnIndex]);
+
+  // Pagination calculations
+  const totalDataRows = processedData.length > 0 ? processedData.length - 1 : 0; // Exclude header
+  const totalPages = Math.ceil(totalDataRows / ROWS_PER_PAGE);
+  const showPagination = totalDataRows > ROWS_PER_PAGE;
+
+  // Get paginated rows
+  const paginatedRows = useMemo(() => {
+    if (processedData.length <= 1) return [];
+    const allDataRows = processedData.slice(1);
+    const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
+    return allDataRows.slice(startIdx, startIdx + ROWS_PER_PAGE);
+  }, [processedData, currentPage]);
 
   // Handle column header click for sorting
   const handleSort = (column: SortColumn) => {
@@ -326,7 +348,6 @@ export default function SummaryTableViewer({
   }
 
   const headerRow = processedData[0];
-  const dataRows = processedData.slice(1);
 
   return (
     <>
@@ -405,7 +426,7 @@ export default function SummaryTableViewer({
               </tr>
             </thead>
             <tbody>
-              {dataRows.length === 0 ? (
+              {paginatedRows.length === 0 ? (
                 <tr>
                   <td colSpan={headerRow?.length || 1} className="text-center py-8 text-muted-foreground">
                     {t('analysis.noResults')}
@@ -413,7 +434,7 @@ export default function SummaryTableViewer({
                   </td>
                 </tr>
               ) : (
-                dataRows.map((row, rowIdx) => (
+                paginatedRows.map((row, rowIdx) => (
                   <tr
                     key={rowIdx}
                     className={cn(
@@ -468,6 +489,40 @@ export default function SummaryTableViewer({
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Controls */}
+        {showPagination && (
+          <div className="flex items-center justify-between px-2 py-3 border-t bg-muted/30">
+            <div className="text-xs text-muted-foreground">
+              Showing {((currentPage - 1) * ROWS_PER_PAGE) + 1} - {Math.min(currentPage * ROWS_PER_PAGE, totalDataRows)} of {totalDataRows.toLocaleString()} rows
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="h-7 px-2"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                <span className="sr-only">Previous</span>
+              </Button>
+              <span className="text-xs text-muted-foreground min-w-[80px] text-center">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="h-7 px-2"
+              >
+                <ChevronRight className="h-4 w-4" />
+                <span className="sr-only">Next</span>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       <BeneficiaryTransactionsDialog

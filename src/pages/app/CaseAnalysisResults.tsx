@@ -398,9 +398,36 @@ export default function CaseAnalysisResults() {
         }
       }
 
-      parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-        name.startsWith('POI_') && name.endsWith('.xlsx')
-      ).length;
+      // First, try to get POI count from poi_summary.json
+      const poiSummaryFile = zipData.file("poi_summary.json");
+      if (poiSummaryFile) {
+        try {
+          const jsonContent = await poiSummaryFile.async("text");
+          const poiSummary = JSON.parse(jsonContent);
+          if (typeof poiSummary.total_pois === 'number') {
+            parsedData.poiFileCount = poiSummary.total_pois;
+            console.log('[Analysis] POI count from poi_summary.json:', poiSummary.total_pois);
+          } else {
+            // JSON exists but missing total_pois - fall back to file count
+            parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
+              name.startsWith('POI_') && name.endsWith('.xlsx')
+            ).length;
+            console.log('[Analysis] poi_summary.json missing total_pois, using file count:', parsedData.poiFileCount);
+          }
+        } catch (error) {
+          // JSON parsing failed - fall back to file count
+          console.warn('[Analysis] Failed to parse poi_summary.json, using file count:', error);
+          parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
+            name.startsWith('POI_') && name.endsWith('.xlsx')
+          ).length;
+        }
+      } else {
+        // No JSON file - use existing file counting logic
+        parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
+          name.startsWith('POI_') && name.endsWith('.xlsx')
+        ).length;
+        console.log('[Analysis] No poi_summary.json, using file count:', parsedData.poiFileCount);
+      }
 
       // --- FIX START: Robust Normalized File Matching ---
       

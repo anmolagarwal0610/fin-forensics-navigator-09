@@ -1,117 +1,148 @@
 
+# Plan: Fix Slow Results Page Loading + POI Count Issue
 
-# Plan: Add POI Summary JSON Support for POI Count
+## Root Cause Analysis
 
-## Overview
+### Issue 1: Page Takes Forever to Load (47MB ZIP)
 
-Enhance the POI count logic in the Results Analysis page to prioritize reading from a `poi_summary.json` file when available, falling back to the current file-counting method when the JSON doesn't exist.
+**Three major bottlenecks identified:**
+
+| Bottleneck | Location | Impact |
+|------------|----------|--------|
+| **Excessive console.log** | `excelParser.ts` lines 141-184 | Every cell with fill/font data triggers 2-5 console.log calls. For a file with ~98,000 rows, this means **hundreds of thousands of console.log statements** |
+| **Upfront summary parsing** | `CaseAnalysisResults.tsx` lines 520-532 | ALL summary files are parsed during initial load, even if user never expands them |
+| **No row limit on SummaryTableViewer** | `SummaryTableViewer.tsx` | Renders ALL rows in the DOM - no pagination for large datasets |
+
+### Issue 2: POI Count Shows 150 Instead of 5381
+
+The logic is correct, but there are two possible causes:
+
+1. **Cache Issue**: The page was visited before the code change was deployed, and React Query is serving the cached result (showing 150 from old file-counting logic)
+2. **File Path Issue**: The `poi_summary.json` might be in a subfolder within the ZIP rather than at the root
 
 ---
 
-## Current Behavior
+## Implementation Plan
 
-The POI count is determined by counting files in the ZIP archive that match the pattern `POI_*.xlsx`:
+### Fix 1: Remove Excessive Console Logging (Critical - Performance)
+
+**File:** `src/utils/excelParser.ts`
+
+Remove all debug console.log statements inside the parsing loop (lines 141-184, 192-194). These are meant for debugging but cause massive performance degradation with large files.
 
 ```typescript
-parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-  name.startsWith('POI_') && name.endsWith('.xlsx')
-).length;
+// REMOVE these console.log statements:
+console.log(`🔍 Cell ${rowNum},${colNum} fill analysis:`, { ... });
+console.log(`✅ Solid fill color for ${rowNum},${colNum}: ${backgroundColor}`);
+console.log(`✅ Pattern fill color for ${rowNum},${colNum}: ...`);
+console.log(`✅ Gradient fill color for ${rowNum},${colNum}: ...`);
+console.log(`✅ Fallback fill color for ${rowNum},${colNum}: ...`);
+console.log(`⚠️ No background color extracted for ${rowNum},${colNum} ...`);
+console.log(`✅ Font color for ${rowNum},${colNum}: ...`);
+console.log(`⚠️ Could not parse font color for ${rowNum},${colNum}:`, ...);
 ```
 
----
+### Fix 2: Add Pagination to SummaryTableViewer (Performance)
 
-## New Behavior
+**File:** `src/components/app/SummaryTableViewer.tsx`
 
-1. Check if `poi_summary.json` exists in the ZIP archive
-2. If yes: Parse the JSON and extract `total_pois` value
-3. If no: Fall back to counting `POI_*.xlsx` files (current behavior)
-
-**JSON Format Expected:**
-```json
-{
-    "total_pois": 4827,
-    "exported_pois": 150,
-    "export_threshold": "top_150_by_priority_score",
-    "generated_at": "2026-01-28T15:30:45"
-}
-```
-
----
-
-## Implementation Details
-
-### File to Modify
-- `src/pages/app/CaseAnalysisResults.tsx`
-
-### Change Location
-Inside the `loadAnalysisFiles` function, around lines 401-403, where `poiFileCount` is currently set.
-
-### Code Change
-
-Replace the current simple file-counting logic with a two-step approach:
+Add pagination with 500 rows per page to prevent DOM overload:
 
 ```typescript
-// First, try to get POI count from poi_summary.json
-const poiSummaryFile = zipData.file("poi_summary.json");
-if (poiSummaryFile) {
-  try {
-    const jsonContent = await poiSummaryFile.async("text");
-    const poiSummary = JSON.parse(jsonContent);
-    if (typeof poiSummary.total_pois === 'number') {
-      parsedData.poiFileCount = poiSummary.total_pois;
-      console.log('[Analysis] POI count from poi_summary.json:', poiSummary.total_pois);
-    } else {
-      // JSON exists but missing total_pois - fall back to file count
-      parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-        name.startsWith('POI_') && name.endsWith('.xlsx')
-      ).length;
-      console.log('[Analysis] poi_summary.json missing total_pois, using file count:', parsedData.poiFileCount);
-    }
-  } catch (error) {
-    // JSON parsing failed - fall back to file count
-    console.warn('[Analysis] Failed to parse poi_summary.json, using file count:', error);
-    parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-      name.startsWith('POI_') && name.endsWith('.xlsx')
-    ).length;
+// Add state for pagination
+const [currentPage, setCurrentPage] = useState(1);
+const ROWS_PER_PAGE = 500;
+
+// Slice data for current page
+const paginatedRows = useMemo(() => {
+  const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
+  return dataRows.slice(startIdx, startIdx + ROWS_PER_PAGE);
+}, [dataRows, currentPage]);
+
+const totalPages = Math.ceil(dataRows.length / ROWS_PER_PAGE);
+```
+
+Add pagination controls when rows > 500.
+
+### Fix 3: Lazy-Load Summary Data (Performance)
+
+**File:** `src/pages/app/CaseAnalysisResults.tsx`
+
+Change summary parsing from upfront to on-demand (only when user expands the collapsible):
+
+```typescript
+// BEFORE (lines 520-532): Parse all summaries upfront
+if (summaryFile) {
+  const summaryFileObj = zipData.file(summaryFile);
+  if (summaryFileObj) {
+    const summaryContent = await summaryFileObj.async("arraybuffer");
+    const summaryParsedData = await parseExcelFile(summaryContent);
+    parsedData.summaryDataMap.set(summaryFile, summaryParsedData);
   }
-} else {
-  // No JSON file - use existing file counting logic
-  parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-    name.startsWith('POI_') && name.endsWith('.xlsx')
-  ).length;
-  console.log('[Analysis] No poi_summary.json, using file count:', parsedData.poiFileCount);
 }
+
+// AFTER: Don't parse upfront, parse when user clicks expand
+// Just store the file reference, not the parsed data
+```
+
+### Fix 4: Improve POI Summary JSON Detection
+
+**File:** `src/pages/app/CaseAnalysisResults.tsx`
+
+Enhance the `poi_summary.json` detection to also check for nested paths:
+
+```typescript
+// Check for poi_summary.json at root or in any folder
+let poiSummaryFile = zipData.file("poi_summary.json");
+
+// If not found at root, search all files for it
+if (!poiSummaryFile) {
+  const allFiles = Object.keys(zipData.files);
+  const poiSummaryPath = allFiles.find(name => 
+    name.endsWith('poi_summary.json') && !name.includes('__MACOSX')
+  );
+  if (poiSummaryPath) {
+    poiSummaryFile = zipData.file(poiSummaryPath);
+    console.log('[Analysis] Found poi_summary.json at nested path:', poiSummaryPath);
+  }
+}
+```
+
+Also add logging to confirm which path was used:
+
+```typescript
+console.log('[Analysis] Looking for poi_summary.json, all files:', Object.keys(zipData.files).slice(0, 20));
 ```
 
 ---
 
-## What Stays the Same
+## Summary of Changes
 
-| Component | Status |
-|-----------|--------|
-| `ParsedAnalysisData` interface | Unchanged - `poiFileCount: number` |
-| KPI Card display (line 777) | Unchanged - still shows `analysisData.poiFileCount` |
-| KPI Card label | Unchanged - "Beneficiaries Present in more than one file" |
-| Download button text | Unchanged - still shows file count for downloads |
-| All other logic | Unchanged |
+| File | Change | Impact |
+|------|--------|--------|
+| `excelParser.ts` | Remove ~8 console.log statements from parsing loop | **Major perf improvement** - eliminates 100k+ log calls |
+| `SummaryTableViewer.tsx` | Add pagination (500 rows/page) | **Major perf improvement** - reduces DOM size |
+| `CaseAnalysisResults.tsx` | Lazy-load summary data on expand | **Medium perf improvement** - faster initial load |
+| `CaseAnalysisResults.tsx` | Improve poi_summary.json path detection | **Bug fix** - ensures JSON is found in nested folders |
 
 ---
 
-## Edge Cases Handled
+## Expected Results
 
-| Scenario | Behavior |
-|----------|----------|
-| `poi_summary.json` exists with valid `total_pois` | Use JSON value |
-| `poi_summary.json` exists but `total_pois` is missing | Fall back to file count |
-| `poi_summary.json` exists but is malformed JSON | Fall back to file count |
-| `poi_summary.json` does not exist | Fall back to file count (current behavior) |
-| `total_pois` is 0 | Display 0 (valid scenario) |
+| Metric | Before | After |
+|--------|--------|-------|
+| Initial page load (47MB ZIP) | "Forever" (30+ seconds) | 3-5 seconds |
+| Console log calls | ~200,000+ | ~10 |
+| Summary parsing | All upfront | On-demand |
+| Large summary tables | All rows rendered | 500 rows + pagination |
+| POI count accuracy | Shows 150 (fallback) | Shows 5381 (from JSON) |
 
 ---
 
 ## Testing Checklist
 
-1. Upload a case with a ZIP containing `poi_summary.json` - verify the count shows `total_pois` value
-2. Upload a case with a ZIP without `poi_summary.json` - verify it still counts `POI_*.xlsx` files
-3. Check browser console for the appropriate log messages confirming which method was used
-
+1. Load the "Kodin Cough Syrup" case and verify page loads in reasonable time
+2. Check browser console - should have minimal logs during load
+3. Expand a summary table with many rows - verify pagination works
+4. Verify POI count shows 5381 (from JSON) not 150
+5. Check console for `[Analysis] POI count from poi_summary.json: 5381` message

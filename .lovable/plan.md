@@ -2,6 +2,8 @@
 
 # Plan: Optimize Results Page Loading Performance
 
+## ✅ IMPLEMENTED
+
 ## Root Cause Identified
 
 The 28-second silence + 10-second processing is caused by **three major bottlenecks**:
@@ -113,10 +115,11 @@ The `[Sankey Map] Added key` and `[Sankey Match]` logs are printed 163+ times. E
 
 | File | Change | Impact |
 |------|--------|--------|
-| `CaseAnalysisResults.tsx` | Parallelize sankey extraction with `Promise.all` | **-25 seconds** |
-| `CaseAnalysisResults.tsx` | Remove upfront summary parsing (already lazy-load capable) | **-5 seconds** |
-| `CaseAnalysisResults.tsx` | Pre-index normalized sankey keys for O(1) lookup | **-2 seconds** |
-| `CaseAnalysisResults.tsx` | Remove per-file console.log statements | **Better UX** |
+| `CaseAnalysisResults.tsx` | ✅ Parallelize sankey extraction with `Promise.all` | **-25 seconds** |
+| `CaseAnalysisResults.tsx` | ✅ Remove upfront summary parsing (now lazy-loaded) | **-5 seconds** |
+| `CaseAnalysisResults.tsx` | ✅ Pre-index normalized sankey keys for O(1) lookup | **-2 seconds** |
+| `CaseAnalysisResults.tsx` | ✅ Remove per-file console.log statements | **Better UX** |
+| `LazySummaryTableViewer.tsx` | ✅ New component for lazy-loading summary Excel data | **Deferred parsing** |
 
 ---
 

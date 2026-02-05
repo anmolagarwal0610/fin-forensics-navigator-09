@@ -20,6 +20,7 @@ import POIModal from "@/components/app/POIModal";
 import FileSankeyModal from "@/components/app/FileSankeyModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
+import LazySummaryTableViewer from "@/components/app/LazySummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
 import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
@@ -341,21 +342,41 @@ export default function CaseAnalysisResults() {
         name => name.startsWith(sankeyFolderPrefix) && name.endsWith('.html')
       );
       
-      for (const sankeyPath of sankeyFiles) {
-        const file = zipData.file(sankeyPath);
-        if (file) {
+      // PARALLEL extraction of all sankey HTML files
+      // Helper to normalize strings (needed for pre-indexing)
+      const normalizeForSankey = (str: string) => {
+        const cleanExt = str.replace(/\.csv\.xlsx$/, "").replace(/\.xlsx$/, "").replace(/\.pdf$/, "");
+        return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+      };
+      
+      const sankeyResults = await Promise.all(
+        sankeyFiles.map(async (sankeyPath) => {
+          const file = zipData.file(sankeyPath);
+          if (!file) return null;
+          
           const htmlContent = await file.async("text");
           // Extract original filename from sankey_*.html
           // e.g., "poi_flows_per_file_sankeys/sankey_AGARWAL_BROTHERS.xlsx.html" -> "AGARWAL_BROTHERS"
-          // Remove .html, then remove backend extensions (.xlsx, .pdf, .csv)
-          const fileName = sankeyPath
+          const key = sankeyPath
             .replace(sankeyFolderPrefix, '')
             .replace('sankey_', '')
             .replace('.html', '')
             .replace(/\.(xlsx|pdf|csv)$/i, '');
-          sankeyPerFileMap.set(fileName, htmlContent);
-          console.log('[Sankey Map] Added key:', fileName, 'from path:', sankeyPath);
-        }
+          
+          return { key, content: htmlContent };
+        })
+      );
+      
+      // Populate map from parallel results
+      sankeyResults.filter(Boolean).forEach(r => {
+        sankeyPerFileMap.set(r!.key, r!.content);
+      });
+      console.log('[Analysis] ✓ Loaded', sankeyPerFileMap.size, 'sankey files');
+      
+      // Build normalized lookup index for O(1) matching
+      const normalizedSankeyIndex = new Map<string, string>();
+      for (const key of sankeyPerFileMap.keys()) {
+        normalizedSankeyIndex.set(normalizeForSankey(key), key);
       }
 
       // Process POI HTML files
@@ -500,26 +521,14 @@ export default function CaseAnalysisResults() {
         // Try exact match with underscores first
         if (sankeyPerFileMap.has(originalWithUnderscores)) {
           sankeyHtml = sankeyPerFileMap.get(originalWithUnderscores)!;
-          console.log('[Sankey Match] Exact match for:', originalFile.file_name, '-> key:', originalWithUnderscores);
         } else if (sankeyPerFileMap.has(originalBaseName)) {
           // Try with original base name (handles case differences)
           sankeyHtml = sankeyPerFileMap.get(originalBaseName)!;
-          console.log('[Sankey Match] Base name match for:', originalFile.file_name, '-> key:', originalBaseName);
         } else {
-          // Try case-insensitive EXACT match on normalized strings ONLY - NO includes()
-          for (const [sankeyFileName, sankeyContent] of sankeyPerFileMap) {
-            const sankeyNormalized = normalizeString(sankeyFileName);
-            // STRICT EQUALITY ONLY - prevents partial matching like "agarwalbrothers" matching "agarwalbrothers202425"
-            if (sankeyNormalized === originalNormalized) {
-              sankeyHtml = sankeyContent;
-              console.log('[Sankey Match] Normalized match for:', originalFile.file_name, '-> key:', sankeyFileName);
-              break;
-            }
-          }
-          if (!sankeyHtml) {
-            console.log('[Sankey Match] NO MATCH for:', originalFile.file_name, 
-              '| Looking for:', originalWithUnderscores, 'or normalized:', originalNormalized,
-              '| Available keys:', Array.from(sankeyPerFileMap.keys()));
+          // O(1) lookup using pre-indexed normalized map
+          const matchedKey = normalizedSankeyIndex.get(normalizeForSankey(originalFile.file_name));
+          if (matchedKey) {
+            sankeyHtml = sankeyPerFileMap.get(matchedKey)!;
           }
         }
 
@@ -529,20 +538,7 @@ export default function CaseAnalysisResults() {
           summaryFile: summaryFile || null,
           sankeyHtml: sankeyHtml
         });
-
-        // Parse summary file data for the collapsible table
-        if (summaryFile) {
-          const summaryFileObj = zipData.file(summaryFile);
-          if (summaryFileObj) {
-            try {
-              const summaryContent = await summaryFileObj.async("arraybuffer");
-              const summaryParsedData = await parseExcelFile(summaryContent);
-              parsedData.summaryDataMap.set(summaryFile, summaryParsedData);
-            } catch (error) {
-              console.error(`Failed to parse summary file ${summaryFile}:`, error);
-            }
-          }
-        }
+        // Summary data is lazy-loaded by SummaryTableViewer when user expands
       }
       
       // --- FIX END ---
@@ -1227,7 +1223,7 @@ export default function CaseAnalysisResults() {
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
                         </h4>
-                        {summary.summaryFile && analysisData.summaryDataMap.get(summary.summaryFile) && (
+                        {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
                             <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
                               <span className="text-xs">View Summary</span>
@@ -1292,12 +1288,17 @@ export default function CaseAnalysisResults() {
                         )}
                       </div>
                     </div>
-                    {summary.summaryFile && analysisData.summaryDataMap.get(summary.summaryFile) && (
+                    {summary.summaryFile && (
                       <CollapsibleContent className="pt-4 px-1">
-                        <SummaryTableViewer 
-                          data={analysisData.summaryDataMap.get(summary.summaryFile)}
-                          fileName={summary.summaryFile}
+                        <LazySummaryTableViewer 
+                          summaryFileName={summary.summaryFile}
                           rawTransactionsFileName={summary.rawTransactionsFile}
+                          zipData={analysisData.zipData || null}
+                          isExpanded={expandedSummaries.has(index)}
+                          cachedData={analysisData.summaryDataMap.get(summary.summaryFile)}
+                          onCacheData={(fileName, data) => {
+                            analysisData.summaryDataMap.set(fileName, data);
+                          }}
                           onLoadRawData={summary.rawTransactionsFile 
                             ? () => loadRawTransactionsData(summary.rawTransactionsFile!)
                             : undefined

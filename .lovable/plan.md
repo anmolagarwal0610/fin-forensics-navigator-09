@@ -1,129 +1,122 @@
 
-# Plan: Fix Slow Results Page Loading + POI Count Issue
 
-## Root Cause Analysis
+# Plan: Optimize Results Page Loading Performance
 
-### Issue 1: Page Takes Forever to Load (47MB ZIP)
+## Root Cause Identified
 
-**Three major bottlenecks identified:**
+The 28-second silence + 10-second processing is caused by **three major bottlenecks**:
 
-| Bottleneck | Location | Impact |
-|------------|----------|--------|
-| **Excessive console.log** | `excelParser.ts` lines 141-184 | Every cell with fill/font data triggers 2-5 console.log calls. For a file with ~98,000 rows, this means **hundreds of thousands of console.log statements** |
-| **Upfront summary parsing** | `CaseAnalysisResults.tsx` lines 520-532 | ALL summary files are parsed during initial load, even if user never expands them |
-| **No row limit on SummaryTableViewer** | `SummaryTableViewer.tsx` | Renders ALL rows in the DOM - no pagination for large datasets |
-
-### Issue 2: POI Count Shows 150 Instead of 5381
-
-The logic is correct, but there are two possible causes:
-
-1. **Cache Issue**: The page was visited before the code change was deployed, and React Query is serving the cached result (showing 150 from old file-counting logic)
-2. **File Path Issue**: The `poi_summary.json` might be in a subfolder within the ZIP rather than at the root
+| Bottleneck | Current Behavior | Time Impact |
+|------------|------------------|-------------|
+| **Sequential Sankey HTML extraction** | 163 files extracted one-by-one with `await` | ~25-30 seconds |
+| **Upfront summary parsing** | All summary Excel files parsed during load | ~5-10 seconds |
+| **O(n×m) file matching** | Each file iterates all 163 sankey keys | ~2-3 seconds |
 
 ---
 
-## Implementation Plan
+## Solution Overview
 
-### Fix 1: Remove Excessive Console Logging (Critical - Performance)
+### Fix 1: Parallelize Sankey HTML Extraction (Critical)
 
-**File:** `src/utils/excelParser.ts`
-
-Remove all debug console.log statements inside the parsing loop (lines 141-184, 192-194). These are meant for debugging but cause massive performance degradation with large files.
-
+**Current (Sequential):**
 ```typescript
-// REMOVE these console.log statements:
-console.log(`🔍 Cell ${rowNum},${colNum} fill analysis:`, { ... });
-console.log(`✅ Solid fill color for ${rowNum},${colNum}: ${backgroundColor}`);
-console.log(`✅ Pattern fill color for ${rowNum},${colNum}: ...`);
-console.log(`✅ Gradient fill color for ${rowNum},${colNum}: ...`);
-console.log(`✅ Fallback fill color for ${rowNum},${colNum}: ...`);
-console.log(`⚠️ No background color extracted for ${rowNum},${colNum} ...`);
-console.log(`✅ Font color for ${rowNum},${colNum}: ...`);
-console.log(`⚠️ Could not parse font color for ${rowNum},${colNum}:`, ...);
+for (const sankeyPath of sankeyFiles) {
+  const htmlContent = await file.async("text"); // Blocks until complete
+  sankeyPerFileMap.set(...);
+}
 ```
 
-### Fix 2: Add Pagination to SummaryTableViewer (Performance)
-
-**File:** `src/components/app/SummaryTableViewer.tsx`
-
-Add pagination with 500 rows per page to prevent DOM overload:
-
+**After (Parallel with Promise.all):**
 ```typescript
-// Add state for pagination
-const [currentPage, setCurrentPage] = useState(1);
-const ROWS_PER_PAGE = 500;
+const sankeyExtractionPromises = sankeyFiles.map(async (sankeyPath) => {
+  const file = zipData.file(sankeyPath);
+  if (file) {
+    const htmlContent = await file.async("text");
+    const fileName = /* extract key */;
+    return { key: fileName, content: htmlContent };
+  }
+  return null;
+});
 
-// Slice data for current page
-const paginatedRows = useMemo(() => {
-  const startIdx = (currentPage - 1) * ROWS_PER_PAGE;
-  return dataRows.slice(startIdx, startIdx + ROWS_PER_PAGE);
-}, [dataRows, currentPage]);
-
-const totalPages = Math.ceil(dataRows.length / ROWS_PER_PAGE);
+const results = await Promise.all(sankeyExtractionPromises);
+results.filter(Boolean).forEach(r => sankeyPerFileMap.set(r.key, r.content));
 ```
 
-Add pagination controls when rows > 500.
+**Impact:** Reduces 25-30 seconds → 2-3 seconds (parallel I/O)
 
-### Fix 3: Lazy-Load Summary Data (Performance)
+---
 
-**File:** `src/pages/app/CaseAnalysisResults.tsx`
+### Fix 2: Lazy-Load Summary Data (Still Not Implemented)
 
-Change summary parsing from upfront to on-demand (only when user expands the collapsible):
+The previous plan mentioned this but it appears the code still parses summaries upfront (lines 534-544). We need to **skip upfront parsing** and parse only when user clicks to expand.
 
+**Current:**
 ```typescript
-// BEFORE (lines 520-532): Parse all summaries upfront
 if (summaryFile) {
-  const summaryFileObj = zipData.file(summaryFile);
-  if (summaryFileObj) {
-    const summaryContent = await summaryFileObj.async("arraybuffer");
-    const summaryParsedData = await parseExcelFile(summaryContent);
-    parsedData.summaryDataMap.set(summaryFile, summaryParsedData);
-  }
-}
-
-// AFTER: Don't parse upfront, parse when user clicks expand
-// Just store the file reference, not the parsed data
-```
-
-### Fix 4: Improve POI Summary JSON Detection
-
-**File:** `src/pages/app/CaseAnalysisResults.tsx`
-
-Enhance the `poi_summary.json` detection to also check for nested paths:
-
-```typescript
-// Check for poi_summary.json at root or in any folder
-let poiSummaryFile = zipData.file("poi_summary.json");
-
-// If not found at root, search all files for it
-if (!poiSummaryFile) {
-  const allFiles = Object.keys(zipData.files);
-  const poiSummaryPath = allFiles.find(name => 
-    name.endsWith('poi_summary.json') && !name.includes('__MACOSX')
-  );
-  if (poiSummaryPath) {
-    poiSummaryFile = zipData.file(poiSummaryPath);
-    console.log('[Analysis] Found poi_summary.json at nested path:', poiSummaryPath);
-  }
+  const summaryContent = await summaryFileObj.async("arraybuffer");
+  const summaryParsedData = await parseExcelFile(summaryContent);
+  parsedData.summaryDataMap.set(summaryFile, summaryParsedData);
 }
 ```
 
-Also add logging to confirm which path was used:
-
+**After:**
 ```typescript
-console.log('[Analysis] Looking for poi_summary.json, all files:', Object.keys(zipData.files).slice(0, 20));
+// DON'T parse during initial load - just record the file exists
+// The SummaryTableViewer already has lazy-loading support
+// Remove the parsing block entirely from loadAnalysisFiles
 ```
+
+**Impact:** Removes ~5-10 seconds from initial load
 
 ---
 
-## Summary of Changes
+### Fix 3: Build Pre-Indexed Sankey Lookup Map (O(1) instead of O(n))
+
+**Current:** For each original file, loop through all 163 sankey keys and normalize/compare:
+```typescript
+for (const [sankeyFileName, sankeyContent] of sankeyPerFileMap) {
+  const sankeyNormalized = normalizeString(sankeyFileName);
+  if (sankeyNormalized === originalNormalized) { ... }
+}
+```
+
+**After:** Build a pre-normalized lookup map once, then O(1) lookups:
+```typescript
+// Build normalized index once
+const normalizedSankeyMap = new Map<string, string>();
+for (const [key, content] of sankeyPerFileMap) {
+  normalizedSankeyMap.set(normalizeString(key), key);
+}
+
+// Then for each file - O(1) lookup
+const matchedKey = normalizedSankeyMap.get(originalNormalized);
+if (matchedKey) {
+  sankeyHtml = sankeyPerFileMap.get(matchedKey);
+}
+```
+
+**Impact:** Reduces file matching from O(n×m) to O(n+m)
+
+---
+
+### Fix 4: Remove Excessive Console Logging in Loops
+
+The `[Sankey Map] Added key` and `[Sankey Match]` logs are printed 163+ times. Even with parallel extraction, these logs cause UI thread blocking.
+
+**Change:**
+- Remove individual file logs from loops
+- Add single summary log after processing: `console.log('[Analysis] Loaded', sankeyPerFileMap.size, 'sankey files')`
+
+---
+
+## Implementation Summary
 
 | File | Change | Impact |
 |------|--------|--------|
-| `excelParser.ts` | Remove ~8 console.log statements from parsing loop | **Major perf improvement** - eliminates 100k+ log calls |
-| `SummaryTableViewer.tsx` | Add pagination (500 rows/page) | **Major perf improvement** - reduces DOM size |
-| `CaseAnalysisResults.tsx` | Lazy-load summary data on expand | **Medium perf improvement** - faster initial load |
-| `CaseAnalysisResults.tsx` | Improve poi_summary.json path detection | **Bug fix** - ensures JSON is found in nested folders |
+| `CaseAnalysisResults.tsx` | Parallelize sankey extraction with `Promise.all` | **-25 seconds** |
+| `CaseAnalysisResults.tsx` | Remove upfront summary parsing (already lazy-load capable) | **-5 seconds** |
+| `CaseAnalysisResults.tsx` | Pre-index normalized sankey keys for O(1) lookup | **-2 seconds** |
+| `CaseAnalysisResults.tsx` | Remove per-file console.log statements | **Better UX** |
 
 ---
 
@@ -131,18 +124,68 @@ console.log('[Analysis] Looking for poi_summary.json, all files:', Object.keys(z
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Initial page load (47MB ZIP) | "Forever" (30+ seconds) | 3-5 seconds |
-| Console log calls | ~200,000+ | ~10 |
-| Summary parsing | All upfront | On-demand |
-| Large summary tables | All rows rendered | 500 rows + pagination |
-| POI count accuracy | Shows 150 (fallback) | Shows 5381 (from JSON) |
+| Time after ZIP download | 38+ seconds | 3-5 seconds |
+| Sankey file extraction | Sequential (163 × 200ms) | Parallel (2-3s total) |
+| File matching complexity | O(n × m) = 163 × files | O(n + m) |
+| Console log calls | 300+ | ~5 |
 
 ---
 
-## Testing Checklist
+## Backend Mapping (Not Required)
 
-1. Load the "Kodin Cough Syrup" case and verify page loads in reasonable time
-2. Check browser console - should have minimal logs during load
-3. Expand a summary table with many rows - verify pagination works
-4. Verify POI count shows 5381 (from JSON) not 150
-5. Check console for `[Analysis] POI count from poi_summary.json: 5381` message
+Your question about backend mapping: **It's not the matching logic that's slow** - it's the sequential file extraction. With parallel extraction, the matching (even O(n×m)) becomes negligible. However, if you want an even cleaner solution in the future, the backend could provide:
+
+```json
+{
+  "file_mapping": {
+    "Statement_123.xls": "sankey_Statement_123.xlsx.html",
+    "AGARWAL_BROTHERS.pdf": "sankey_AGARWAL_BROTHERS.xlsx.html"
+  }
+}
+```
+
+But this is **not needed** for the current performance fix - parallelization solves the core issue.
+
+---
+
+## Code Changes Preview
+
+### Parallel Sankey Extraction
+```typescript
+// Parse per-file sankey graphs - PARALLEL extraction
+const sankeyPerFileMap = new Map<string, string>();
+const sankeyFolderPrefix = "poi_flows_per_file_sankeys/";
+const sankeyFiles = Object.keys(zipData.files).filter(
+  name => name.startsWith(sankeyFolderPrefix) && name.endsWith('.html')
+);
+
+// Extract all sankey HTML files in parallel
+const sankeyResults = await Promise.all(
+  sankeyFiles.map(async (sankeyPath) => {
+    const file = zipData.file(sankeyPath);
+    if (!file) return null;
+    
+    const htmlContent = await file.async("text");
+    const fileName = sankeyPath
+      .replace(sankeyFolderPrefix, '')
+      .replace('sankey_', '')
+      .replace('.html', '')
+      .replace(/\.(xlsx|pdf|csv)$/i, '');
+    
+    return { key: fileName, content: htmlContent };
+  })
+);
+
+// Populate map from parallel results
+sankeyResults.filter(Boolean).forEach(r => {
+  sankeyPerFileMap.set(r!.key, r!.content);
+});
+console.log('[Analysis] ✓ Loaded', sankeyPerFileMap.size, 'sankey files');
+
+// Build normalized lookup index for O(1) matching
+const normalizedSankeyIndex = new Map<string, string>();
+for (const key of sankeyPerFileMap.keys()) {
+  normalizedSankeyIndex.set(normalizeString(key), key);
+}
+```
+

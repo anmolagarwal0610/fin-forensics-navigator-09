@@ -221,6 +221,8 @@ export default function CaseAnalysisResults() {
       const beneficiariesFile = zipData.file("beneficiaries_by_file.xlsx");
       if (beneficiariesFile) {
         const content = await beneficiariesFile.async("arraybuffer");
+        // Copy buffer so SheetJS gets an independent copy (ExcelJS can detach the original on Chrome)
+        const contentForSheetJS = content.slice(0);
         
         // Create blob URL for the beneficiaries file
         const beneficiariesBlob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
@@ -254,7 +256,7 @@ export default function CaseAnalysisResults() {
         }
         
         // Keep existing XLSX parsing for backward compatibility (truncated for brevity, logic unchanged)
-        const workbook = XLSX.read(content, { type: "array", cellStyles: true });
+        const workbook = XLSX.read(contentForSheetJS, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];

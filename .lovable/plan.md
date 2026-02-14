@@ -1,61 +1,64 @@
 
+# Plan: Use `poi_summary.json` for Total Beneficiaries Count
 
-# Plan: Fix Beneficiary Count Showing 0 on Chrome
+## Strategy
 
-## Root Cause
+Extract `total_beneficiaries` from `poi_summary.json` **before** parsing the Excel file. If found, use it for the KPI and "Top XX" title. If not found (older cases), fall back to the current Excel row-counting logic.
 
-The `beneficiaries_by_file.xlsx` ArrayBuffer is parsed **twice** using two different libraries:
+## Changes (Single File)
 
-1. **Line 251:** ExcelJS via `parseExcelFile(content)` -- this internally calls `workbook.xlsx.load(arrayBuffer)` which can **detach/transfer** the ArrayBuffer in Chrome's V8 engine
-2. **Line 257:** SheetJS via `XLSX.read(content, { type: "array" })` -- receives a detached (empty) ArrayBuffer, producing 0 rows
+**File:** `src/pages/app/CaseAnalysisResults.tsx`
 
-Safari's JavaScriptCore engine does not detach the buffer, so it works correctly there.
+### Change 1: Extract `total_beneficiaries` from JSON early (lines 424-466)
 
-```
-content (ArrayBuffer, 25300 rows)
-   |
-   v
-parseExcelFile(content)  <-- ExcelJS consumes/detaches buffer on Chrome
-   |
-   v
-XLSX.read(content, ...)  <-- SheetJS sees empty buffer -> 0 rows -> KPI = 0
-```
-
-## Solution
-
-**Copy the ArrayBuffer before the first parse** so each library gets its own independent copy. This is a one-line fix.
-
-## File to Modify
-
-`src/pages/app/CaseAnalysisResults.tsx`
-
-## Change
-
-At line 223 where `content` is obtained, create a copy for the second parser:
+The `poi_summary.json` is already parsed here for `total_pois`. We simply also extract `total_beneficiaries` in the same block:
 
 ```typescript
-const content = await beneficiariesFile.async("arraybuffer");
-
-// Create a copy so both parsers get independent buffers
-const contentForSheetJS = content.slice(0);
+if (typeof poiSummary.total_pois === 'number') {
+  parsedData.poiFileCount = poiSummary.total_pois;
+}
+// NEW: Also extract total_beneficiaries if available
+if (typeof poiSummary.total_beneficiaries === 'number') {
+  parsedData.totalBeneficiaryCount = poiSummary.total_beneficiaries;
+  console.log('[Analysis] Beneficiary count from poi_summary.json:', poiSummary.total_beneficiaries);
+}
 ```
 
-Then on line 257, use the copy:
+### Change 2: Skip Excel row-count when JSON already provided (lines 264-267)
+
+In the beneficiaries Excel parsing block, only set `totalBeneficiaryCount` from row count if the JSON didn't already set it:
 
 ```typescript
-const workbook = XLSX.read(contentForSheetJS, { type: "array", cellStyles: true });
+// Before:
+const totalBeneficiaries = jsonData.length - 2;
+parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
+
+// After:
+if (parsedData.totalBeneficiaryCount === 0) {
+  const totalBeneficiaries = jsonData.length - 2;
+  parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
+}
 ```
 
-This ensures ExcelJS gets the original buffer and SheetJS gets an independent copy, preventing detachment issues across all browsers.
+### Change 3: Move JSON parsing before Excel parsing
 
-## What Stays the Same
+The `poi_summary.json` block currently runs at line 424 (after Excel parsing at line 220). We need to move it **before** the Excel parsing so the JSON value is available as the "first preference." This means relocating the JSON detection and parsing block (lines 424-466) to just after line 218 (after fund trail extraction, before beneficiaries Excel parsing).
 
-- KPI display logic (unchanged)
-- Top N Beneficiaries section (unchanged)  
-- ExcelViewer rendering (unchanged)
-- All other parsing and matching logic (unchanged)
+## Ordering of Logic
 
-## Why Not Remove Duplicate Parsing?
+```
+1. Extract fund_trail_main.html
+2. [NEW POSITION] Parse poi_summary.json -> set totalBeneficiaryCount + poiFileCount
+3. Parse beneficiaries_by_file.xlsx -> only set totalBeneficiaryCount if still 0
+4. Continue with graphs, POI files, sankeys, etc.
+```
 
-The SheetJS parse (lines 257-302) extracts per-cell styling (`backgroundColor`, `color`) for the Top 25 beneficiaries table, which ExcelJS already provides via `beneficiariesExcelData`. However, removing the SheetJS path would require refactoring the beneficiary rendering to use ExcelJS data instead -- a larger change. The `content.slice(0)` fix is safe, minimal, and solves the Chrome issue immediately.
+## Backward Compatibility
 
+- Old cases without `poi_summary.json`: JSON block finds nothing, `totalBeneficiaryCount` stays 0, Excel parsing sets it from row count -- same as today
+- Old cases with `poi_summary.json` but no `total_beneficiaries` key: JSON block sets only `poiFileCount`, beneficiary count falls back to Excel
+- New cases with full JSON: Both values come from JSON, Excel parsing skips the count
+
+## No Other Files Changed
+
+The KPI display (line 804) and "Top XX" title (line 835) already read from `analysisData.totalBeneficiaryCount`, so they automatically use the correct value.

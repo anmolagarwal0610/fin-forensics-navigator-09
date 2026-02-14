@@ -1,194 +1,61 @@
 
 
-# Plan: Optimize Results Page Loading Performance
+# Plan: Fix Beneficiary Count Showing 0 on Chrome
 
-## ✅ IMPLEMENTED
+## Root Cause
 
-## Root Cause Identified
+The `beneficiaries_by_file.xlsx` ArrayBuffer is parsed **twice** using two different libraries:
 
-The 28-second silence + 10-second processing is caused by **three major bottlenecks**:
+1. **Line 251:** ExcelJS via `parseExcelFile(content)` -- this internally calls `workbook.xlsx.load(arrayBuffer)` which can **detach/transfer** the ArrayBuffer in Chrome's V8 engine
+2. **Line 257:** SheetJS via `XLSX.read(content, { type: "array" })` -- receives a detached (empty) ArrayBuffer, producing 0 rows
 
-| Bottleneck | Current Behavior | Time Impact |
-|------------|------------------|-------------|
-| **Sequential Sankey HTML extraction** | 163 files extracted one-by-one with `await` | ~25-30 seconds |
-| **Upfront summary parsing** | All summary Excel files parsed during load | ~5-10 seconds |
-| **O(n×m) file matching** | Each file iterates all 163 sankey keys | ~2-3 seconds |
+Safari's JavaScriptCore engine does not detach the buffer, so it works correctly there.
 
----
+```
+content (ArrayBuffer, 25300 rows)
+   |
+   v
+parseExcelFile(content)  <-- ExcelJS consumes/detaches buffer on Chrome
+   |
+   v
+XLSX.read(content, ...)  <-- SheetJS sees empty buffer -> 0 rows -> KPI = 0
+```
 
-## Solution Overview
+## Solution
 
-### Fix 1: Parallelize Sankey HTML Extraction (Critical)
+**Copy the ArrayBuffer before the first parse** so each library gets its own independent copy. This is a one-line fix.
 
-**Current (Sequential):**
+## File to Modify
+
+`src/pages/app/CaseAnalysisResults.tsx`
+
+## Change
+
+At line 223 where `content` is obtained, create a copy for the second parser:
+
 ```typescript
-for (const sankeyPath of sankeyFiles) {
-  const htmlContent = await file.async("text"); // Blocks until complete
-  sankeyPerFileMap.set(...);
-}
+const content = await beneficiariesFile.async("arraybuffer");
+
+// Create a copy so both parsers get independent buffers
+const contentForSheetJS = content.slice(0);
 ```
 
-**After (Parallel with Promise.all):**
+Then on line 257, use the copy:
+
 ```typescript
-const sankeyExtractionPromises = sankeyFiles.map(async (sankeyPath) => {
-  const file = zipData.file(sankeyPath);
-  if (file) {
-    const htmlContent = await file.async("text");
-    const fileName = /* extract key */;
-    return { key: fileName, content: htmlContent };
-  }
-  return null;
-});
-
-const results = await Promise.all(sankeyExtractionPromises);
-results.filter(Boolean).forEach(r => sankeyPerFileMap.set(r.key, r.content));
+const workbook = XLSX.read(contentForSheetJS, { type: "array", cellStyles: true });
 ```
 
-**Impact:** Reduces 25-30 seconds → 2-3 seconds (parallel I/O)
+This ensures ExcelJS gets the original buffer and SheetJS gets an independent copy, preventing detachment issues across all browsers.
 
----
+## What Stays the Same
 
-### Fix 2: Lazy-Load Summary Data (Still Not Implemented)
+- KPI display logic (unchanged)
+- Top N Beneficiaries section (unchanged)  
+- ExcelViewer rendering (unchanged)
+- All other parsing and matching logic (unchanged)
 
-The previous plan mentioned this but it appears the code still parses summaries upfront (lines 534-544). We need to **skip upfront parsing** and parse only when user clicks to expand.
+## Why Not Remove Duplicate Parsing?
 
-**Current:**
-```typescript
-if (summaryFile) {
-  const summaryContent = await summaryFileObj.async("arraybuffer");
-  const summaryParsedData = await parseExcelFile(summaryContent);
-  parsedData.summaryDataMap.set(summaryFile, summaryParsedData);
-}
-```
-
-**After:**
-```typescript
-// DON'T parse during initial load - just record the file exists
-// The SummaryTableViewer already has lazy-loading support
-// Remove the parsing block entirely from loadAnalysisFiles
-```
-
-**Impact:** Removes ~5-10 seconds from initial load
-
----
-
-### Fix 3: Build Pre-Indexed Sankey Lookup Map (O(1) instead of O(n))
-
-**Current:** For each original file, loop through all 163 sankey keys and normalize/compare:
-```typescript
-for (const [sankeyFileName, sankeyContent] of sankeyPerFileMap) {
-  const sankeyNormalized = normalizeString(sankeyFileName);
-  if (sankeyNormalized === originalNormalized) { ... }
-}
-```
-
-**After:** Build a pre-normalized lookup map once, then O(1) lookups:
-```typescript
-// Build normalized index once
-const normalizedSankeyMap = new Map<string, string>();
-for (const [key, content] of sankeyPerFileMap) {
-  normalizedSankeyMap.set(normalizeString(key), key);
-}
-
-// Then for each file - O(1) lookup
-const matchedKey = normalizedSankeyMap.get(originalNormalized);
-if (matchedKey) {
-  sankeyHtml = sankeyPerFileMap.get(matchedKey);
-}
-```
-
-**Impact:** Reduces file matching from O(n×m) to O(n+m)
-
----
-
-### Fix 4: Remove Excessive Console Logging in Loops
-
-The `[Sankey Map] Added key` and `[Sankey Match]` logs are printed 163+ times. Even with parallel extraction, these logs cause UI thread blocking.
-
-**Change:**
-- Remove individual file logs from loops
-- Add single summary log after processing: `console.log('[Analysis] Loaded', sankeyPerFileMap.size, 'sankey files')`
-
----
-
-## Implementation Summary
-
-| File | Change | Impact |
-|------|--------|--------|
-| `CaseAnalysisResults.tsx` | ✅ Parallelize sankey extraction with `Promise.all` | **-25 seconds** |
-| `CaseAnalysisResults.tsx` | ✅ Remove upfront summary parsing (now lazy-loaded) | **-5 seconds** |
-| `CaseAnalysisResults.tsx` | ✅ Pre-index normalized sankey keys for O(1) lookup | **-2 seconds** |
-| `CaseAnalysisResults.tsx` | ✅ Remove per-file console.log statements | **Better UX** |
-| `LazySummaryTableViewer.tsx` | ✅ New component for lazy-loading summary Excel data | **Deferred parsing** |
-
----
-
-## Expected Results
-
-| Metric | Before | After |
-|--------|--------|-------|
-| Time after ZIP download | 38+ seconds | 3-5 seconds |
-| Sankey file extraction | Sequential (163 × 200ms) | Parallel (2-3s total) |
-| File matching complexity | O(n × m) = 163 × files | O(n + m) |
-| Console log calls | 300+ | ~5 |
-
----
-
-## Backend Mapping (Not Required)
-
-Your question about backend mapping: **It's not the matching logic that's slow** - it's the sequential file extraction. With parallel extraction, the matching (even O(n×m)) becomes negligible. However, if you want an even cleaner solution in the future, the backend could provide:
-
-```json
-{
-  "file_mapping": {
-    "Statement_123.xls": "sankey_Statement_123.xlsx.html",
-    "AGARWAL_BROTHERS.pdf": "sankey_AGARWAL_BROTHERS.xlsx.html"
-  }
-}
-```
-
-But this is **not needed** for the current performance fix - parallelization solves the core issue.
-
----
-
-## Code Changes Preview
-
-### Parallel Sankey Extraction
-```typescript
-// Parse per-file sankey graphs - PARALLEL extraction
-const sankeyPerFileMap = new Map<string, string>();
-const sankeyFolderPrefix = "poi_flows_per_file_sankeys/";
-const sankeyFiles = Object.keys(zipData.files).filter(
-  name => name.startsWith(sankeyFolderPrefix) && name.endsWith('.html')
-);
-
-// Extract all sankey HTML files in parallel
-const sankeyResults = await Promise.all(
-  sankeyFiles.map(async (sankeyPath) => {
-    const file = zipData.file(sankeyPath);
-    if (!file) return null;
-    
-    const htmlContent = await file.async("text");
-    const fileName = sankeyPath
-      .replace(sankeyFolderPrefix, '')
-      .replace('sankey_', '')
-      .replace('.html', '')
-      .replace(/\.(xlsx|pdf|csv)$/i, '');
-    
-    return { key: fileName, content: htmlContent };
-  })
-);
-
-// Populate map from parallel results
-sankeyResults.filter(Boolean).forEach(r => {
-  sankeyPerFileMap.set(r!.key, r!.content);
-});
-console.log('[Analysis] ✓ Loaded', sankeyPerFileMap.size, 'sankey files');
-
-// Build normalized lookup index for O(1) matching
-const normalizedSankeyIndex = new Map<string, string>();
-for (const key of sankeyPerFileMap.keys()) {
-  normalizedSankeyIndex.set(normalizeString(key), key);
-}
-```
+The SheetJS parse (lines 257-302) extracts per-cell styling (`backgroundColor`, `color`) for the Top 25 beneficiaries table, which ExcelJS already provides via `beneficiariesExcelData`. However, removing the SheetJS path would require refactoring the beneficiary rendering to use ExcelJS data instead -- a larger change. The `content.slice(0)` fix is safe, minimal, and solves the Chrome issue immediately.
 

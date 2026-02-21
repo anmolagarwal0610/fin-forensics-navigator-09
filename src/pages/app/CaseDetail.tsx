@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +20,7 @@ import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import JSZip from "jszip";
 export default function CaseDetail() {
+  const { t } = useTranslation();
   const {
     id
   } = useParams<{
@@ -276,7 +278,7 @@ export default function CaseDetail() {
   if (loading) {
     return <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <div className="text-lg font-medium mb-2">Loading case...</div>
+          <div className="text-lg font-medium mb-2">{t('caseDetail.loadingCase')}</div>
         </div>
       </div>;
   }
@@ -289,7 +291,7 @@ export default function CaseDetail() {
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            {t('caseDetail.back')}
           </Button>
         </div>
 
@@ -340,7 +342,7 @@ export default function CaseDetail() {
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Files ({files.length})
+                {t('caseDetail.files')} ({files.length})
               </div>
               <div className="flex items-center gap-2">
                 {/* Download All Files */}
@@ -360,7 +362,7 @@ export default function CaseDetail() {
                           ) : (
                             <Download className="h-4 w-4" />
                           )}
-                          Download All
+                          {t('caseDetail.downloadAll')}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
@@ -381,11 +383,11 @@ export default function CaseDetail() {
                           className="gap-2"
                         >
                           <FilePlus className="h-4 w-4" />
-                          Add or Remove Files
+                          {t('caseDetail.addOrRemoveFiles')}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Add or remove files from this case</p>
+                        <p>{t('caseDetail.addOrRemoveFilesTooltip')}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -400,7 +402,7 @@ export default function CaseDetail() {
                   className="gap-2"
                 >
                   <Upload className="h-4 w-4" />
-                  Continue Analysis
+                  {t('caseDetail.continueAnalysis')}
                 </Button>
               )}
               {/* Add Files for Draft cases with no files */}
@@ -412,7 +414,7 @@ export default function CaseDetail() {
                   className="gap-2"
                 >
                   <FilePlus className="h-4 w-4" />
-                  Add Files
+                  {t('caseDetail.addFiles')}
                 </Button>
               )}
             </CardTitle>
@@ -420,7 +422,7 @@ export default function CaseDetail() {
           <CardContent>
             {files.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No files uploaded yet.</p>
+                <p>{t('caseDetail.noFilesYet')}</p>
               </div> : <div className="columns-1 md:columns-2 gap-6">
                 {files.map((file, index) => {
                   const ext = file.file_name.split('.').pop()?.toLowerCase();
@@ -503,23 +505,23 @@ export default function CaseDetail() {
         {/* Results Placeholder */}
         <Card>
           <CardHeader>
-            <CardTitle>Analysis Results</CardTitle>
+            <CardTitle>{t('caseDetail.analysisResultsHeading')}</CardTitle>
           </CardHeader>
           <CardContent>
             {case_.status === 'Ready' ? <div className="text-center py-8">
                 <CheckCircle className="h-12 w-12 mx-auto mb-3 text-success" />
-                <p className="font-medium mb-2">Analysis Complete</p>
+                <p className="font-medium mb-2">{t('caseDetail.analysisComplete')}</p>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Results are ready for review.
+                  {t('caseDetail.resultsReadyForReview')}
                 </p>
                 <Button disabled={!hasResults} onClick={() => hasResults && navigate(`/app/cases/${case_.id}/results`)}>
-                  {hasResults ? 'View Results' : 'View Results (Coming Soon)'}
+                  {hasResults ? t('caseDetail.viewResults') : t('caseDetail.viewResultsComingSoon')}
                 </Button>
               </div> : case_.status === 'Failed' || case_.status === 'Timeout' ? <div className="text-center py-8 text-muted-foreground">
-                <p>Analysis encountered an issue. See the message above for details.</p>
+                <p>{t('caseDetail.analysisIssue')}</p>
               </div> : <div className="text-center py-8 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>Results will appear here once analysis is complete.</p>
+                <p>{t('caseDetail.resultsAppearHere')}</p>
               </div>}
           </CardContent>
         </Card>
@@ -529,13 +531,13 @@ export default function CaseDetail() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Timeline
+              {t('caseDetail.timeline')}
             </CardTitle>
           </CardHeader>
           <CardContent>
             {events.length === 0 ? <div className="text-center py-8 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                <p>No events yet.</p>
+                <p>{t('caseDetail.noEventsYet')}</p>
               </div> : <div className="space-y-4">
                 {events.map(event => <div key={event.id} className="flex items-start gap-3">
                     <div className="flex-shrink-0 mt-1">

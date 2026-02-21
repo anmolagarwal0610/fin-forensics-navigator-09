@@ -1,64 +1,89 @@
 
-# Plan: Use `poi_summary.json` for Total Beneficiaries Count
 
-## Strategy
+# Plan: Add Hindi Translations for Remaining Hardcoded English Strings
 
-Extract `total_beneficiaries` from `poi_summary.json` **before** parsing the Excel file. If found, use it for the KPI and "Top XX" title. If not found (older cases), fall back to the current Excel row-counting logic.
+## Overview
 
-## Changes (Single File)
+Multiple buttons, labels, and KPI titles across the Case Detail page and Analysis Results page still display hardcoded English text. We need to replace them with translation keys and add corresponding Hindi translations.
 
-**File:** `src/pages/app/CaseAnalysisResults.tsx`
+## Scope of Changes
 
-### Change 1: Extract `total_beneficiaries` from JSON early (lines 424-466)
+### Files to Modify
 
-The `poi_summary.json` is already parsed here for `total_pois`. We simply also extract `total_beneficiaries` in the same block:
+| File | Changes |
+|------|---------|
+| `src/i18n/locales/en.json` | Add new translation keys |
+| `src/i18n/locales/hi.json` | Add Hindi translations |
+| `src/pages/app/CaseDetail.tsx` | Replace hardcoded strings with `t()` calls |
+| `src/pages/app/CaseAnalysisResults.tsx` | Replace hardcoded strings with `t()` calls |
 
-```typescript
-if (typeof poiSummary.total_pois === 'number') {
-  parsedData.poiFileCount = poiSummary.total_pois;
-}
-// NEW: Also extract total_beneficiaries if available
-if (typeof poiSummary.total_beneficiaries === 'number') {
-  parsedData.totalBeneficiaryCount = poiSummary.total_beneficiaries;
-  console.log('[Analysis] Beneficiary count from poi_summary.json:', poiSummary.total_beneficiaries);
-}
+### Strings to Translate
+
+**CaseDetail.tsx (Case Preview Page):**
+- "Back" button
+- "Download All" button
+- "Add or Remove Files" button
+- "Continue Analysis" button
+- "Add Files" button
+- "View Results" / "View Results (Coming Soon)" button
+- "Files" heading
+- "Analysis Results" heading
+- "Analysis Complete" text
+- "Results are ready for review." text
+- "Timeline" heading
+- "No files uploaded yet." text
+- "No events yet." text
+- "Results will appear here once analysis is complete." text
+- "Analysis encountered an issue..." text
+- "Loading case..." text
+
+**CaseAnalysisResults.tsx (Results Page):**
+- "Back to Case" button
+- "View Previous Results" / "View Latest Results" buttons
+- "Viewing Previous Results" badge
+- "Download Report" button
+- "Analysis Results" heading
+- KPIs: "Total Beneficiaries", "Identified in analysis", "Person of Interest (POI)", "Beneficiaries Present in more than one file", "Analysis Files", "Original files processed"
+- "Top X Beneficiaries" title
+- "Transaction Flow Analysis" heading + description
+- Tab labels: "Fund Trail", "Sankey Graph", "Node Graph"
+- "Person of Interest Raw Data" heading + description
+- "Download All POI Files" button
+- "Interactive POI Analysis" heading + description
+- "File Analysis Summary" heading + description
+- Per-file labels: "Raw Transactions", "Summary", "Download", "Graph", "View Summary"
+- "Share" (tooltip on share buttons)
+
+## Technical Approach
+
+1. **Add `useTranslation` import** to both `CaseDetail.tsx` and `CaseAnalysisResults.tsx`
+2. **Add `const { t } = useTranslation()`** at the top of each component
+3. **Replace each hardcoded string** with the corresponding `t('key')` call
+4. **Add all new keys** to both `en.json` and `hi.json`
+
+Most keys already exist in the JSON files under `caseDetail.*` and `analysisResults.*` sections -- we will reuse those and only add missing ones.
+
+## New Translation Keys Needed
+
+The following keys already exist and can be reused:
+- `caseDetail.back`, `caseDetail.files`, `caseDetail.downloadAll`, `caseDetail.addOrRemoveFiles`, `caseDetail.continueAnalysis`, `caseDetail.addFiles`, `caseDetail.viewResults`, `caseDetail.timeline`, `caseDetail.noFilesYet`, `caseDetail.noEventsYet`, `caseDetail.analysisComplete`, `caseDetail.resultsReadyForReview`, `caseDetail.viewResultsComingSoon`, `caseDetail.resultsAppearHere`, `caseDetail.analysisIssue`
+- `analysisResults.title`, `analysisResults.backToCase`, `analysisResults.viewPreviousResults`, `analysisResults.viewLatestResults`, `analysisResults.downloadReport`, `analysisResults.viewingPreviousResults`, `analysisResults.totalBeneficiaries`, `analysisResults.identifiedInAnalysis`, `analysisResults.personOfInterest`, `analysisResults.presentInMultipleFiles`, `analysisResults.analysisFiles`, `analysisResults.originalFilesProcessed`, `analysisResults.topBeneficiaries`, `analysisResults.transactionFlowAnalysis`, `analysisResults.interactiveVisualization`, `analysisResults.sankeyGraph`, `analysisResults.nodeGraph`, `analysisResults.poiRawData`, `analysisResults.downloadDetailedAnalysis`, `analysisResults.downloadAllPOI`, `analysisResults.interactivePOIAnalysis`, `analysisResults.individualNetworkAnalysis`, `analysisResults.fileAnalysisSummary`
+
+New keys to add in both JSON files:
+
+```
+"analysisResults.fundTrail": "Fund Trail" / "फंड ट्रेल"
+"analysisResults.rawTransactions": "Raw Transactions" / "कच्चे लेनदेन"
+"analysisResults.summary": "Summary" / "सारांश"
+"analysisResults.graph": "Graph" / "ग्राफ"
+"analysisResults.share": "Share" / "साझा करें"
+"analysisResults.fileAnalysisSummaryDesc": "Analysis results for each uploaded file..." / "..."
+"analysisResults.originalFile": "Original File" / "मूल फ़ाइल"
+"caseDetail.analysisResults": "Analysis Results" / "विश्लेषण परिणाम"
+"caseDetail.loadingCase": "Loading case..." / "केस लोड हो रहा है..."
 ```
 
-### Change 2: Skip Excel row-count when JSON already provided (lines 264-267)
+## No Changes to These Files
 
-In the beneficiaries Excel parsing block, only set `totalBeneficiaryCount` from row count if the JSON didn't already set it:
+- `HTMLViewer.tsx` and `FundTrailViewer.tsx` use icon-only buttons (no visible text labels), so no translation changes are needed there.
 
-```typescript
-// Before:
-const totalBeneficiaries = jsonData.length - 2;
-parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
-
-// After:
-if (parsedData.totalBeneficiaryCount === 0) {
-  const totalBeneficiaries = jsonData.length - 2;
-  parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
-}
-```
-
-### Change 3: Move JSON parsing before Excel parsing
-
-The `poi_summary.json` block currently runs at line 424 (after Excel parsing at line 220). We need to move it **before** the Excel parsing so the JSON value is available as the "first preference." This means relocating the JSON detection and parsing block (lines 424-466) to just after line 218 (after fund trail extraction, before beneficiaries Excel parsing).
-
-## Ordering of Logic
-
-```
-1. Extract fund_trail_main.html
-2. [NEW POSITION] Parse poi_summary.json -> set totalBeneficiaryCount + poiFileCount
-3. Parse beneficiaries_by_file.xlsx -> only set totalBeneficiaryCount if still 0
-4. Continue with graphs, POI files, sankeys, etc.
-```
-
-## Backward Compatibility
-
-- Old cases without `poi_summary.json`: JSON block finds nothing, `totalBeneficiaryCount` stays 0, Excel parsing sets it from row count -- same as today
-- Old cases with `poi_summary.json` but no `total_beneficiaries` key: JSON block sets only `poiFileCount`, beneficiary count falls back to Excel
-- New cases with full JSON: Both values come from JSON, Excel parsing skips the count
-
-## No Other Files Changed
-
-The KPI display (line 804) and "Top XX" title (line 835) already read from `analysisData.totalBeneficiaryCount`, so they automatically use the correct value.

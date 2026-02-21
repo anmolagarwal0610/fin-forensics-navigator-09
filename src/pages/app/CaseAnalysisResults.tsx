@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ interface ParsedAnalysisData {
 }
 
 export default function CaseAnalysisResults() {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [lightboxOpen, setLightboxOpen] = useState(false);
@@ -765,7 +767,7 @@ export default function CaseAnalysisResults() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Case
+            {t('analysisResults.backToCase')}
           </Button>
           {(case_ as any).previous_result_zip_url && (
             <Button
@@ -775,12 +777,12 @@ export default function CaseAnalysisResults() {
               className="gap-2"
             >
               <FileText className="h-4 w-4" />
-              {viewingPreviousResults ? "View Latest Results" : "View Previous Results"}
+              {viewingPreviousResults ? t('analysisResults.viewLatestResults') : t('analysisResults.viewPreviousResults')}
             </Button>
           )}
           {viewingPreviousResults && (
             <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 px-3 py-1.5 rounded-md text-sm font-medium">
-              Viewing Previous Results
+              {t('analysisResults.viewingPreviousResults')}
             </div>
           )}
         </div>
@@ -789,13 +791,13 @@ export default function CaseAnalysisResults() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              Analysis Results
+              {t('analysisResults.title')}
             </h1>
             <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
           <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
             <Download className="h-4 w-4 mr-2" />
-            Download Report
+            {t('analysisResults.downloadReport')}
           </Button>
         </div>
 
@@ -803,34 +805,34 @@ export default function CaseAnalysisResults() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Total Beneficiaries</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('analysisResults.totalBeneficiaries')}</CardTitle>
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
-              <p className="text-xs text-muted-foreground">Identified in analysis</p>
+              <p className="text-xs text-muted-foreground">{t('analysisResults.identifiedInAnalysis')}</p>
             </CardContent>
           </Card>
           
           <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Person of Interest (POI)</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('analysisResults.personOfInterest')}</CardTitle>
               <FileText className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.poiFileCount}</div>
-              <p className="text-xs text-muted-foreground">Beneficiaries Present in more than one file</p>
+              <p className="text-xs text-muted-foreground">{t('analysisResults.presentInMultipleFiles')}</p>
             </CardContent>
           </Card>
           
           <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Analysis Files</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">{t('analysisResults.analysisFiles')}</CardTitle>
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.fileSummaries.length}</div>
-              <p className="text-xs text-muted-foreground">Original files processed</p>
+              <p className="text-xs text-muted-foreground">{t('analysisResults.originalFilesProcessed')}</p>
             </CardContent>
           </Card>
         </div>
@@ -838,7 +840,7 @@ export default function CaseAnalysisResults() {
         {/* Enhanced Beneficiaries Preview */}
         {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
           <ExcelViewer
-            title={`Top ${Math.min(100, analysisData.totalBeneficiaryCount)} Beneficiaries`}
+            title={t('analysisResults.topBeneficiaries', { count: Math.min(100, analysisData.totalBeneficiaryCount) })}
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
             maxRows={102}
@@ -862,10 +864,10 @@ export default function CaseAnalysisResults() {
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                Transaction Flow Analysis
+                {t('analysisResults.transactionFlowAnalysis')}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Interactive visualization of person of interest relationships and transaction flows
+                {t('analysisResults.interactiveVisualization')}
               </p>
             </CardHeader>
             <CardContent className="p-6">
@@ -886,17 +888,17 @@ export default function CaseAnalysisResults() {
                       <TabsList className="mb-4 bg-muted/60">
                         {hasFundTrail && (
                           <TabsTrigger value="fundtrail" className="data-[state=active]:bg-background">
-                            Fund Trail
+                            {t('analysisResults.fundTrail')}
                           </TabsTrigger>
                         )}
                         {hasSankey && (
                           <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
-                            Sankey Graph
+                            {t('analysisResults.sankeyGraph')}
                           </TabsTrigger>
                         )}
                         {hasNode && (
                           <TabsTrigger value="node" className="data-[state=active]:bg-background">
-                            Node Graph
+                            {t('analysisResults.nodeGraph')}
                           </TabsTrigger>
                         )}
                       </TabsList>
@@ -1024,16 +1026,16 @@ export default function CaseAnalysisResults() {
           <CardHeader>
             <CardTitle className="text-xl flex items-center gap-2">
               <Download className="h-5 w-5" />
-              Person of Interest Raw Data
+              {t('analysisResults.poiRawData')}
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Download detailed analysis for all persons of interest
+              {t('analysisResults.downloadDetailedAnalysis')}
             </p>
           </CardHeader>
           <CardContent>
             <Button onClick={downloadAllPOIFiles} variant="outline" size="sm" className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
-              Download All POI Files ({analysisData.poiFileCount} files)
+              {t('analysisResults.downloadAllPOI')} ({analysisData.poiFileCount} files)
             </Button>
           </CardContent>
         </Card>
@@ -1044,10 +1046,10 @@ export default function CaseAnalysisResults() {
             <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                Interactive POI Analysis
+                {t('analysisResults.interactivePOIAnalysis')}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Individual interactive network analysis for each person of interest. Click any visualization to view full-screen with interactive features.
+                {t('analysisResults.individualNetworkAnalysis')}
               </p>
             </CardHeader>
             <CardContent className="p-6">
@@ -1154,10 +1156,10 @@ export default function CaseAnalysisResults() {
             <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                File Analysis Summary
+                {t('analysisResults.fileAnalysisSummary')}
               </CardTitle>
               <p className="text-sm text-muted-foreground">
-                Analysis results for each uploaded file with downloadable raw transactions and summary reports
+                {t('analysisResults.fileAnalysisSummaryDesc')}
               </p>
             </CardHeader>
             <CardContent className="p-6">
@@ -1173,7 +1175,7 @@ export default function CaseAnalysisResults() {
                         <h4 className="font-semibold text-sm flex items-center gap-2">
                           <span className="text-muted-foreground text-xs font-medium">{index + 1}.</span>
                           <FileText className="h-4 w-4 text-primary" />
-                          <span className="text-muted-foreground">Original File:</span>
+                          <span className="text-muted-foreground">{t('analysisResults.originalFile')}:</span>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1234,7 +1236,7 @@ export default function CaseAnalysisResults() {
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
                             <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-                              <span className="text-xs">View Summary</span>
+                              <span className="text-xs">{t('actions.viewSummary')}</span>
                               <ChevronDown className={cn(
                                 "h-4 w-4 transition-transform duration-200",
                                 expandedSummaries.has(index) && "rotate-180"
@@ -1247,7 +1249,7 @@ export default function CaseAnalysisResults() {
         {summary.rawTransactionsFile && (
                           <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded-lg">
                             <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                            <span className="text-muted-foreground">Raw Transactions</span>
+                            <span className="text-muted-foreground">{t('analysisResults.rawTransactions')}</span>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1255,14 +1257,14 @@ export default function CaseAnalysisResults() {
                               className="h-7 gap-1.5"
                             >
                               <Download className="h-3 w-3" />
-                              Download
+                              {t('analysisResults.download')}
                             </Button>
                           </div>
                         )}
                         {summary.summaryFile && (
                           <div className="flex items-center gap-2 text-sm bg-green-50 dark:bg-green-950/30 px-3 py-2 rounded-lg">
                             <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                            <span className="text-muted-foreground">Summary</span>
+                            <span className="text-muted-foreground">{t('analysisResults.summary')}</span>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1270,7 +1272,7 @@ export default function CaseAnalysisResults() {
                               className="h-7 gap-1.5"
                             >
                               <Download className="h-3 w-3" />
-                              Download
+                              {t('analysisResults.download')}
                             </Button>
                           </div>
                         )}
@@ -1290,7 +1292,7 @@ export default function CaseAnalysisResults() {
                               className="h-7 gap-1.5 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800 hover:bg-violet-100 dark:hover:bg-violet-900/50"
                             >
                               <BarChart3 className="h-3 w-3" />
-                              Graph
+                              {t('analysisResults.graph')}
                             </Button>
                           </div>
                         )}

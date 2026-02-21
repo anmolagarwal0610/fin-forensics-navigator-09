@@ -136,8 +136,16 @@
     "interactivePOIAnalysis": "Interactive POI Analysis",
     "individualNetworkAnalysis": "Individual interactive network analysis for each person of interest. Click any visualization to view full-screen with interactive features.",
     "fileAnalysisSummary": "File Analysis Summary",
+    "fileAnalysisSummaryDesc": "Analysis results for each uploaded file with downloadable raw transactions and summary reports",
     "analysisNotReady": "Analysis Not Ready",
-    "analysisNotReadyDesc": "The analysis for this case is not yet complete. Please check back later."
+    "analysisNotReadyDesc": "The analysis for this case is not yet complete. Please check back later.",
+    "fundTrail": "Fund Trail",
+    "rawTransactions": "Raw Transactions",
+    "summary": "Summary",
+    "graph": "Graph",
+    "share": "Share",
+    "originalFile": "Original File",
+    "download": "Download"
   },
   "account": {
     "title": "Account Settings",
@@ -321,7 +329,9 @@
     "resultsReadyForReview": "Results are ready for review.",
     "viewResultsComingSoon": "View Results (Coming Soon)",
     "resultsAppearHere": "Results will appear here once analysis is complete.",
-    "analysisIssue": "Analysis encountered an issue. See the message above for details."
+    "analysisIssue": "Analysis encountered an issue. See the message above for details.",
+    "analysisResultsHeading": "Analysis Results",
+    "loadingCase": "Loading case..."
   },
   "caseStatus": {
     "analysisTimeout": "Analysis Timeout",

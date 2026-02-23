@@ -7,12 +7,16 @@ import { ChevronUp, ChevronDown, Search, X, ChevronLeft, ChevronRight } from "lu
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import BeneficiaryTransactionsDialog, { TransactionRow } from "./BeneficiaryTransactionsDialog";
+import EditGroupedNamesDialog, { BeneficiaryEntry, GroupingOverrideResult, PendingClusterState } from "./EditGroupedNamesDialog";
 
 interface SummaryTableViewerProps {
   data: CellData[][] | undefined;
   fileName: string;
   rawTransactionsFileName?: string | null;
   onLoadRawData?: () => Promise<CellData[][] | null>;
+  // Grouping overrides
+  onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
+  pendingOverrides?: Record<string, PendingClusterState>;
 }
 
 type SortColumn = "transactions" | "credit" | "debit";
@@ -29,7 +33,9 @@ export default function SummaryTableViewer({
   data,
   fileName,
   rawTransactionsFileName,
-  onLoadRawData
+  onLoadRawData,
+  onSaveGroupingOverride,
+  pendingOverrides,
 }: SummaryTableViewerProps) {
   const { t } = useTranslation();
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "transactions", direction: "desc" });
@@ -43,6 +49,10 @@ export default function SummaryTableViewer({
   const [filteredTransactions, setFilteredTransactions] = useState<TransactionRow[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
   const [cachedRawData, setCachedRawData] = useState<CellData[][] | null>(null);
+  
+  // Edit Grouped Names state
+  const [editGroupedOpen, setEditGroupedOpen] = useState(false);
+  const [selectedRowForEdit, setSelectedRowForEdit] = useState<CellData[] | null>(null);
 
   // Focus search input when opened
   useEffect(() => {
@@ -101,6 +111,27 @@ export default function SummaryTableViewer({
     }
     return -1;
   }, [data]);
+
+  // Build allBeneficiaries list for EditGroupedNamesDialog
+  const allBeneficiaries = useMemo((): BeneficiaryEntry[] => {
+    if (!data || data.length <= 1 || beneficiaryColumnIndex === -1) return [];
+    return data.slice(1).map(row => {
+      const name = String(row[beneficiaryColumnIndex]?.value || '').trim();
+      const aliasStr = aliasColumnIndex !== -1 ? String(row[aliasColumnIndex]?.value || '') : '';
+      const aliases = aliasStr
+        .split(',')
+        .map(a => a.trim())
+        .filter(a => a.length > 0 && a.toLowerCase() !== name.toLowerCase());
+      return { name, aliases };
+    }).filter(e => e.name.length > 0);
+  }, [data, beneficiaryColumnIndex, aliasColumnIndex]);
+
+  // Derive file name for individual context (remove "summary_" prefix and extension)
+  const derivedFileName = useMemo(() => {
+    return fileName
+      .replace(/^summary_/i, '')
+      .replace(/\.xlsx$/i, '');
+  }, [fileName]);
 
   // Parse numeric value from cell
   function parseNumericValue(value: any): number {
@@ -247,6 +278,7 @@ export default function SummaryTableViewer({
     if (!beneficiaryName || !rawTransactionsFileName) return;
 
     setSelectedBeneficiary(beneficiaryName);
+    setSelectedRowForEdit(summaryRow);
     setDialogOpen(true);
     setIsLoadingTransactions(true);
     setFilteredTransactions([]);
@@ -534,7 +566,34 @@ export default function SummaryTableViewer({
         beneficiaryName={selectedBeneficiary}
         transactions={filteredTransactions}
         isLoading={isLoadingTransactions}
+        onEditGroupedNames={onSaveGroupingOverride ? () => {
+          setEditGroupedOpen(true);
+        } : undefined}
       />
+
+      {/* Edit Grouped Names Dialog */}
+      {onSaveGroupingOverride && (
+        <EditGroupedNamesDialog
+          open={editGroupedOpen}
+          onClose={() => setEditGroupedOpen(false)}
+          targetCluster={selectedBeneficiary}
+          currentMembers={
+            selectedRowForEdit && aliasColumnIndex !== -1
+              ? String(selectedRowForEdit[aliasColumnIndex]?.value || '')
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(s => s.length > 0)
+              : []
+          }
+          allBeneficiaries={allBeneficiaries}
+          context="individual"
+          fileName={derivedFileName}
+          existingOverrides={pendingOverrides?.[selectedBeneficiary.toLowerCase()]}
+          onSave={(overrides) => {
+            onSaveGroupingOverride("individual", selectedBeneficiary, overrides, derivedFileName);
+          }}
+        />
+      )}
     </>
   );
 }

@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
-import { CreditCard, X, Download, Filter, CalendarIcon } from "lucide-react";
+import { CreditCard, X, Download, Filter, CalendarIcon, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { format, parse, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
@@ -29,6 +29,7 @@ interface BeneficiaryTransactionsDialogProps {
   beneficiaryName: string;
   transactions: TransactionRow[];
   isLoading?: boolean;
+  onEditGroupedNames?: () => void;
 }
 
 export default function BeneficiaryTransactionsDialog({
@@ -37,6 +38,7 @@ export default function BeneficiaryTransactionsDialog({
   beneficiaryName,
   transactions,
   isLoading = false,
+  onEditGroupedNames,
 }: BeneficiaryTransactionsDialogProps) {
   
   // Filter state
@@ -210,7 +212,18 @@ export default function BeneficiaryTransactionsDialog({
           {/* Filters Row */}
           {transactions.length > 0 && (
             <div className="flex flex-wrap items-center gap-2 mt-3">
-              {/* Transaction Type Multi-Select Filter */}
+              {/* Edit Grouped Names CTA */}
+              {onEditGroupedNames && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={onEditGroupedNames}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="text-xs">Edit Grouped Names</span>
+                </Button>
+              )}
               {uniqueTypes.length > 0 && (
                 <Popover>
                   <PopoverTrigger asChild>

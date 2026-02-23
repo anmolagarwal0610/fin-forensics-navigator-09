@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
+import type { GroupingOverrideResult, PendingClusterState } from "@/components/app/EditGroupedNamesDialog";
 
 // Helper function to truncate long file names while preserving extension
 const truncateFileName = (fileName: string, maxLength: number = 30): string => {
@@ -100,6 +101,37 @@ export default function CaseAnalysisResults() {
   
   // State for Fund Trail share dialog
   const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);
+  
+  // Grouping overrides state for name merge/demerge
+  const [groupingOverrides, setGroupingOverrides] = useState<{
+    cross_file: Record<string, PendingClusterState>;
+    individual: Record<string, Record<string, PendingClusterState>>;
+  }>({ cross_file: {}, individual: {} });
+
+  const handleSaveGroupingOverride = useCallback((
+    context: "cross_file" | "individual",
+    targetCluster: string,
+    overrides: GroupingOverrideResult,
+    fileName?: string
+  ) => {
+    setGroupingOverrides(prev => {
+      const next = { ...prev };
+      const key = targetCluster.toLowerCase();
+      if (context === "cross_file") {
+        next.cross_file = { ...prev.cross_file, [key]: overrides };
+      } else if (fileName) {
+        const fileOverrides = { ...(prev.individual[fileName] || {}) };
+        fileOverrides[key] = overrides;
+        next.individual = { ...prev.individual, [fileName]: fileOverrides };
+      }
+      return next;
+    });
+  }, []);
+
+  const hasGroupingChanges = useMemo(() => {
+    if (Object.keys(groupingOverrides.cross_file).length > 0) return true;
+    return Object.values(groupingOverrides.individual).some(f => Object.keys(f).length > 0);
+  }, [groupingOverrides]);
   
   // State for sharing individual graphs (Sankey/Node)
   const [shareGraphOpen, setShareGraphOpen] = useState(false);
@@ -855,6 +887,8 @@ export default function CaseAnalysisResults() {
             onCachePOIData={(fileName, data) => {
               analysisData.poiDataMap.set(fileName, data);
             }}
+            onSaveGroupingOverride={handleSaveGroupingOverride}
+            pendingOverrides={groupingOverrides.cross_file}
           />
         )}
 

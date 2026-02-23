@@ -1,89 +1,82 @@
 
 
-# Plan: Add Hindi Translations for Remaining Hardcoded English Strings
+# Plan: Extend Search to Multiple Columns in Summary and Beneficiaries Tables
 
-## Overview
+## Task 1: SummaryTableViewer -- Search Alias + Alias Members
 
-Multiple buttons, labels, and KPI titles across the Case Detail page and Analysis Results page still display hardcoded English text. We need to replace them with translation keys and add corresponding Hindi translations.
+**File:** `src/components/app/SummaryTableViewer.tsx`
 
-## Scope of Changes
+**Current behavior (lines 129-134):** Search only checks the `beneficiaryColumnIndex` (Alias column).
 
-### Files to Modify
+**Change:** Also check `aliasColumnIndex` (Alias Members column) in the same filter. If the search query matches either column, the row is shown.
 
-| File | Changes |
-|------|---------|
-| `src/i18n/locales/en.json` | Add new translation keys |
-| `src/i18n/locales/hi.json` | Add Hindi translations |
-| `src/pages/app/CaseDetail.tsx` | Replace hardcoded strings with `t()` calls |
-| `src/pages/app/CaseAnalysisResults.tsx` | Replace hardcoded strings with `t()` calls |
+```typescript
+// Before (line 131-133):
+dataRows = dataRows.filter((row) => {
+  const cellValue = String(row[beneficiaryColumnIndex]?.value || "").toLowerCase();
+  return cellValue.includes(query);
+});
 
-### Strings to Translate
-
-**CaseDetail.tsx (Case Preview Page):**
-- "Back" button
-- "Download All" button
-- "Add or Remove Files" button
-- "Continue Analysis" button
-- "Add Files" button
-- "View Results" / "View Results (Coming Soon)" button
-- "Files" heading
-- "Analysis Results" heading
-- "Analysis Complete" text
-- "Results are ready for review." text
-- "Timeline" heading
-- "No files uploaded yet." text
-- "No events yet." text
-- "Results will appear here once analysis is complete." text
-- "Analysis encountered an issue..." text
-- "Loading case..." text
-
-**CaseAnalysisResults.tsx (Results Page):**
-- "Back to Case" button
-- "View Previous Results" / "View Latest Results" buttons
-- "Viewing Previous Results" badge
-- "Download Report" button
-- "Analysis Results" heading
-- KPIs: "Total Beneficiaries", "Identified in analysis", "Person of Interest (POI)", "Beneficiaries Present in more than one file", "Analysis Files", "Original files processed"
-- "Top X Beneficiaries" title
-- "Transaction Flow Analysis" heading + description
-- Tab labels: "Fund Trail", "Sankey Graph", "Node Graph"
-- "Person of Interest Raw Data" heading + description
-- "Download All POI Files" button
-- "Interactive POI Analysis" heading + description
-- "File Analysis Summary" heading + description
-- Per-file labels: "Raw Transactions", "Summary", "Download", "Graph", "View Summary"
-- "Share" (tooltip on share buttons)
-
-## Technical Approach
-
-1. **Add `useTranslation` import** to both `CaseDetail.tsx` and `CaseAnalysisResults.tsx`
-2. **Add `const { t } = useTranslation()`** at the top of each component
-3. **Replace each hardcoded string** with the corresponding `t('key')` call
-4. **Add all new keys** to both `en.json` and `hi.json`
-
-Most keys already exist in the JSON files under `caseDetail.*` and `analysisResults.*` sections -- we will reuse those and only add missing ones.
-
-## New Translation Keys Needed
-
-The following keys already exist and can be reused:
-- `caseDetail.back`, `caseDetail.files`, `caseDetail.downloadAll`, `caseDetail.addOrRemoveFiles`, `caseDetail.continueAnalysis`, `caseDetail.addFiles`, `caseDetail.viewResults`, `caseDetail.timeline`, `caseDetail.noFilesYet`, `caseDetail.noEventsYet`, `caseDetail.analysisComplete`, `caseDetail.resultsReadyForReview`, `caseDetail.viewResultsComingSoon`, `caseDetail.resultsAppearHere`, `caseDetail.analysisIssue`
-- `analysisResults.title`, `analysisResults.backToCase`, `analysisResults.viewPreviousResults`, `analysisResults.viewLatestResults`, `analysisResults.downloadReport`, `analysisResults.viewingPreviousResults`, `analysisResults.totalBeneficiaries`, `analysisResults.identifiedInAnalysis`, `analysisResults.personOfInterest`, `analysisResults.presentInMultipleFiles`, `analysisResults.analysisFiles`, `analysisResults.originalFilesProcessed`, `analysisResults.topBeneficiaries`, `analysisResults.transactionFlowAnalysis`, `analysisResults.interactiveVisualization`, `analysisResults.sankeyGraph`, `analysisResults.nodeGraph`, `analysisResults.poiRawData`, `analysisResults.downloadDetailedAnalysis`, `analysisResults.downloadAllPOI`, `analysisResults.interactivePOIAnalysis`, `analysisResults.individualNetworkAnalysis`, `analysisResults.fileAnalysisSummary`
-
-New keys to add in both JSON files:
-
-```
-"analysisResults.fundTrail": "Fund Trail" / "फंड ट्रेल"
-"analysisResults.rawTransactions": "Raw Transactions" / "कच्चे लेनदेन"
-"analysisResults.summary": "Summary" / "सारांश"
-"analysisResults.graph": "Graph" / "ग्राफ"
-"analysisResults.share": "Share" / "साझा करें"
-"analysisResults.fileAnalysisSummaryDesc": "Analysis results for each uploaded file..." / "..."
-"analysisResults.originalFile": "Original File" / "मूल फ़ाइल"
-"caseDetail.analysisResults": "Analysis Results" / "विश्लेषण परिणाम"
-"caseDetail.loadingCase": "Loading case..." / "केस लोड हो रहा है..."
+// After:
+dataRows = dataRows.filter((row) => {
+  const aliasValue = String(row[beneficiaryColumnIndex]?.value || "").toLowerCase();
+  const aliasMemberValue = aliasColumnIndex !== -1
+    ? String(row[aliasColumnIndex]?.value || "").toLowerCase()
+    : "";
+  return aliasValue.includes(query) || aliasMemberValue.includes(query);
+});
 ```
 
-## No Changes to These Files
+No UI changes needed -- same search icon, same input, just broader matching.
 
-- `HTMLViewer.tsx` and `FundTrailViewer.tsx` use icon-only buttons (no visible text labels), so no translation changes are needed there.
+---
+
+## Task 2: ExcelViewer -- Add Search for Beneficiary Name + Alias
+
+**File:** `src/components/app/ExcelViewer.tsx`
+
+This table currently has NO search. We add search identical in UI/UX to SummaryTableViewer's pattern: a Search icon in the Beneficiary Name header (column index 1, row 2) that expands into an inline input.
+
+### 2a. Add state and imports
+
+Add `Search`, `X` imports from lucide-react and new state variables:
+- `searchQuery` (string)
+- `isSearchOpen` (boolean)
+- `searchInputRef` (ref for auto-focus)
+
+### 2b. Identify the "Alias" / "Similar Names" column index
+
+Add a `useMemo` that scans Row 2 headers to find the last column whose header contains "alias" or "similar names". This will be the secondary search column.
+
+### 2c. Filter displayData
+
+Add a `useMemo` that filters `processedData` rows (index 2+) based on the search query matching either:
+- Column 1 (Beneficiary Name), OR
+- The identified Alias/Similar Names column
+
+Header rows (0-1) are always kept. The filtered data replaces `displayData` in the render.
+
+### 2d. Render search UI in the header
+
+In the sticky header rendering (row index 1, column index 1), replace the plain header text with the same toggle pattern used in SummaryTableViewer:
+- When closed: header text + Search icon button
+- When open: Search icon + Input + X close button
+
+### 2e. Auto-focus behavior
+
+Same `useEffect` pattern as SummaryTableViewer to focus input when search opens.
+
+---
+
+## Files Modified
+
+| File | Change |
+|------|--------|
+| `src/components/app/SummaryTableViewer.tsx` | Extend filter to check Alias Members column |
+| `src/components/app/ExcelViewer.tsx` | Add search state, filter logic, and search UI in header |
+
+## No Other Changes
+
+- No i18n changes needed (reuse existing `analysis.searchBeneficiary` key or use a similar placeholder)
+- No changes to `CaseAnalysisResults.tsx`
 

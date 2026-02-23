@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Download } from 'lucide-react';
+import { Download, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { useTranslation } from 'react-i18next';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { CellData } from '@/utils/excelParser';
 import JSZip from 'jszip';
@@ -59,10 +61,16 @@ export default function ExcelViewer({
   onCachePOIData,
 }: ExcelViewerProps) {
   const { resolvedTheme } = useTheme();
+  const { t } = useTranslation();
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [processedData, setProcessedData] = useState<CellData[][]>([]);
   // State to store column indices that should be formatted as currency (INR)
   const [currencyColumnIndices, setCurrencyColumnIndices] = useState<number[]>([]);
+  
+  // Search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Beneficiary drill-down state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -71,6 +79,27 @@ export default function ExcelViewer({
   const [filteredTransactions, setFilteredTransactions] = useState<TransactionRow[]>([]);
   const [poiTransactions, setPOITransactions] = useState<POITransactionRow[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  
+  // Focus search input when opened
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+  
+  // Find alias/similar names column index in Row 2 for search
+  const aliasSearchColumnIndex = useMemo(() => {
+    if (processedData.length < 2) return -1;
+    const headerRow = processedData[1];
+    let lastAliasIdx = -1;
+    headerRow.forEach((cell, idx) => {
+      const val = String(cell?.value || '').toLowerCase().trim();
+      if (val.includes('alias') || val.includes('similar names')) {
+        lastAliasIdx = idx;
+      }
+    });
+    return lastAliasIdx;
+  }, [processedData]);
 
   // Find column indices from Row 2 (index 1) headers for beneficiary drill-down
   const columnIndices = useMemo(() => {
@@ -481,28 +510,34 @@ export default function ExcelViewer({
     loadPreview();
   }, [fileUrl]);
   
-  if (!data || data.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            {title}
-            {onDownload && (
-              <Button onClick={onDownload} variant="outline" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">No data available</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Filter data based on search query (check Beneficiary Name col 1 + alias column)
+  const filteredDisplayData = useMemo(() => {
+    const sliced = processedData.slice(0, maxRows);
+    if (!searchQuery.trim() || !enableBeneficiaryClick) return sliced;
+    
+    const query = searchQuery.toLowerCase().trim();
+    const headerRows = sliced.slice(0, 2);
+    const dataRows = sliced.slice(2).filter((row) => {
+      const beneficiaryValue = String(row[1]?.value || '').toLowerCase();
+      const aliasValue = aliasSearchColumnIndex !== -1
+        ? String(row[aliasSearchColumnIndex]?.value || '').toLowerCase()
+        : '';
+      return beneficiaryValue.includes(query) || aliasValue.includes(query);
+    });
+    return [...headerRows, ...dataRows];
+  }, [processedData, maxRows, searchQuery, enableBeneficiaryClick, aliasSearchColumnIndex]);
 
-  const displayData = processedData.slice(0, maxRows);
+  // Handle search close
+  const handleCloseSearch = () => {
+    setIsSearchOpen(false);
+    setSearchQuery("");
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") handleCloseSearch();
+  };
+
+  const displayData = filteredDisplayData;
 
   const getCellStyle = useCallback((cell: CellData, rowIndex: number, colIndex: number) => {
     const style: React.CSSProperties = {};
@@ -633,6 +668,27 @@ export default function ExcelViewer({
     };
   };
 
+  if (!data || data.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            {title}
+            {onDownload && (
+              <Button onClick={onDownload} variant="outline" size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Download
+              </Button>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-muted-foreground">No data available</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="p-4 sm:p-6">
@@ -703,7 +759,50 @@ export default function ExcelViewer({
                                 style={{ ...style, backgroundColor: style.backgroundColor || 'hsl(var(--background))' }}
                                 className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left font-semibold ${stickyClass}`}
                               >
-                                {cellContent.truncated ? (
+                                {/* Search UI for Beneficiary Name column (row 1, col 1) */}
+                                {enableBeneficiaryClick && rowIndex === 1 && colIndex === 1 ? (
+                                  <div className="flex items-center gap-1">
+                                    {isSearchOpen ? (
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <Search className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                                        <Input
+                                          ref={searchInputRef}
+                                          type="text"
+                                          value={searchQuery}
+                                          onChange={(e) => setSearchQuery(e.target.value)}
+                                          onKeyDown={handleSearchKeyDown}
+                                          placeholder={t('analysis.searchBeneficiary')}
+                                          className="h-6 text-xs border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 p-0 placeholder:text-muted-foreground/60"
+                                        />
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCloseSearch();
+                                          }}
+                                          className="p-0.5 hover:bg-muted-foreground/20 rounded transition-colors"
+                                        >
+                                          <X className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <>
+                                        <span className="block truncate overflow-hidden text-ellipsis">
+                                          {cellContent.text}
+                                        </span>
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsSearchOpen(true);
+                                          }}
+                                          className="p-1 hover:bg-muted-foreground/20 rounded transition-colors flex-shrink-0"
+                                          title="Search beneficiaries"
+                                        >
+                                          <Search className="h-3.5 w-3.5 text-muted-foreground" />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                ) : cellContent.truncated ? (
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span className="block truncate overflow-hidden text-ellipsis">

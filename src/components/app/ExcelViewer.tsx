@@ -155,10 +155,8 @@ export default function ExcelViewer({
   }, [columnIndices]);
 
   // Handle beneficiary click
-  const handleBeneficiaryClick = useCallback(async (rowIndex: number) => {
-    if (!enableBeneficiaryClick || !zipData || !columnIndices || rowIndex < 2) return;
-    
-    const row = processedData[rowIndex];
+  const handleBeneficiaryClick = useCallback(async (row: CellData[]) => {
+    if (!enableBeneficiaryClick || !zipData || !columnIndices) return;
     const beneficiaryName = String(row[1]?.value || '').trim();
     if (!beneficiaryName) return;
     
@@ -338,7 +336,7 @@ export default function ExcelViewer({
     } finally {
       setIsLoadingTransactions(false);
     }
-  }, [enableBeneficiaryClick, zipData, columnIndices, processedData, findSourceFile, rawDataCache, poiDataCache, onCacheRawData, onCachePOIData]);
+  }, [enableBeneficiaryClick, zipData, columnIndices, findSourceFile, rawDataCache, poiDataCache, onCacheRawData, onCachePOIData]);
 
   // Check if a cell should be clickable (beneficiary column)
   const isBeneficiaryCell = useCallback((rowIndex: number, colIndex: number): boolean => {
@@ -864,6 +862,8 @@ export default function ExcelViewer({
 
                               const cellContent = truncateText(displayValue);
                               const isClickable = isBeneficiaryCell(rowIndex, colIndex);
+                              const isAliasColumn = colIndex === aliasSearchColumnIndex && aliasSearchColumnIndex !== -1;
+                              const showTooltip = cellContent.truncated || (isAliasColumn && displayValue.length > 0);
 
                               // Determine sticky column classes for body cells
                               const bodyStickyClass = colIndex === 0 
@@ -882,7 +882,7 @@ export default function ExcelViewer({
                                   {isClickable ? (
                                     <button
                                       type="button"
-                                      onClick={() => handleBeneficiaryClick(rowIndex)}
+                                      onClick={() => handleBeneficiaryClick(row)}
                                       className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
                                       style={{ color: style.color || 'inherit' }}
                                       title={`View transactions for ${displayValue}`}
@@ -906,16 +906,16 @@ export default function ExcelViewer({
                                         </span>
                                       )}
                                     </button>
-                                  ) : cellContent.truncated ? (
+                                  ) : showTooltip ? (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className="cursor-help block truncate overflow-hidden text-ellipsis">
-                                          {cellContent.text}
+                                          {cellContent.truncated ? cellContent.text : displayValue}
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
                                         <p className="whitespace-pre-wrap break-words text-xs">
-                                          {cellContent.original}
+                                          {cellContent.truncated ? cellContent.original : displayValue}
                                         </p>
                                       </TooltipContent>
                                     </Tooltip>

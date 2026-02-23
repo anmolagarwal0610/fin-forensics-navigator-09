@@ -129,8 +129,11 @@ export default function SummaryTableViewer({
     if (searchQuery.trim() && beneficiaryColumnIndex !== -1) {
       const query = searchQuery.toLowerCase().trim();
       dataRows = dataRows.filter((row) => {
-        const cellValue = String(row[beneficiaryColumnIndex]?.value || "").toLowerCase();
-        return cellValue.includes(query);
+        const aliasValue = String(row[beneficiaryColumnIndex]?.value || "").toLowerCase();
+        const aliasMemberValue = aliasColumnIndex !== -1
+          ? String(row[aliasColumnIndex]?.value || "").toLowerCase()
+          : "";
+        return aliasValue.includes(query) || aliasMemberValue.includes(query);
       });
     }
 

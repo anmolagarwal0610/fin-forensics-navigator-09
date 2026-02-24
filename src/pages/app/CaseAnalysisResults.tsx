@@ -265,36 +265,51 @@ export default function CaseAnalysisResults() {
     
     setIsApplyingChanges(true);
     try {
-      // 1. Build grouping_logic.json
-      const overridesPayload: any = { version: "1.0", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), overrides: { individual: {} as Record<string, any[]>, cross_file: [] as any[] } };
+      // 1. Build grouping_logic.json (versioned format)
+      let existingVersions: any[] = [];
       
-      // Check if existing grouping_logic.json exists in ZIP
+      // Load existing versions from ZIP (if any)
       const existingFile = analysisData.zipData.file("grouping_logic.json");
       if (existingFile) {
         try {
           const existingData = JSON.parse(await existingFile.async("text"));
-          overridesPayload.created_at = existingData.created_at || overridesPayload.created_at;
-          if (existingData.overrides?.cross_file) overridesPayload.overrides.cross_file = [...existingData.overrides.cross_file];
-          if (existingData.overrides?.individual) overridesPayload.overrides.individual = { ...existingData.overrides.individual };
+          if (existingData.versions) {
+            existingVersions = existingData.versions;
+          }
         } catch (e) {
           console.warn("Failed to parse existing grouping_logic.json:", e);
         }
       }
 
-      // Append cross_file overrides
+      // Build new version from current user changes
+      const newVersion: any = {
+        version: existingVersions.length + 1,
+        timestamp: new Date().toISOString(),
+        overrides: {
+          individual: {} as Record<string, any[]>,
+          cross_file: [] as any[]
+        }
+      };
+
+      // Add cross_file overrides
       for (const [cluster, state] of Object.entries(groupingOverrides.cross_file)) {
-        if (state.demerged.length > 0) overridesPayload.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
-        if (state.merged.length > 0) overridesPayload.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+        if (state.demerged.length > 0) newVersion.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+        if (state.merged.length > 0) newVersion.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
       }
 
-      // Append individual overrides
+      // Add individual overrides
       for (const [fileName, clusters] of Object.entries(groupingOverrides.individual)) {
-        if (!overridesPayload.overrides.individual[fileName]) overridesPayload.overrides.individual[fileName] = [];
+        if (!newVersion.overrides.individual[fileName]) newVersion.overrides.individual[fileName] = [];
         for (const [cluster, state] of Object.entries(clusters)) {
-          if (state.demerged.length > 0) overridesPayload.overrides.individual[fileName].push({ action: "demerge", target_cluster: cluster, names: state.demerged });
-          if (state.merged.length > 0) overridesPayload.overrides.individual[fileName].push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+          if (state.demerged.length > 0) newVersion.overrides.individual[fileName].push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+          if (state.merged.length > 0) newVersion.overrides.individual[fileName].push({ action: "merge_into", target_cluster: cluster, names: state.merged });
         }
       }
+
+      // Append new version to existing versions
+      const overridesPayload = {
+        versions: [...existingVersions, newVersion]
+      };
 
       // 2. Extract raw_transactions_*.xlsx and build new ZIP
       const newZip = new JSZip();

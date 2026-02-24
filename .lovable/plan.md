@@ -1,74 +1,84 @@
 
 
-# Plan: Three Bug Fixes for Edit Grouped Names Feature
+# Plan: Fix Scroll Issues in Three Locations
 
-## Bug 1: Change "Cross-File Changes" heading to "Merged Name Changes"
+## Root Cause (All 3 Issues)
 
-**File:** `src/components/app/ApplyChangesDialog.tsx`
+The Radix UI `ScrollArea` component needs its root to have a definite height (not just `max-height`) for scrolling to work. The internal `Viewport` is set to `h-full w-full`, so when the root only has `max-h-*`, the Viewport expands unbounded and the scrollbar never appears. The content simply gets clipped by `overflow-hidden` on the outer container.
 
-**Change at line 128:** Replace the text "Cross-File Changes" with "Merged Name Changes".
-
-Additionally, the ScrollArea on line 121 already has `max-h-[55vh]`, but the outer `DialogContent` does not allow proper scrolling when content overflows. The fix is to ensure the content area properly scrolls by keeping the current ScrollArea but making sure the container layout is correct. The current implementation actually already uses ScrollArea -- the issue is likely that the content div inside the ScrollArea needs to not constrain height. Will verify the ScrollArea wraps all change entries (both cross-file and individual) and ensure the max-h allows scrolling.
+**Solution:** Replace `ScrollArea` with native `div` + `overflow-y-auto` in these three locations. This is simpler and reliable for dynamic-height containers with `max-h-*` constraints.
 
 ---
 
-## Bug 2: Search results dropdown not scrollable (only shows ~4 items)
+## Fix 1: Search Dropdown in EditGroupedNamesDialog
 
 **File:** `src/components/app/EditGroupedNamesDialog.tsx`
 
-**Root Cause:** Line 128 limits results to 20 with `.slice(0, 20)`, but the dropdown container at line 249 has `max-h-48` (192px) which only fits about 4 items. The ScrollArea inside it also has `max-h-48`. The issue is that ScrollArea needs a fixed height to enable scrolling, and the inner content needs to overflow.
+**Line 249-276:** Replace the outer `div` + `ScrollArea` with a single scrollable div:
 
-**Fix:**
-- Remove the `.slice(0, 20)` limit on line 128 (or increase it significantly, e.g., 50)
-- Increase `max-h-48` to `max-h-64` (256px, ~6-7 items visible) on both the container div (line 249) and ScrollArea (line 250)
-- The ScrollArea will handle scrolling for the full list
+```
+Before:
+<div class="... max-h-64 overflow-hidden">
+  <ScrollArea class="max-h-64">
+    ...content...
+  </ScrollArea>
+</div>
+
+After:
+<div class="... max-h-64 overflow-y-auto">
+  ...content (no ScrollArea wrapper)...
+</div>
+```
+
+This enables native browser scrolling when more than ~6 results appear.
 
 ---
 
-## Bug 3: Individual file pending overrides not showing when re-opening Edit Grouped Names
+## Fix 2: Review Changes Dialog (ApplyChangesDialog)
 
-**File:** `src/pages/app/CaseAnalysisResults.tsx`
+**File:** `src/components/app/ApplyChangesDialog.tsx`
 
-**Root Cause:** Key mismatch between save and lookup:
-- **Save path** (in `SummaryTableViewer.tsx` line 593): calls `onSaveGroupingOverride("individual", ..., derivedFileName)` where `derivedFileName` strips both `summary_` prefix AND `.xlsx` extension (e.g., `"SHAUKUSHYA_7467248362-2"`)
-- **Lookup path** (in `CaseAnalysisResults.tsx` line 1479): uses `summary.summaryFile.replace('summary_', '')` which only strips the prefix but keeps `.xlsx` (e.g., `"SHAUKUSHYA_7467248362-2.xlsx"`)
+**Line 121-175:** Replace `ScrollArea` with a scrollable div:
 
-So the lookup key never matches the saved key.
-
-**Fix at line 1479:** Change:
 ```
-groupingOverrides.individual[summary.summaryFile.replace('summary_', '')] || {}
-```
-to:
-```
-groupingOverrides.individual[summary.summaryFile.replace(/^summary_/i, '').replace(/\.xlsx$/i, '')] || {}
-```
+Before:
+<ScrollArea class="flex-1 px-4 ... max-h-[55vh]">
+  <div class="space-y-5">...changes...</div>
+</ScrollArea>
 
-This makes the lookup key match `derivedFileName`'s logic exactly.
+After:
+<div class="flex-1 px-4 ... max-h-[55vh] overflow-y-auto">
+  <div class="space-y-5">...changes...</div>
+</div>
+```
 
 ---
 
-## JSON Rules Verification
+## Fix 3: Grouped Names & Removed Names Columns
 
-Reviewing the current implementation against the 5 rules:
+**File:** `src/components/app/EditGroupedNamesDialog.tsx`
 
-1. **Demerge** -- Correctly implemented. `removedNames` from `EditGroupedNamesDialog` become `demerged` in the override, and are written as `{ action: "demerge", ... }` entries.
+**Lines 289 and 352:** The Grouped Names and Removed Names columns currently use `ScrollArea` with `h-[200px] sm:h-[280px]`. These also need to use native scrolling. Additionally, cap the visible area to approximately 5 items (~200px) to ensure the dialog does not grow excessively:
 
-2. **Merge into** -- Correctly implemented. Newly added names become `merged` in the override, written as `{ action: "merge_into", ... }` entries.
+```
+Before:
+<ScrollArea class="flex-1 h-[200px] sm:h-[280px] rounded-lg border ...">
 
-3. **Merge with exclusion** -- NOT automatically handled. When a user adds "Amit Gupta" (with members Amit Gupta, A Gupta, Amit G) into "Amit Kumar"'s group but removes "A Gupta" via X: the current code correctly adds ["Amit Gupta", "Amit G"] as `merge_into` on "Amit Kumar". However, it does NOT auto-create a `demerge` on "Amit Gupta"'s cluster for ["A Gupta"]. The user would need to separately open "Amit Gupta"'s group and demerge "A Gupta" there. This is a missing feature but is NOT in scope for these 3 bug fixes -- flagging it for awareness.
+After:
+<div class="flex-1 max-h-[200px] sm:max-h-[240px] overflow-y-auto rounded-lg border ...">
+```
 
-4. **Cumulative** -- Correctly implemented. The `handleApplyChanges` function loads existing `grouping_logic.json` from the ZIP and appends new overrides.
-
-5. **Exact name matching** -- Correctly implemented. Names are stored exactly as displayed in the UI. The `target_cluster` key uses `.toLowerCase()` for internal state lookup only; actual names in the JSON entries preserve original casing.
+Using `max-h` instead of fixed `h` lets the box shrink when there are few items, but caps at ~5 visible items and scrolls beyond that.
 
 ---
 
-## Summary of Changes
+## Summary
 
-| File | Change |
-|------|--------|
-| `src/components/app/ApplyChangesDialog.tsx` | Rename "Cross-File Changes" to "Merged Name Changes" |
-| `src/components/app/EditGroupedNamesDialog.tsx` | Increase search dropdown max-height and result limit for scrollability |
-| `src/pages/app/CaseAnalysisResults.tsx` | Fix key mismatch: strip `.xlsx` extension in pendingOverrides lookup |
+| File | Location | Change |
+|------|----------|--------|
+| `EditGroupedNamesDialog.tsx` | Lines 249-276 | Replace ScrollArea with `overflow-y-auto` div for search dropdown |
+| `EditGroupedNamesDialog.tsx` | Lines 289, 352 | Replace ScrollArea with `overflow-y-auto` div for Grouped/Removed columns |
+| `ApplyChangesDialog.tsx` | Lines 121-175 | Replace ScrollArea with `overflow-y-auto` div for changes list |
+
+No other logic, state, or flow changes. Only scroll containers are updated.
 

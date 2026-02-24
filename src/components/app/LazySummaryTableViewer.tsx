@@ -3,6 +3,7 @@
  import SummaryTableViewer from "./SummaryTableViewer";
  import { Loader2 } from "lucide-react";
  import JSZip from "jszip";
+ import type { GroupingOverrideResult, PendingClusterState } from "./EditGroupedNamesDialog";
  
  interface LazySummaryTableViewerProps {
    summaryFileName: string;
@@ -12,6 +13,8 @@
    cachedData?: CellData[][];
    onCacheData?: (fileName: string, data: CellData[][]) => void;
    onLoadRawData?: () => Promise<CellData[][] | null>;
+   onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
+   pendingOverrides?: Record<string, PendingClusterState>;
  }
  
  export default function LazySummaryTableViewer({
@@ -21,7 +24,9 @@
    isExpanded,
    cachedData,
    onCacheData,
-   onLoadRawData
+   onLoadRawData,
+   onSaveGroupingOverride,
+   pendingOverrides,
  }: LazySummaryTableViewerProps) {
    const [data, setData] = useState<CellData[][] | undefined>(cachedData);
    const [isLoading, setIsLoading] = useState(false);
@@ -90,6 +95,8 @@
        fileName={summaryFileName}
        rawTransactionsFileName={rawTransactionsFileName}
        onLoadRawData={onLoadRawData}
+       onSaveGroupingOverride={onSaveGroupingOverride}
+       pendingOverrides={pendingOverrides}
      />
    );
  }

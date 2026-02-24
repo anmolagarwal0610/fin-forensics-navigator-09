@@ -11,6 +11,7 @@ import JSZip from 'jszip';
 import { parseExcelFile } from '@/utils/excelParser';
 import BeneficiaryTransactionsDialog, { TransactionRow } from './BeneficiaryTransactionsDialog';
 import POITransactionsDialog, { POITransactionRow } from './POITransactionsDialog';
+import EditGroupedNamesDialog, { BeneficiaryEntry, GroupingOverrideResult, PendingClusterState } from './EditGroupedNamesDialog';
 import { useTheme } from 'next-themes';
 
 interface MergedRange {
@@ -45,6 +46,9 @@ interface ExcelViewerProps {
   poiDataCache?: Map<string, CellData[][]>;
   onCacheRawData?: (fileName: string, data: CellData[][]) => void;
   onCachePOIData?: (fileName: string, data: CellData[][]) => void;
+  // Grouping overrides
+  onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
+  pendingOverrides?: Record<string, PendingClusterState>;
 }
 
 export default function ExcelViewer({ 
@@ -59,6 +63,8 @@ export default function ExcelViewer({
   poiDataCache,
   onCacheRawData,
   onCachePOIData,
+  onSaveGroupingOverride,
+  pendingOverrides,
 }: ExcelViewerProps) {
   const { resolvedTheme } = useTheme();
   const { t } = useTranslation();
@@ -79,6 +85,10 @@ export default function ExcelViewer({
   const [filteredTransactions, setFilteredTransactions] = useState<TransactionRow[]>([]);
   const [poiTransactions, setPOITransactions] = useState<POITransactionRow[]>([]);
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(false);
+  
+  // Edit Grouped Names state
+  const [editGroupedOpen, setEditGroupedOpen] = useState(false);
+  const [selectedRowData, setSelectedRowData] = useState<CellData[] | null>(null);
   
   // Focus search input when opened
   useEffect(() => {
@@ -128,7 +138,21 @@ export default function ExcelViewer({
     return { filesPresentIdx, similarNamesIdx, totalCreditDebitIndices, fileRow };
   }, [enableBeneficiaryClick, processedData]);
 
-  // Find source file for single-file beneficiary (Files Present = 1)
+  // Build allBeneficiaries list for EditGroupedNamesDialog search
+  const allBeneficiaries = useMemo((): BeneficiaryEntry[] => {
+    if (!enableBeneficiaryClick || processedData.length < 3 || !columnIndices) return [];
+    const { similarNamesIdx } = columnIndices;
+    return processedData.slice(2).map(row => {
+      const name = String(row[1]?.value || '').trim();
+      const aliasStr = similarNamesIdx !== -1 ? String(row[similarNamesIdx]?.value || '') : '';
+      const aliases = aliasStr
+        .split(',')
+        .map(a => a.trim())
+        .filter(a => a.length > 0 && a.toLowerCase() !== name.toLowerCase());
+      return { name, aliases };
+    }).filter(e => e.name.length > 0);
+  }, [enableBeneficiaryClick, processedData, columnIndices]);
+
   const findSourceFile = useCallback((row: CellData[]): string | null => {
     if (!columnIndices) return null;
     
@@ -155,14 +179,13 @@ export default function ExcelViewer({
   }, [columnIndices]);
 
   // Handle beneficiary click
-  const handleBeneficiaryClick = useCallback(async (rowIndex: number) => {
-    if (!enableBeneficiaryClick || !zipData || !columnIndices || rowIndex < 2) return;
-    
-    const row = processedData[rowIndex];
+  const handleBeneficiaryClick = useCallback(async (row: CellData[]) => {
+    if (!enableBeneficiaryClick || !zipData || !columnIndices) return;
     const beneficiaryName = String(row[1]?.value || '').trim();
     if (!beneficiaryName) return;
     
     setSelectedBeneficiary(beneficiaryName);
+    setSelectedRowData(row);
     setIsLoadingTransactions(true);
     
     const filesPresent = parseInt(String(row[columnIndices.filesPresentIdx]?.value || '0'));
@@ -338,7 +361,7 @@ export default function ExcelViewer({
     } finally {
       setIsLoadingTransactions(false);
     }
-  }, [enableBeneficiaryClick, zipData, columnIndices, processedData, findSourceFile, rawDataCache, poiDataCache, onCacheRawData, onCachePOIData]);
+  }, [enableBeneficiaryClick, zipData, columnIndices, findSourceFile, rawDataCache, poiDataCache, onCacheRawData, onCachePOIData]);
 
   // Check if a cell should be clickable (beneficiary column)
   const isBeneficiaryCell = useCallback((rowIndex: number, colIndex: number): boolean => {
@@ -864,6 +887,8 @@ export default function ExcelViewer({
 
                               const cellContent = truncateText(displayValue);
                               const isClickable = isBeneficiaryCell(rowIndex, colIndex);
+                              const isAliasColumn = colIndex === aliasSearchColumnIndex && aliasSearchColumnIndex !== -1;
+                              const showTooltip = cellContent.truncated || (isAliasColumn && displayValue.length > 0);
 
                               // Determine sticky column classes for body cells
                               const bodyStickyClass = colIndex === 0 
@@ -882,7 +907,7 @@ export default function ExcelViewer({
                                   {isClickable ? (
                                     <button
                                       type="button"
-                                      onClick={() => handleBeneficiaryClick(rowIndex)}
+                                      onClick={() => handleBeneficiaryClick(row)}
                                       className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
                                       style={{ color: style.color || 'inherit' }}
                                       title={`View transactions for ${displayValue}`}
@@ -906,16 +931,16 @@ export default function ExcelViewer({
                                         </span>
                                       )}
                                     </button>
-                                  ) : cellContent.truncated ? (
+                                  ) : showTooltip ? (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
                                         <span className="cursor-help block truncate overflow-hidden text-ellipsis">
-                                          {cellContent.text}
+                                          {cellContent.truncated ? cellContent.text : displayValue}
                                         </span>
                                       </TooltipTrigger>
                                       <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
                                         <p className="whitespace-pre-wrap break-words text-xs">
-                                          {cellContent.original}
+                                          {cellContent.truncated ? cellContent.original : displayValue}
                                         </p>
                                       </TooltipContent>
                                     </Tooltip>
@@ -952,6 +977,9 @@ export default function ExcelViewer({
         beneficiaryName={selectedBeneficiary}
         transactions={filteredTransactions}
         isLoading={isLoadingTransactions}
+        onEditGroupedNames={onSaveGroupingOverride ? () => {
+          setEditGroupedOpen(true);
+        } : undefined}
       />
       
       <POITransactionsDialog
@@ -963,7 +991,33 @@ export default function ExcelViewer({
         beneficiaryName={selectedBeneficiary}
         transactions={poiTransactions}
         isLoading={isLoadingTransactions}
+        onEditGroupedNames={onSaveGroupingOverride ? () => {
+          setEditGroupedOpen(true);
+        } : undefined}
       />
+
+      {/* Edit Grouped Names Dialog */}
+      {onSaveGroupingOverride && (
+        <EditGroupedNamesDialog
+          open={editGroupedOpen}
+          onClose={() => setEditGroupedOpen(false)}
+          targetCluster={selectedBeneficiary}
+          currentMembers={
+            selectedRowData && columnIndices?.similarNamesIdx !== undefined && columnIndices.similarNamesIdx !== -1
+              ? String(selectedRowData[columnIndices.similarNamesIdx]?.value || '')
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(s => s.length > 0)
+              : []
+          }
+          allBeneficiaries={allBeneficiaries}
+          context="cross_file"
+          existingOverrides={pendingOverrides?.[selectedBeneficiary.toLowerCase()]}
+          onSave={(overrides) => {
+            onSaveGroupingOverride("cross_file", selectedBeneficiary, overrides);
+          }}
+        />
+      )}
     </Card>
   );
 }

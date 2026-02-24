@@ -2,7 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, X, Download } from "lucide-react";
+import { AlertTriangle, X, Download, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 
@@ -23,6 +23,7 @@ interface POITransactionsDialogProps {
   beneficiaryName: string;
   transactions: POITransactionRow[];
   isLoading?: boolean;
+  onEditGroupedNames?: () => void;
 }
 
 export default function POITransactionsDialog({
@@ -31,6 +32,7 @@ export default function POITransactionsDialog({
   beneficiaryName,
   transactions,
   isLoading = false,
+  onEditGroupedNames,
 }: POITransactionsDialogProps) {
   
   const formatAmount = (value: number | string): string => {
@@ -115,9 +117,22 @@ export default function POITransactionsDialog({
                 </p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
-              {transactions.length} {transactions.length === 1 ? "tx" : "txs"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {onEditGroupedNames && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 shrink-0"
+                  onClick={onEditGroupedNames}
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span className="text-xs hidden sm:inline">Edit Grouped Names</span>
+                </Button>
+              )}
+              <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 shrink-0">
+                {transactions.length} {transactions.length === 1 ? "tx" : "txs"}
+              </Badge>
+            </div>
           </div>
         </DialogHeader>
 

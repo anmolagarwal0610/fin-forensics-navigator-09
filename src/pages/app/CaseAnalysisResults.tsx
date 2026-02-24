@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
-import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2, BarChart3 } from "lucide-react";
+import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2, BarChart3, Settings2 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
@@ -25,11 +25,15 @@ import LazySummaryTableViewer from "@/components/app/LazySummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
 import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
+import ApplyChangesDialog, { GroupingOverridesState } from "@/components/app/ApplyChangesDialog";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import JSZip from "jszip";
 import * as XLSX from "xlsx";
+import { startJobFlow } from "@/hooks/useStartJob";
+import { useAuth } from "@/contexts/AuthContext";
+import type { GroupingOverrideResult, PendingClusterState } from "@/components/app/EditGroupedNamesDialog";
 
 // Helper function to truncate long file names while preserving extension
 const truncateFileName = (fileName: string, maxLength: number = 30): string => {
@@ -83,6 +87,8 @@ export default function CaseAnalysisResults() {
   const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
   const [selectedPOI, setSelectedPOI] = useState<ParsedAnalysisData["poiHtmlFiles"][0] | null>(null);
@@ -100,6 +106,80 @@ export default function CaseAnalysisResults() {
   
   // State for Fund Trail share dialog
   const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);
+  
+  // Grouping overrides state for name merge/demerge
+  const [groupingOverrides, setGroupingOverrides] = useState<{
+    cross_file: Record<string, PendingClusterState>;
+    individual: Record<string, Record<string, PendingClusterState>>;
+  }>({ cross_file: {}, individual: {} });
+
+  const handleSaveGroupingOverride = useCallback((
+    context: "cross_file" | "individual",
+    targetCluster: string,
+    overrides: GroupingOverrideResult,
+    fileName?: string
+  ) => {
+    setGroupingOverrides(prev => {
+      const next = { ...prev };
+      const key = targetCluster.toLowerCase();
+      if (context === "cross_file") {
+        next.cross_file = { ...prev.cross_file, [key]: overrides };
+      } else if (fileName) {
+        const fileOverrides = { ...(prev.individual[fileName] || {}) };
+        fileOverrides[key] = overrides;
+        next.individual = { ...prev.individual, [fileName]: fileOverrides };
+      }
+      return next;
+    });
+  }, []);
+
+  const hasGroupingChanges = useMemo(() => {
+    if (Object.keys(groupingOverrides.cross_file).length > 0) return true;
+    return Object.values(groupingOverrides.individual).some(f => Object.keys(f).length > 0);
+  }, [groupingOverrides]);
+
+  // Apply Changes dialog state
+  const [applyChangesOpen, setApplyChangesOpen] = useState(false);
+  const [isApplyingChanges, setIsApplyingChanges] = useState(false);
+
+  const handleRemoveChange = useCallback((entry: { context: "cross_file" | "individual"; targetCluster: string; action: "demerge" | "merge_into"; fileName?: string }) => {
+    setGroupingOverrides(prev => {
+      const next = { ...prev };
+      const key = entry.targetCluster;
+      if (entry.context === "cross_file") {
+        const state = { ...(prev.cross_file[key] || { demerged: [], merged: [] }) };
+        if (entry.action === "demerge") state.demerged = [];
+        else state.merged = [];
+        // Remove entry if both empty
+        if (state.demerged.length === 0 && state.merged.length === 0) {
+          const { [key]: _, ...rest } = prev.cross_file;
+          next.cross_file = rest;
+        } else {
+          next.cross_file = { ...prev.cross_file, [key]: state };
+        }
+      } else if (entry.fileName) {
+        const fileOverrides = { ...(prev.individual[entry.fileName] || {}) };
+        const state = { ...(fileOverrides[key] || { demerged: [], merged: [] }) };
+        if (entry.action === "demerge") state.demerged = [];
+        else state.merged = [];
+        if (state.demerged.length === 0 && state.merged.length === 0) {
+          const { [key]: _, ...rest } = fileOverrides;
+          if (Object.keys(rest).length === 0) {
+            const { [entry.fileName]: __, ...restFiles } = prev.individual;
+            next.individual = restFiles;
+          } else {
+            next.individual = { ...prev.individual, [entry.fileName]: rest };
+          }
+        } else {
+          fileOverrides[key] = state;
+          next.individual = { ...prev.individual, [entry.fileName]: fileOverrides };
+        }
+      }
+      return next;
+    });
+  }, []);
+
+  
   
   // State for sharing individual graphs (Sankey/Node)
   const [shareGraphOpen, setShareGraphOpen] = useState(false);
@@ -178,6 +258,78 @@ export default function CaseAnalysisResults() {
   });
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
+
+  // Re-analysis flow: apply grouping changes and submit new job
+  const handleApplyChanges = async () => {
+    if (!analysisData?.zipData || !id || !user) return;
+    
+    setIsApplyingChanges(true);
+    try {
+      // 1. Build grouping_logic.json
+      const overridesPayload: any = { version: "1.0", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), overrides: { individual: {} as Record<string, any[]>, cross_file: [] as any[] } };
+      
+      // Check if existing grouping_logic.json exists in ZIP
+      const existingFile = analysisData.zipData.file("grouping_logic.json");
+      if (existingFile) {
+        try {
+          const existingData = JSON.parse(await existingFile.async("text"));
+          overridesPayload.created_at = existingData.created_at || overridesPayload.created_at;
+          if (existingData.overrides?.cross_file) overridesPayload.overrides.cross_file = [...existingData.overrides.cross_file];
+          if (existingData.overrides?.individual) overridesPayload.overrides.individual = { ...existingData.overrides.individual };
+        } catch (e) {
+          console.warn("Failed to parse existing grouping_logic.json:", e);
+        }
+      }
+
+      // Append cross_file overrides
+      for (const [cluster, state] of Object.entries(groupingOverrides.cross_file)) {
+        if (state.demerged.length > 0) overridesPayload.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+        if (state.merged.length > 0) overridesPayload.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+      }
+
+      // Append individual overrides
+      for (const [fileName, clusters] of Object.entries(groupingOverrides.individual)) {
+        if (!overridesPayload.overrides.individual[fileName]) overridesPayload.overrides.individual[fileName] = [];
+        for (const [cluster, state] of Object.entries(clusters)) {
+          if (state.demerged.length > 0) overridesPayload.overrides.individual[fileName].push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+          if (state.merged.length > 0) overridesPayload.overrides.individual[fileName].push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+        }
+      }
+
+      // 2. Extract raw_transactions_*.xlsx and build new ZIP
+      const newZip = new JSZip();
+      const rawFiles = Object.keys(analysisData.zipData.files).filter(n => n.startsWith("raw_transactions_") && n.endsWith(".xlsx"));
+      for (const rawFile of rawFiles) {
+        const file = analysisData.zipData.file(rawFile);
+        if (file) {
+          const content = await file.async("arraybuffer");
+          newZip.file(rawFile.replace("raw_transactions_", ""), content);
+        }
+      }
+      newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
+
+      const zipBlob = await newZip.generateAsync({ type: "blob" });
+      const zipFile = new File([zipBlob], "reanalysis.zip", { type: "application/zip" });
+
+      // 3. Store current result_zip_url in previous_result_zip_url
+      await supabase.from("cases").update({ previous_result_zip_url: case_?.result_zip_url }).eq("id", id);
+
+      // 4. Submit job
+      await startJobFlow([zipFile], "parse-statements", id, user.id, [], () => {}, undefined, true);
+
+      // 5. Clear state and navigate
+      setGroupingOverrides({ cross_file: {}, individual: {} });
+      setApplyChangesOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["case-results", id] });
+      toast({ title: "Re-analysis started", description: "Navigating to dashboard..." });
+      navigate("/app/dashboard");
+    } catch (error) {
+      console.error("Failed to apply changes:", error);
+      toast({ title: "Failed to apply changes", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setIsApplyingChanges(false);
+    }
+  };
 
   // Handle case not found error
   useEffect(() => {
@@ -795,10 +947,18 @@ export default function CaseAnalysisResults() {
             </h1>
             <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
-          <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
-            <Download className="h-4 w-4 mr-2" />
-            {t('analysisResults.downloadReport')}
-          </Button>
+          <div className="flex gap-2 w-full sm:w-auto">
+            {hasGroupingChanges && (
+              <Button onClick={() => setApplyChangesOpen(true)} size="default" variant="outline" className="gap-2 w-full sm:w-auto border-primary text-primary hover:bg-primary/10">
+                <Settings2 className="h-4 w-4" />
+                Apply Changes
+              </Button>
+            )}
+            <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
+              <Download className="h-4 w-4 mr-2" />
+              {t('analysisResults.downloadReport')}
+            </Button>
+          </div>
         </div>
 
         {/* Key Statistics */}
@@ -855,6 +1015,8 @@ export default function CaseAnalysisResults() {
             onCachePOIData={(fileName, data) => {
               analysisData.poiDataMap.set(fileName, data);
             }}
+            onSaveGroupingOverride={handleSaveGroupingOverride}
+            pendingOverrides={groupingOverrides.cross_file}
           />
         )}
 
@@ -1313,6 +1475,8 @@ export default function CaseAnalysisResults() {
                             ? () => loadRawTransactionsData(summary.rawTransactionsFile!)
                             : undefined
                           }
+                          onSaveGroupingOverride={handleSaveGroupingOverride}
+                          pendingOverrides={groupingOverrides.individual[summary.summaryFile.replace(/^summary_/i, '').replace(/\.xlsx$/i, '')] || {}}
                         />
                       </CollapsibleContent>
                     )}
@@ -1413,6 +1577,16 @@ export default function CaseAnalysisResults() {
           fundTrailHtml={shareGraphHtml}
         />
       )}
+
+      {/* Apply Changes Dialog */}
+      <ApplyChangesDialog
+        open={applyChangesOpen}
+        onClose={() => setApplyChangesOpen(false)}
+        overrides={groupingOverrides}
+        onRemoveChange={handleRemoveChange}
+        onApply={handleApplyChanges}
+        isApplying={isApplyingChanges}
+      />
     </>
   );
 }

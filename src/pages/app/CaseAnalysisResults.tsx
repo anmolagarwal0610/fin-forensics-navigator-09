@@ -1476,7 +1476,7 @@ export default function CaseAnalysisResults() {
                             : undefined
                           }
                           onSaveGroupingOverride={handleSaveGroupingOverride}
-                          pendingOverrides={groupingOverrides.individual[summary.summaryFile.replace('summary_', '')] || {}}
+                          pendingOverrides={groupingOverrides.individual[summary.summaryFile.replace(/^summary_/i, '').replace(/\.xlsx$/i, '')] || {}}
                         />
                       </CollapsibleContent>
                     )}

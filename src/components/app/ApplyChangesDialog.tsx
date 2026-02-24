@@ -125,7 +125,7 @@ export default function ApplyChangesDialog({
               <div>
                 <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary" />
-                  Cross-File Changes
+                  Merged Name Changes
                   <Badge variant="secondary" className="text-xs">{crossFileChanges.length}</Badge>
                 </h3>
                 <div className="space-y-2">

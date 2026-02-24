@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Badge } from "@/components/ui/badge";
 import { X, ArrowLeft, Search, Users, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -246,8 +246,7 @@ export default function EditGroupedNamesDialog({
             </div>
             {/* Search results dropdown */}
             {isSearchFocused && searchQuery.trim() && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-64 overflow-hidden">
-                <ScrollArea className="max-h-64">
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-64 overflow-y-auto">
                   {searchResults.length === 0 ? (
                     <div className="px-3 py-4 text-center text-sm text-muted-foreground">
                       No matching beneficiaries found
@@ -273,7 +272,6 @@ export default function EditGroupedNamesDialog({
                       ))}
                     </div>
                   )}
-                </ScrollArea>
               </div>
             )}
           </div>
@@ -286,7 +284,7 @@ export default function EditGroupedNamesDialog({
                 <h3 className="text-sm font-semibold text-foreground">Grouped Names</h3>
                 <Badge variant="secondary" className="text-xs">{groupedNames.length}</Badge>
               </div>
-              <ScrollArea className="flex-1 h-[200px] sm:h-[280px] rounded-lg border bg-green-50/50 dark:bg-green-950/10">
+              <div className="flex-1 max-h-[200px] sm:max-h-[240px] overflow-y-auto rounded-lg border bg-green-50/50 dark:bg-green-950/10">
                 <div className="p-2 space-y-1">
                   {groupedNames.map((name, idx) => {
                     const isPrimary = name.toLowerCase() === targetCluster.toLowerCase();
@@ -340,7 +338,7 @@ export default function EditGroupedNamesDialog({
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
 
             {/* Removed Names */}
@@ -349,7 +347,7 @@ export default function EditGroupedNamesDialog({
                 <h3 className="text-sm font-semibold text-foreground">Removed Names</h3>
                 <Badge variant="secondary" className="text-xs">{removedNames.length}</Badge>
               </div>
-              <ScrollArea className="flex-1 h-[200px] sm:h-[280px] rounded-lg border bg-red-50/50 dark:bg-red-950/10">
+              <div className="flex-1 max-h-[200px] sm:max-h-[240px] overflow-y-auto rounded-lg border bg-red-50/50 dark:bg-red-950/10">
                 <div className="p-2 space-y-1">
                   {removedNames.map((name, idx) => (
                     <div
@@ -375,7 +373,7 @@ export default function EditGroupedNamesDialog({
                     </div>
                   )}
                 </div>
-              </ScrollArea>
+              </div>
             </div>
           </div>
         </div>

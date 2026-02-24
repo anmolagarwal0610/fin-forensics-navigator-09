@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { Badge } from "@/components/ui/badge";
 import { X, GitMerge, GitBranch, FileText, Loader2 } from "lucide-react";
 import type { PendingClusterState } from "./EditGroupedNamesDialog";
@@ -118,7 +118,7 @@ export default function ApplyChangesDialog({
           </p>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 px-4 sm:px-6 py-3 sm:py-4 max-h-[55vh]">
+        <div className="flex-1 px-4 sm:px-6 py-3 sm:py-4 max-h-[55vh] overflow-y-auto">
           <div className="space-y-5">
             {/* Cross-file changes */}
             {crossFileChanges.length > 0 && (
@@ -172,7 +172,7 @@ export default function ApplyChangesDialog({
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-muted/30">
           <Button

@@ -125,7 +125,7 @@ export default function EditGroupedNamesDialog({
       // Check alias match
       if (b.aliases.some(a => a.toLowerCase().includes(q))) return true;
       return false;
-    }).slice(0, 20); // Limit results
+    }).slice(0, 50); // Limit results
   }, [searchQuery, allBeneficiaries, groupedLowerSet, targetCluster]);
 
   // Remove a name from grouped list
@@ -246,8 +246,8 @@ export default function EditGroupedNamesDialog({
             </div>
             {/* Search results dropdown */}
             {isSearchFocused && searchQuery.trim() && (
-              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-48 overflow-hidden">
-                <ScrollArea className="max-h-48">
+              <div className="absolute top-full left-0 right-0 z-50 mt-1 bg-popover border rounded-lg shadow-lg max-h-64 overflow-hidden">
+                <ScrollArea className="max-h-64">
                   {searchResults.length === 0 ? (
                     <div className="px-3 py-4 text-center text-sm text-muted-foreground">
                       No matching beneficiaries found

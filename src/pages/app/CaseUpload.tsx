@@ -59,6 +59,7 @@ export default function CaseUpload() {
   const [useHitl, setUseHitl] = useState(false);
   const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]); // Track original pre-existing filenames (from ZIP)
   const [originalDbFiles, setOriginalDbFiles] = useState<string[]>([]); // Track actual DB file names for accurate deletion
+  const [existingGroupingLogic, setExistingGroupingLogic] = useState<string | null>(null); // grouping_logic.json from previous result ZIP
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
   const { fetchFileForParsing } = useSecureDownload();
@@ -245,6 +246,14 @@ export default function CaseUpload() {
         }
       }
 
+      // Extract grouping_logic.json if it exists (invisible to user, forwarded to backend)
+      const groupingFile = zipData.file("grouping_logic.json");
+      if (groupingFile) {
+        const groupingContent = await groupingFile.async("text");
+        setExistingGroupingLogic(groupingContent);
+        console.log('📋 Extracted existing grouping_logic.json for forwarding');
+      }
+
       setFiles(preExistingFiles);
       // Store original pre-existing filenames for removal tracking
       setOriginalPreExistingFiles(preExistingFiles.map(f => f.name));
@@ -292,13 +301,21 @@ export default function CaseUpload() {
 
 
       // 1. Create NEW File objects with the sanitized names
-      const uploadFiles = files.map((f) => {
+      const uploadFiles: File[] = files.map((f) => {
         // We use your utility to get the clean name
         const cleanName = sanitizeFilename(f.name);
         
         // create a new File object with the same content but the NEW name
         return new File([f.file], cleanName, { type: f.file.type });
       });
+
+      // Include existing grouping_logic.json for add-files mode (invisible to user)
+      if (isAddFilesMode && existingGroupingLogic) {
+        const logicBlob = new Blob([existingGroupingLogic], { type: 'application/json' });
+        const logicFile = new File([logicBlob], 'grouping_logic.json', { type: 'application/json' });
+        uploadFiles.push(logicFile);
+        console.log('📋 Including grouping_logic.json in upload ZIP');
+      }
 
       // Extract passwords for protected files
       const passwords = files

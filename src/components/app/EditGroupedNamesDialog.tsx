@@ -15,6 +15,7 @@ export interface BeneficiaryEntry {
 export interface GroupingOverrideResult {
   demerged: string[];   // Names removed from original group
   merged: string[];     // Names added to the group (new additions)
+  autoDemerges?: Array<{ sourceCluster: string; names: string[] }>; // Auto-demerge on source clusters for excluded members
 }
 
 export interface PendingClusterState {
@@ -98,14 +99,14 @@ export default function EditGroupedNamesDialog({
     return set;
   }, [targetCluster, currentMembers]);
 
-  // Currently grouped names set (lowercase) for dedup
-  const groupedLowerSet = useMemo(() => 
-    new Set(groupedNames.map(n => n.toLowerCase())), 
+  // Currently grouped names set (exact) for dedup
+  const groupedSet = useMemo(() => 
+    new Set(groupedNames), 
     [groupedNames]
   );
   
-  const removedLowerSet = useMemo(() =>
-    new Set(removedNames.map(n => n.toLowerCase())),
+  const removedSet = useMemo(() =>
+    new Set(removedNames),
     [removedNames]
   );
 
@@ -115,9 +116,9 @@ export default function EditGroupedNamesDialog({
     const q = searchQuery.toLowerCase().trim();
     
     return allBeneficiaries.filter(b => {
-      // Don't show names already in group
-      if (groupedLowerSet.has(b.name.toLowerCase())) return false;
-      // Don't show the target cluster itself
+      // Don't show names already in group (exact match)
+      if (groupedSet.has(b.name)) return false;
+      // Don't show the target cluster itself (case-insensitive)
       if (b.name.toLowerCase() === targetCluster.toLowerCase()) return false;
       
       // Check name match
@@ -126,7 +127,7 @@ export default function EditGroupedNamesDialog({
       if (b.aliases.some(a => a.toLowerCase().includes(q))) return true;
       return false;
     }).slice(0, 50); // Limit results
-  }, [searchQuery, allBeneficiaries, groupedLowerSet, targetCluster]);
+  }, [searchQuery, allBeneficiaries, groupedSet, targetCluster]);
 
   // Remove a name from grouped list
   const handleRemove = useCallback((name: string) => {
@@ -135,7 +136,8 @@ export default function EditGroupedNamesDialog({
     const isOriginal = originalMembersSet.has(name.toLowerCase());
     const isNew = newlyAdded.has(name.toLowerCase());
     
-    setGroupedNames(prev => prev.filter(n => n.toLowerCase() !== name.toLowerCase()));
+    // Use exact string match to remove only this specific name
+    setGroupedNames(prev => prev.filter(n => n !== name));
     
     if (isOriginal && !isNew) {
       // Move to removed list
@@ -153,14 +155,22 @@ export default function EditGroupedNamesDialog({
 
   // Restore a removed name
   const handleRestore = useCallback((name: string) => {
-    setRemovedNames(prev => prev.filter(n => n.toLowerCase() !== name.toLowerCase()));
+    setRemovedNames(prev => prev.filter(n => n !== name));
     setGroupedNames(prev => [...prev, name]);
   }, []);
+
+  // Track which beneficiary entries were added (for auto-demerge computation)
+  const [addedBeneficiaries, setAddedBeneficiaries] = useState<BeneficiaryEntry[]>([]);
+
+  // Reset addedBeneficiaries when dialog opens
+  useEffect(() => {
+    if (open) setAddedBeneficiaries([]);
+  }, [open]);
 
   // Add a beneficiary from search results (with all their aliases)
   const handleAddBeneficiary = useCallback((entry: BeneficiaryEntry) => {
     const namesToAdd = [entry.name, ...entry.aliases].filter(
-      n => !groupedLowerSet.has(n.toLowerCase()) && !removedLowerSet.has(n.toLowerCase())
+      n => !groupedSet.has(n) && !removedSet.has(n)
     );
     
     if (namesToAdd.length === 0) return;
@@ -171,12 +181,14 @@ export default function EditGroupedNamesDialog({
       namesToAdd.forEach(n => next.add(n.toLowerCase()));
       return next;
     });
-    // Also remove from removed list if they were there
-    setRemovedNames(prev => prev.filter(n => !namesToAdd.some(a => a.toLowerCase() === n.toLowerCase())));
+    // Track the full beneficiary entry for auto-demerge
+    setAddedBeneficiaries(prev => [...prev, entry]);
+    // Also remove from removed list if they were there (exact match)
+    setRemovedNames(prev => prev.filter(n => !namesToAdd.some(a => a === n)));
     
     setSearchQuery("");
     setIsSearchFocused(false);
-  }, [groupedLowerSet, removedLowerSet]);
+  }, [groupedSet, removedSet]);
 
   // Check if there are changes
   const hasChanges = useMemo(() => {
@@ -186,9 +198,29 @@ export default function EditGroupedNamesDialog({
   }, [removedNames, newlyAdded]);
 
   const handleSave = () => {
+    const mergedNames = groupedNames.filter(n => newlyAdded.has(n.toLowerCase()));
+    
+    // Compute auto-demerges: for each added beneficiary, check if any of their
+    // aliases were excluded (not in final merged list). Those excluded names
+    // need a demerge on the source cluster.
+    const autoDemerges: Array<{ sourceCluster: string; names: string[] }> = [];
+    const mergedLowerSet = new Set(mergedNames.map(n => n.toLowerCase()));
+    
+    for (const entry of addedBeneficiaries) {
+      const allMembers = [entry.name, ...entry.aliases];
+      const excluded = allMembers.filter(m => 
+        !mergedLowerSet.has(m.toLowerCase()) && 
+        m.toLowerCase() !== targetCluster.toLowerCase()
+      );
+      if (excluded.length > 0) {
+        autoDemerges.push({ sourceCluster: entry.name, names: excluded });
+      }
+    }
+
     onSave({
       demerged: removedNames,
-      merged: groupedNames.filter(n => newlyAdded.has(n.toLowerCase())),
+      merged: mergedNames,
+      autoDemerges: autoDemerges.length > 0 ? autoDemerges : undefined,
     });
     onClose();
   };
@@ -221,7 +253,7 @@ export default function EditGroupedNamesDialog({
         </DialogHeader>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden px-4 sm:px-6 py-3 sm:py-4 space-y-4">
+        <div className="flex-1 overflow-visible px-4 sm:px-6 py-3 sm:py-4 space-y-4">
           {/* Search bar */}
           <div ref={searchContainerRef} className="relative">
             <div className="relative">

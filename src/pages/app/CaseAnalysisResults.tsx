@@ -8,7 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getCaseById, getCaseFiles, type CaseRecord, type CaseFileRecord } from "@/api/cases";
+import { getCaseById, getCaseFiles, addEvent, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
@@ -124,9 +124,31 @@ export default function CaseAnalysisResults() {
       const key = targetCluster.toLowerCase();
       if (context === "cross_file") {
         next.cross_file = { ...prev.cross_file, [key]: overrides };
+        // Process auto-demerges: create demerge entries on source clusters
+        if (overrides.autoDemerges) {
+          for (const ad of overrides.autoDemerges) {
+            const sourceKey = ad.sourceCluster.toLowerCase();
+            const existing = prev.cross_file[sourceKey] || { demerged: [], merged: [] };
+            next.cross_file[sourceKey] = {
+              ...existing,
+              demerged: [...existing.demerged, ...ad.names],
+            };
+          }
+        }
       } else if (fileName) {
         const fileOverrides = { ...(prev.individual[fileName] || {}) };
         fileOverrides[key] = overrides;
+        // Process auto-demerges for individual file context
+        if (overrides.autoDemerges) {
+          for (const ad of overrides.autoDemerges) {
+            const sourceKey = ad.sourceCluster.toLowerCase();
+            const existing = fileOverrides[sourceKey] || { demerged: [], merged: [] };
+            fileOverrides[sourceKey] = {
+              ...existing,
+              demerged: [...existing.demerged, ...ad.names],
+            };
+          }
+        }
         next.individual = { ...prev.individual, [fileName]: fileOverrides };
       }
       return next;
@@ -265,36 +287,51 @@ export default function CaseAnalysisResults() {
     
     setIsApplyingChanges(true);
     try {
-      // 1. Build grouping_logic.json
-      const overridesPayload: any = { version: "1.0", created_at: new Date().toISOString(), updated_at: new Date().toISOString(), overrides: { individual: {} as Record<string, any[]>, cross_file: [] as any[] } };
+      // 1. Build grouping_logic.json (versioned format)
+      let existingVersions: any[] = [];
       
-      // Check if existing grouping_logic.json exists in ZIP
+      // Load existing versions from ZIP (if any)
       const existingFile = analysisData.zipData.file("grouping_logic.json");
       if (existingFile) {
         try {
           const existingData = JSON.parse(await existingFile.async("text"));
-          overridesPayload.created_at = existingData.created_at || overridesPayload.created_at;
-          if (existingData.overrides?.cross_file) overridesPayload.overrides.cross_file = [...existingData.overrides.cross_file];
-          if (existingData.overrides?.individual) overridesPayload.overrides.individual = { ...existingData.overrides.individual };
+          if (existingData.versions) {
+            existingVersions = existingData.versions;
+          }
         } catch (e) {
           console.warn("Failed to parse existing grouping_logic.json:", e);
         }
       }
 
-      // Append cross_file overrides
+      // Build new version from current user changes
+      const newVersion: any = {
+        version: existingVersions.length + 1,
+        timestamp: new Date().toISOString(),
+        overrides: {
+          individual: {} as Record<string, any[]>,
+          cross_file: [] as any[]
+        }
+      };
+
+      // Add cross_file overrides
       for (const [cluster, state] of Object.entries(groupingOverrides.cross_file)) {
-        if (state.demerged.length > 0) overridesPayload.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
-        if (state.merged.length > 0) overridesPayload.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+        if (state.demerged.length > 0) newVersion.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+        if (state.merged.length > 0) newVersion.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
       }
 
-      // Append individual overrides
+      // Add individual overrides
       for (const [fileName, clusters] of Object.entries(groupingOverrides.individual)) {
-        if (!overridesPayload.overrides.individual[fileName]) overridesPayload.overrides.individual[fileName] = [];
+        if (!newVersion.overrides.individual[fileName]) newVersion.overrides.individual[fileName] = [];
         for (const [cluster, state] of Object.entries(clusters)) {
-          if (state.demerged.length > 0) overridesPayload.overrides.individual[fileName].push({ action: "demerge", target_cluster: cluster, names: state.demerged });
-          if (state.merged.length > 0) overridesPayload.overrides.individual[fileName].push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+          if (state.demerged.length > 0) newVersion.overrides.individual[fileName].push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+          if (state.merged.length > 0) newVersion.overrides.individual[fileName].push({ action: "merge_into", target_cluster: cluster, names: state.merged });
         }
       }
+
+      // Append new version to existing versions
+      const overridesPayload = {
+        versions: [...existingVersions, newVersion]
+      };
 
       // 2. Extract raw_transactions_*.xlsx and build new ZIP
       const newZip = new JSZip();
@@ -315,12 +352,22 @@ export default function CaseAnalysisResults() {
       await supabase.from("cases").update({ previous_result_zip_url: case_?.result_zip_url }).eq("id", id);
 
       // 4. Submit job
-      await startJobFlow([zipFile], "parse-statements", id, user.id, [], () => {}, undefined, true);
+      const { job_id } = await startJobFlow([zipFile], "parse-statements", id, user.id, [], () => {}, undefined, true);
 
-      // 5. Clear state and navigate
+      // 5. Log timeline event
+      await addEvent(id, "analysis_submitted", {
+        job_id,
+        mode: "parse-statements",
+        task: "parse-statements",
+        stage: "grouping_reanalysis",
+        file_count: rawFiles.length,
+      });
+
+      // 6. Clear state and navigate
       setGroupingOverrides({ cross_file: {}, individual: {} });
       setApplyChangesOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["case-results", id] });
+      queryClient.removeQueries({ queryKey: ["case-results", id] });
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === 'analysis-data' && q.queryKey[1] === id });
       toast({ title: "Re-analysis started", description: "Navigating to dashboard..." });
       navigate("/app/dashboard");
     } catch (error) {

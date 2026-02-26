@@ -68,6 +68,42 @@ export default function CaseDetail() {
       navigate("/app/dashboard");
     }).finally(() => setLoading(false));
   }, [id, navigate]);
+
+  // Realtime subscription for case updates (enables View Results without hard refresh)
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`case-detail-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'cases',
+        filter: `id=eq.${id}`
+      }, (payload) => {
+        console.log('Realtime case update:', payload.new);
+        setCase(payload.new as CaseRecord);
+      })
+      .subscribe();
+    
+    // Also subscribe to events for timeline updates
+    const eventsChannel = supabase
+      .channel(`case-events-${id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'events',
+        filter: `case_id=eq.${id}`
+      }, (payload) => {
+        setEvents(prev => [...prev, payload.new as EventRecord]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+      supabase.removeChannel(eventsChannel);
+    };
+  }, [id]);
+
   const getEventIcon = (event: EventRecord) => {
     const type = event.type;
     const payload = event.payload as any;
@@ -110,6 +146,10 @@ export default function CaseDetail() {
           return payload?.changes_made 
             ? 'Review Done - Submitted for Final Analysis - Changes Made'
             : 'Review Done - Submitted for Final Analysis - No Changes Made';
+        }
+        // Grouping reanalysis
+        if (payload?.stage === 'grouping_reanalysis') {
+          return 'Re-analysis Started - Grouping Changes Applied';
         }
         // HITL flow start
         if (payload?.mode === 'hitl') {

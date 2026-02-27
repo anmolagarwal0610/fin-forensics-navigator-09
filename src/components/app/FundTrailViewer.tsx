@@ -46,25 +46,40 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   // Save view mutation
   const saveViewMutation = useMutation({
     mutationFn: async (viewData: any) => {
-      const { error } = await supabase.from("fund_trail_views").upsert(
-        {
-          case_id: caseId,
-          view_data: viewData,
-          positions: viewData.positions || {},
-          filters: viewData.filters || null,
-          version: viewData.version || "3.0",
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "case_id" },
-      );
-      if (error) throw error;
+      console.log("Attempting to save to Supabase with caseId:", caseId);
+      console.log("View data:", JSON.stringify(viewData).substring(0, 200) + "...");
+
+      const payload = {
+        case_id: caseId,
+        view_data: viewData,
+        positions: viewData.positions || {},
+        filters: viewData.filters || null,
+        version: viewData.version || "3.0",
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Payload:", payload);
+
+      const { data, error } = await supabase
+        .from("fund_trail_views")
+        .upsert(payload, { onConflict: "case_id" })
+        .select(); // Add .select() to see what was inserted/updated
+
+      if (error) {
+        console.error("Supabase upsert error:", error);
+        throw error;
+      }
+
+      console.log("Supabase upsert success:", data);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log("Mutation success, data:", data);
       queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
       toast({ title: "View saved successfully" });
     },
     onError: (error) => {
-      console.error("Error saving view:", error);
+      console.error("Mutation error:", error);
       toast({ title: "Failed to save view", variant: "destructive" });
     },
   });

@@ -25,6 +25,9 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   const { data: savedViewData, isLoading: loadingView } = useQuery({
     queryKey: ["fund-trail-view", caseId],
     queryFn: async () => {
+      console.log("=== FETCHING SAVED VIEW ===");
+      console.log("caseId:", caseId);
+
       const { data, error } = await supabase
         .from("fund_trail_views")
         .select("view_data")
@@ -32,9 +35,10 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching saved view:", error);
+        console.error("Fetch error:", error);
         return null;
       }
+
       console.log("Fetched saved view:", data?.view_data ? "Found" : "Not found");
       return data?.view_data ?? null;
     },
@@ -46,8 +50,9 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   // Save view mutation
   const saveViewMutation = useMutation({
     mutationFn: async (viewData: any) => {
-      console.log("Attempting to save to Supabase with caseId:", caseId);
-      console.log("View data:", JSON.stringify(viewData).substring(0, 200) + "...");
+      console.log("=== MUTATION FUNCTION CALLED ===");
+      console.log("caseId:", caseId);
+      console.log("viewData keys:", Object.keys(viewData));
 
       const payload = {
         case_id: caseId,
@@ -58,107 +63,119 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         updated_at: new Date().toISOString(),
       };
 
-      console.log("Payload:", payload);
+      console.log("Calling supabase.upsert with payload...");
 
       const { data, error } = await supabase
         .from("fund_trail_views")
         .upsert(payload, { onConflict: "case_id" })
-        .select(); // Add .select() to see what was inserted/updated
+        .select();
+
+      console.log("Supabase response - data:", data, "error:", error);
 
       if (error) {
-        console.error("Supabase upsert error:", error);
+        console.error("Supabase error:", JSON.stringify(error));
         throw error;
       }
 
-      console.log("Supabase upsert success:", data);
       return data;
     },
     onSuccess: (data) => {
-      console.log("Mutation success, data:", data);
+      console.log("=== MUTATION SUCCESS ===", data);
       queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
       toast({ title: "View saved successfully" });
     },
-    onError: (error) => {
-      console.error("Mutation error:", error);
+    onError: (error: any) => {
+      console.error("=== MUTATION ERROR ===", error);
       toast({ title: "Failed to save view", variant: "destructive" });
     },
   });
 
-  // Apply saved view to iframe - called when iframe loads
+  // Apply saved view to iframe
   const applySavedView = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) {
-      console.log("No iframe contentWindow");
+      console.log("applySavedView: No iframe contentWindow");
       return;
     }
 
-    // Get the latest savedViewData from the query cache
     const cachedData = queryClient.getQueryData<any>(["fund-trail-view", caseId]);
 
     if (!cachedData) {
-      console.log("No saved view data to apply");
+      console.log("applySavedView: No cached data to apply");
       return;
     }
 
-    console.log("Applying saved view...");
+    console.log("applySavedView: Applying saved view...");
 
     const win = iframe.contentWindow as any;
-
-    // Retry mechanism to wait for iframe JS to initialize
     let attempts = 0;
     const maxAttempts = 30;
 
     const tryApply = () => {
       attempts++;
-
       if (typeof win.loadFundTrailView === "function") {
-        console.log("Calling loadFundTrailView");
+        console.log("applySavedView: Calling loadFundTrailView");
         win.loadFundTrailView(cachedData);
       } else if (attempts < maxAttempts) {
         setTimeout(tryApply, 200);
       } else {
-        console.error("loadFundTrailView not found after", maxAttempts, "attempts");
+        console.error("applySavedView: loadFundTrailView not found");
       }
     };
 
-    // Start after a short delay to let iframe initialize
     setTimeout(tryApply, 500);
   }, [caseId, queryClient]);
 
-  // Handle iframe load event
+  // Handle iframe load
   const handleIframeLoad = useCallback(() => {
-    console.log("Iframe loaded, setting ready state");
-    // Apply saved view after iframe loads
+    console.log("Iframe loaded");
     applySavedView();
   }, [applySavedView]);
 
   // Save handler
   const handleSave = useCallback(async () => {
+    console.log("=== HANDLE SAVE CALLED ===");
+
     if (!iframeRef.current?.contentWindow) {
+      console.log("No iframe contentWindow");
       toast({ title: "Graph not ready", variant: "destructive" });
       return;
     }
+
     setIsSaving(true);
+
     try {
       const win = iframeRef.current.contentWindow as any;
+
       if (typeof win.getFundTrailViewData !== "function") {
-        toast({ title: "Save not supported by this graph version", variant: "destructive" });
+        console.log("getFundTrailViewData not found");
+        toast({ title: "Save not supported", variant: "destructive" });
+        setIsSaving(false);
         return;
       }
+
+      console.log("Calling getFundTrailViewData...");
       const viewData = win.getFundTrailViewData();
+      console.log("viewData received:", viewData ? "yes" : "no");
+
       if (!viewData) {
-        toast({ title: "No view data returned", variant: "destructive" });
+        toast({ title: "No view data", variant: "destructive" });
+        setIsSaving(false);
         return;
       }
+
+      console.log("Calling mutateAsync...");
       await saveViewMutation.mutateAsync(viewData);
+      console.log("mutateAsync completed");
     } catch (err) {
-      console.error("Error saving view:", err);
-      toast({ title: "Failed to save view", variant: "destructive" });
+      console.error("handleSave error:", err);
+      toast({ title: "Failed to save", variant: "destructive" });
     } finally {
       setIsSaving(false);
     }
   }, [saveViewMutation]);
 
+  // Fullscreen handling
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
     if (!isFullscreen) {
@@ -189,9 +206,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   };
 
   const handleRefresh = useCallback(async () => {
-    // Invalidate to refetch fresh data
     await queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
-    // Force iframe to reload
     setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
   }, [queryClient, caseId]);

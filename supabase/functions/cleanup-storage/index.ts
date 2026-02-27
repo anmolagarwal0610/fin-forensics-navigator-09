@@ -201,42 +201,62 @@ Deno.serve(async (req) => {
     }
 
     // ============================================
-    // STEP 4: Delete ALL non-current result files (immediate cleanup)
+    // STEP 4: Keep only 2 latest result files per case, delete the rest
     // ============================================
-    console.log("\n📦 Step 4: Cleaning ALL non-current result file versions...");
+    console.log("\n📦 Step 4: Retaining only 2 latest result files per case...");
     try {
-      // Delete ALL non-current result files - no 24-hour delay
-      const { data: oldResultFiles } = await supabase
+      // Get all result files ordered by case and date
+      const { data: allResultFiles } = await supabase
         .from('result_files')
-        .select('id, storage_path, file_size_bytes')
-        .eq('is_current', false);
+        .select('id, case_id, storage_path, file_size_bytes, created_at')
+        .order('created_at', { ascending: false });
 
-      if (oldResultFiles && oldResultFiles.length > 0) {
-        const pathsToDelete = oldResultFiles.map(f => f.storage_path);
-        const idsToDelete = oldResultFiles.map(f => f.id);
-        
-        // Delete from storage
-        const { error: storageError } = await supabase.storage
-          .from('result-files')
-          .remove(pathsToDelete);
-        
-        if (!storageError) {
-          // Delete records from database
-          const { error: dbError } = await supabase
-            .from('result_files')
-            .delete()
-            .in('id', idsToDelete);
-          
-          if (!dbError) {
-            result.oldResultFilesDeleted = oldResultFiles.length;
-            result.totalBytesFreed += oldResultFiles.reduce(
-              (sum, f) => sum + (f.file_size_bytes || 0), 0
-            );
-            console.log(`  ✓ Deleted ${oldResultFiles.length} non-current result file versions`);
+      if (allResultFiles && allResultFiles.length > 0) {
+        // Group by case_id
+        const filesByCase = new Map<string, typeof allResultFiles>();
+        for (const f of allResultFiles) {
+          if (!filesByCase.has(f.case_id)) {
+            filesByCase.set(f.case_id, []);
+          }
+          filesByCase.get(f.case_id)!.push(f);
+        }
+
+        const idsToDelete: string[] = [];
+        const pathsToDelete: string[] = [];
+        let bytesFreed = 0;
+
+        for (const [caseId, files] of filesByCase) {
+          // files are already sorted by created_at DESC from the query
+          if (files.length > 2) {
+            const toDelete = files.slice(2); // keep first 2 (newest)
+            for (const f of toDelete) {
+              idsToDelete.push(f.id);
+              pathsToDelete.push(f.storage_path);
+              bytesFreed += f.file_size_bytes || 0;
+            }
+            console.log(`  Case ${caseId}: keeping ${Math.min(files.length, 2)}, deleting ${toDelete.length} old result files`);
           }
         }
-      } else {
-        console.log("  ✓ No non-current result files to clean");
+
+        if (pathsToDelete.length > 0) {
+          // Delete from storage in batches of 100
+          for (let i = 0; i < pathsToDelete.length; i += 100) {
+            const batch = pathsToDelete.slice(i, i + 100);
+            await supabase.storage.from('result-files').remove(batch);
+          }
+
+          // Delete records from database in batches of 100
+          for (let i = 0; i < idsToDelete.length; i += 100) {
+            const batch = idsToDelete.slice(i, i + 100);
+            await supabase.from('result_files').delete().in('id', batch);
+          }
+
+          result.oldResultFilesDeleted = pathsToDelete.length;
+          result.totalBytesFreed += bytesFreed;
+          console.log(`  ✓ Deleted ${pathsToDelete.length} old result files across ${filesByCase.size} cases`);
+        } else {
+          console.log("  ✓ All cases have ≤2 result files, nothing to clean");
+        }
       }
     } catch (err) {
       console.warn("⚠️ Step 4 error:", err);

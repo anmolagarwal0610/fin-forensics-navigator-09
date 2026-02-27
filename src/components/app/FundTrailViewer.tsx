@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useEffect, useRef, useCallback } from "react";
+import ReactDOM from "react-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -11,25 +12,31 @@ interface FundTrailViewerProps {
   caseId: string;
   onShare: () => void;
   className?: string;
+  renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
-export default function FundTrailViewer({ htmlContent, caseId, onShare, className }: FundTrailViewerProps) {
+export default function FundTrailViewer({
+  htmlContent,
+  caseId,
+  onShare,
+  className,
+  renderToolbar,
+}: FundTrailViewerProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isApplyingView, setIsApplyingView] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
-  const savedPositionsRef = useRef<{ positions: any; filters: any } | null>(null);
-  const hasLoadedInitialRef = useRef(false);
-
-  // Fetch saved positions from DB
-  const { data: savedView, isLoading: loadingView } = useQuery({
+  // Fetch saved view_data from DB
+  const { data: savedViewData, isLoading: loadingView } = useQuery({
     queryKey: ["fund-trail-view", caseId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fund_trail_views")
-        .select("positions, filters")
+        .select("view_data, positions, filters, version")
         .eq("case_id", caseId)
         .maybeSingle();
 
@@ -37,203 +44,172 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         console.error("Error fetching saved view:", error);
         return null;
       }
-      return data;
+
+      if (data?.view_data) {
+        return data.view_data;
+      } else if (data?.positions) {
+        return {
+          positions: data.positions,
+          filters: data.filters,
+          version: data.version || "1.0",
+        };
+      }
+
+      return null;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
     refetchOnWindowFocus: false,
     refetchOnMount: true,
   });
 
-  useEffect(() => {
-    if (savedView && !hasLoadedInitialRef.current) {
-      savedPositionsRef.current = savedView;
-      hasLoadedInitialRef.current = true;
-    }
-  }, [savedView]);
-
+  // Save view mutation
   const saveViewMutation = useMutation({
-    mutationFn: async ({ positions, filters }: { positions: any; filters: any }) => {
-      const { error } = await supabase.from("fund_trail_views").upsert(
-        {
-          case_id: caseId,
-          positions,
-          filters,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "case_id" },
-      );
+    mutationFn: async (viewData: any) => {
+      const payload = {
+        case_id: caseId,
+        view_data: viewData,
+        positions: viewData.positions || {},
+        filters: viewData.filters || null,
+        version: viewData.version || "3.0",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data, error } = await supabase
+        .from("fund_trail_views")
+        .upsert(payload, { onConflict: "case_id" })
+        .select();
 
       if (error) throw error;
-      savedPositionsRef.current = { positions, filters };
+      return data;
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
       toast({ title: "View saved successfully" });
     },
-    onError: (error) => {
-      console.error("Error saving view:", error);
+    onError: (error: any) => {
+      console.error("Save error:", error);
       toast({ title: "Failed to save view", variant: "destructive" });
     },
   });
 
-  // FIXED: Proper HTML injection for saved positions
-  const modifiedHtml = useMemo(() => {
-    if (!htmlContent) return "";
-
-    const viewData = savedPositionsRef.current || savedView;
-    let modified = htmlContent;
-
-    // Inject saved positions by replacing the variable initialization
-    if (viewData?.positions && Object.keys(viewData.positions).length > 0) {
-      const positionsJson = JSON.stringify(viewData.positions);
-
-      // Pattern 1: Replace "let savedPositions = DATA.savedPositions || null;"
-      modified = modified.replace(
-        /let\s+savedPositions\s*=\s*DATA\.savedPositions\s*\|\|\s*null\s*;/,
-        `let savedPositions = ${positionsJson};`,
-      );
-
-      // Pattern 2: Also try "let savedPositions = null;" if DATA.savedPositions pattern not found
-      if (modified.includes("let savedPositions = null;")) {
-        modified = modified.replace(/let\s+savedPositions\s*=\s*null\s*;/, `let savedPositions = ${positionsJson};`);
-      }
-
-      // Set hasSavedView to true
-      modified = modified.replace(/let\s+hasSavedView\s*=\s*!!savedPositions\s*;/, `let hasSavedView = true;`);
-
-      // Also try direct false replacement
-      modified = modified.replace(/let\s+hasSavedView\s*=\s*false\s*;/, `let hasSavedView = true;`);
+  // Apply saved view to iframe
+  const applySavedView = useCallback(() => {
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) {
+      setIsApplyingView(false);
+      return;
     }
 
-    // Inject saved filters
-    if (viewData?.filters) {
-      const { selectedOwners, topN: savedTopN } = viewData.filters;
-
-      if (selectedOwners && Array.isArray(selectedOwners) && selectedOwners.length > 0) {
-        const ownersJson = JSON.stringify(selectedOwners);
-        // Replace the selectedOwners initialization
-        modified = modified.replace(
-          /let\s+selectedOwners\s*=\s*new\s+Set\(DATA\.owners\.map\(\s*i\s*=>\s*DATA\.nodes\[i\]\.id\s*\)\);/,
-          `let selectedOwners = new Set(${ownersJson});`,
-        );
-      }
-
-      if (savedTopN && typeof savedTopN === "number") {
-        modified = modified.replace(/let\s+topN\s*=\s*25\s*;/, `let topN = ${savedTopN};`);
-      }
+    const cachedData = queryClient.getQueryData<any>(["fund-trail-view", caseId]);
+    if (!cachedData) {
+      setIsApplyingView(false);
+      return;
     }
 
-    // Override saveView function to post message instead of alert
-    const injection = `
-      <script>
-        (function() {
-          var originalSaveView;
-          
-          function setupSaveViewOverride() {
-            if (typeof window.saveView === 'function' && window.saveView !== overriddenSaveView) {
-              originalSaveView = window.saveView;
-              window.saveView = overriddenSaveView;
-            }
-          }
-          
-          function overriddenSaveView() {
-            var positions = {};
-            if (typeof d3 !== 'undefined') {
-              d3.selectAll('.node').each(function(d) {
-                if (d && d.id) {
-                  positions[d.id] = { x: d.x, y: d.y };
-                }
-              });
-            }
-            
-            var filters = {
-              selectedOwners: typeof selectedOwners !== 'undefined' ? Array.from(selectedOwners) : [],
-              topN: typeof topN !== 'undefined' ? topN : 25
-            };
-            
-            var data = {
-              positions: positions,
-              filters: filters,
-              timestamp: new Date().toISOString(),
-              version: '1.0'
-            };
-            
-            window.parent.postMessage({
-              type: 'FUNDTRAIL_SAVE',
-              payload: data
-            }, '*');
-            
-            if (typeof savedPositions !== 'undefined') {
-              savedPositions = positions;
-            }
-            if (typeof hasSavedView !== 'undefined') {
-              hasSavedView = true;
-            }
-            if (typeof hasUnsavedChanges !== 'undefined') {
-              hasUnsavedChanges = false;
-            }
-            if (typeof updateUIState === 'function') {
-              updateUIState();
-            }
-            
-            console.log('Fund Trail View Saved:', data);
-            return data;
-          }
-          
-          // Try to setup immediately
-          setupSaveViewOverride();
-          
-          // Also setup after DOM ready
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupSaveViewOverride);
-          }
-          
-          // And after a short delay to catch late definitions
-          setTimeout(setupSaveViewOverride, 100);
-          setTimeout(setupSaveViewOverride, 500);
-        })();
-      </script>
-    `;
+    const win = iframe.contentWindow as any;
+    let attempts = 0;
+    const maxAttempts = 30;
 
-    if (modified.includes("</body>")) {
-      return modified.replace("</body>", `${injection}</body>`);
-    } else if (modified.includes("</html>")) {
-      return modified.replace("</html>", `${injection}</html>`);
-    }
-    return modified + injection;
-  }, [htmlContent, savedView]);
+    const tryApply = () => {
+      attempts++;
 
-  const handleMessage = useCallback(
-    async (event: MessageEvent) => {
-      if (event.data?.type === "FUNDTRAIL_SAVE") {
-        setIsSaving(true);
-        const { positions, filters } = event.data.payload;
+      if (typeof win.loadFundTrailView === "function") {
+        win.loadFundTrailView(cachedData);
+        setIsApplyingView(false);
+        return;
+      }
 
-        try {
-          await saveViewMutation.mutateAsync({ positions, filters });
-        } finally {
-          setIsSaving(false);
+      if (typeof win.applyPositions === "function" && cachedData.positions) {
+        win.applyPositions(cachedData.positions);
+        if (cachedData.filters && typeof win.applyFilters === "function") {
+          win.applyFilters(cachedData.filters);
+        }
+        setIsApplyingView(false);
+        return;
+      }
+
+      if (attempts < maxAttempts) {
+        setTimeout(tryApply, 200);
+      } else {
+        setIsApplyingView(false);
+      }
+    };
+
+    setTimeout(tryApply, 500);
+  }, [caseId, queryClient]);
+
+  // Handle iframe load
+  const handleIframeLoad = useCallback(() => {
+    applySavedView();
+  }, [applySavedView]);
+
+  // Listen for postMessage from iframe
+  useEffect(() => {
+    const handleMessage = async (event: MessageEvent) => {
+      if (event.data?.type === "fundtrail:save") {
+        const viewData = event.data.data;
+        if (viewData && !isSaving) {
+          setIsSaving(true);
+          try {
+            await saveViewMutation.mutateAsync(viewData);
+          } catch (err) {
+            console.error("Error saving from postMessage:", err);
+          } finally {
+            setIsSaving(false);
+          }
         }
       }
-    },
-    [saveViewMutation],
-  );
+    };
 
-  useEffect(() => {
     window.addEventListener("message", handleMessage);
     return () => window.removeEventListener("message", handleMessage);
-  }, [handleMessage]);
+  }, [saveViewMutation, isSaving]);
 
+  // Listen for CustomEvent from iframe (backward compatibility)
+  useEffect(() => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+
+    const handleIframeSave = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const viewData = customEvent.detail;
+      if (viewData && !isSaving) {
+        setIsSaving(true);
+        saveViewMutation
+          .mutateAsync(viewData)
+          .catch((err) => console.error("Error saving from CustomEvent:", err))
+          .finally(() => setIsSaving(false));
+      }
+    };
+
+    const attachListener = () => {
+      try {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.addEventListener("fundtrail:save", handleIframeSave);
+        }
+      } catch (e) {}
+    };
+
+    iframe.addEventListener("load", attachListener);
+    attachListener();
+
+    return () => {
+      iframe.removeEventListener("load", attachListener);
+      try {
+        if (iframe.contentWindow) {
+          iframe.contentWindow.removeEventListener("fundtrail:save", handleIframeSave);
+        }
+      } catch (e) {}
+    };
+  }, [saveViewMutation, isSaving, iframeKey]);
+
+  // Fullscreen handling
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
-
     if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen();
-      }
+      containerRef.current.requestFullscreen?.();
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
+      document.exitFullscreen?.();
     }
   };
 
@@ -241,7 +217,6 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
@@ -258,10 +233,38 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     URL.revokeObjectURL(url);
   };
 
-  const handleRefresh = () => {
-    setIframeKey(prev => prev + 1);
+  const handleRefresh = useCallback(async () => {
+    setIsApplyingView(true);
+    await queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
+    setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
-  };
+  }, [queryClient, caseId]);
+
+  // Toolbar component
+  const toolbar = (
+    <div className="flex items-center gap-2">
+      {isSaving && (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Saving...
+        </span>
+      )}
+      <Button onClick={handleDownload} variant="outline" size="sm">
+        <Download className="h-4 w-4 mr-1.5" />
+        Download
+      </Button>
+      <Button onClick={onShare} variant="outline" size="sm">
+        <Share2 className="h-4 w-4 mr-1.5" />
+        Share
+      </Button>
+      <Button onClick={handleRefresh} variant="outline" size="sm" title="Refresh graph">
+        <RotateCcw className="h-4 w-4" />
+      </Button>
+      <Button onClick={toggleFullscreen} variant="outline" size="sm">
+        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      </Button>
+    </div>
+  );
 
   if (loadingView) {
     return (
@@ -271,38 +274,38 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     );
   }
 
+  // Find the toolbar slot in parent for portal rendering
+  const toolbarSlot = typeof document !== "undefined" ? document.getElementById("fund-trail-toolbar-slot") : null;
+
   return (
     <div
       ref={containerRef}
-      className={cn("flex flex-col", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
+      className={cn("flex flex-col relative", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
     >
-      <div className="flex items-center justify-end gap-2 mb-2">
-        {isSaving && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Saving...
-          </span>
-        )}
-        <Button onClick={handleDownload} variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-1.5" />
-          Download
-        </Button>
-        <Button onClick={onShare} variant="outline" size="sm">
-          <Share2 className="h-4 w-4 mr-1.5" />
-          Share
-        </Button>
-        <Button onClick={handleRefresh} variant="outline" size="sm" title="Refresh graph">
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-        <Button onClick={toggleFullscreen} variant="outline" size="sm">
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </Button>
-      </div>
+      {/* Render toolbar: use portal to slot if available, or renderToolbar prop, or internal */}
+      {toolbarSlot && renderToolbar ? (
+        ReactDOM.createPortal(renderToolbar(toolbar), toolbarSlot)
+      ) : renderToolbar ? (
+        renderToolbar(toolbar)
+      ) : (
+        <div className="flex items-center justify-end gap-2 mb-2">{toolbar}</div>
+      )}
+
+      {/* Loading overlay while applying saved view */}
+      {isApplyingView && savedViewData && (
+        <div className="absolute inset-0 bg-background/90 flex items-center justify-center z-10 rounded-lg">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading saved view...</span>
+          </div>
+        </div>
+      )}
 
       <iframe
         key={iframeKey}
         ref={iframeRef}
-        srcDoc={modifiedHtml}
+        srcDoc={htmlContent}
+        onLoad={handleIframeLoad}
         className={cn("w-full border rounded-lg bg-white flex-1", isFullscreen ? "h-full" : "h-[72vh]")}
         sandbox="allow-scripts allow-same-origin"
         title="Fund Trail Analysis"

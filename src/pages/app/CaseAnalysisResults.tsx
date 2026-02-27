@@ -13,7 +13,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
-import { ArrowLeft, Download, FileText, TrendingUp, Users, Eye, DollarSign, ChevronDown, Loader2, BarChart3, Settings2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  FileText,
+  TrendingUp,
+  Users,
+  Eye,
+  DollarSign,
+  ChevronDown,
+  Loader2,
+  BarChart3,
+  Settings2,
+} from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
 import HTMLViewer from "@/components/app/HTMLViewer";
@@ -37,22 +49,20 @@ import type { GroupingOverrideResult, PendingClusterState } from "@/components/a
 
 // Helper function to truncate long file names while preserving extension
 const truncateFileName = (fileName: string, maxLength: number = 30): string => {
-  const lastDotIndex = fileName.lastIndexOf('.');
+  const lastDotIndex = fileName.lastIndexOf(".");
   if (lastDotIndex === -1) {
     // No extension
-    return fileName.length > maxLength 
-      ? fileName.slice(0, maxLength) + '...'
-      : fileName;
+    return fileName.length > maxLength ? fileName.slice(0, maxLength) + "..." : fileName;
   }
-  
+
   const baseName = fileName.slice(0, lastDotIndex);
   const extension = fileName.slice(lastDotIndex); // includes the dot
-  
+
   if (baseName.length <= maxLength) {
     return fileName; // No truncation needed
   }
-  
-  return baseName.slice(0, maxLength) + '...' + extension;
+
+  return baseName.slice(0, maxLength) + "..." + extension;
 };
 
 interface ParsedAnalysisData {
@@ -65,9 +75,9 @@ interface ParsedAnalysisData {
   mainGraphUrl: string | null;
   mainGraphHtml: string | null;
   mainGraphPngUrl?: string | null;
-  mainNodeGraphHtml: string | null;      // poi_flows_main.html
-  mainSankeyGraphHtml: string | null;    // poi_flows_sankey.html
-  fundTrailHtml: string | null;          // fund_trail_main.html - NEW
+  mainNodeGraphHtml: string | null; // poi_flows_main.html
+  mainSankeyGraphHtml: string | null; // poi_flows_sankey.html
+  fundTrailHtml: string | null; // fund_trail_main.html - NEW
   egoImages: Array<{ name: string; url: string }>;
   poiHtmlFiles: Array<{ name: string; htmlContent: string; title: string; pngUrl?: string }>;
   poiFileCount: number;
@@ -75,7 +85,7 @@ interface ParsedAnalysisData {
     originalFile: string;
     rawTransactionsFile: string | null;
     summaryFile: string | null;
-    sankeyHtml: string | null;           // Per-file sankey HTML content
+    sankeyHtml: string | null; // Per-file sankey HTML content
   }>;
   zipData?: JSZip | null;
   summaryDataMap: Map<string, CellData[][]>;
@@ -96,125 +106,134 @@ export default function CaseAnalysisResults() {
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
-  
+
   // State for per-file sankey modal
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
-  
+
   // State for viewing previous results
   const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
-  
+
   // State for Fund Trail share dialog
   const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);
-  
+
   // Grouping overrides state for name merge/demerge
   const [groupingOverrides, setGroupingOverrides] = useState<{
     cross_file: Record<string, PendingClusterState>;
     individual: Record<string, Record<string, PendingClusterState>>;
   }>({ cross_file: {}, individual: {} });
 
-  const handleSaveGroupingOverride = useCallback((
-    context: "cross_file" | "individual",
-    targetCluster: string,
-    overrides: GroupingOverrideResult,
-    fileName?: string
-  ) => {
-    setGroupingOverrides(prev => {
-      const next = { ...prev };
-      const key = targetCluster.toLowerCase();
-      if (context === "cross_file") {
-        next.cross_file = { ...prev.cross_file, [key]: overrides };
-        // Process auto-demerges: create demerge entries on source clusters
-        if (overrides.autoDemerges) {
-          for (const ad of overrides.autoDemerges) {
-            const sourceKey = ad.sourceCluster.toLowerCase();
-            const existing = prev.cross_file[sourceKey] || { demerged: [], merged: [] };
-            next.cross_file[sourceKey] = {
-              ...existing,
-              demerged: [...existing.demerged, ...ad.names],
-            };
+  const handleSaveGroupingOverride = useCallback(
+    (
+      context: "cross_file" | "individual",
+      targetCluster: string,
+      overrides: GroupingOverrideResult,
+      fileName?: string,
+    ) => {
+      setGroupingOverrides((prev) => {
+        const next = { ...prev };
+        const key = targetCluster.toLowerCase();
+        if (context === "cross_file") {
+          next.cross_file = { ...prev.cross_file, [key]: overrides };
+          // Process auto-demerges: create demerge entries on source clusters
+          if (overrides.autoDemerges) {
+            for (const ad of overrides.autoDemerges) {
+              const sourceKey = ad.sourceCluster.toLowerCase();
+              const existing = prev.cross_file[sourceKey] || { demerged: [], merged: [] };
+              next.cross_file[sourceKey] = {
+                ...existing,
+                demerged: [...existing.demerged, ...ad.names],
+              };
+            }
           }
-        }
-      } else if (fileName) {
-        const fileOverrides = { ...(prev.individual[fileName] || {}) };
-        fileOverrides[key] = overrides;
-        // Process auto-demerges for individual file context
-        if (overrides.autoDemerges) {
-          for (const ad of overrides.autoDemerges) {
-            const sourceKey = ad.sourceCluster.toLowerCase();
-            const existing = fileOverrides[sourceKey] || { demerged: [], merged: [] };
-            fileOverrides[sourceKey] = {
-              ...existing,
-              demerged: [...existing.demerged, ...ad.names],
-            };
+        } else if (fileName) {
+          const fileOverrides = { ...(prev.individual[fileName] || {}) };
+          fileOverrides[key] = overrides;
+          // Process auto-demerges for individual file context
+          if (overrides.autoDemerges) {
+            for (const ad of overrides.autoDemerges) {
+              const sourceKey = ad.sourceCluster.toLowerCase();
+              const existing = fileOverrides[sourceKey] || { demerged: [], merged: [] };
+              fileOverrides[sourceKey] = {
+                ...existing,
+                demerged: [...existing.demerged, ...ad.names],
+              };
+            }
           }
+          next.individual = { ...prev.individual, [fileName]: fileOverrides };
         }
-        next.individual = { ...prev.individual, [fileName]: fileOverrides };
-      }
-      return next;
-    });
-  }, []);
+        return next;
+      });
+    },
+    [],
+  );
 
   const hasGroupingChanges = useMemo(() => {
     if (Object.keys(groupingOverrides.cross_file).length > 0) return true;
-    return Object.values(groupingOverrides.individual).some(f => Object.keys(f).length > 0);
+    return Object.values(groupingOverrides.individual).some((f) => Object.keys(f).length > 0);
   }, [groupingOverrides]);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
 
-  const handleRemoveChange = useCallback((entry: { context: "cross_file" | "individual"; targetCluster: string; action: "demerge" | "merge_into"; fileName?: string }) => {
-    setGroupingOverrides(prev => {
-      const next = { ...prev };
-      const key = entry.targetCluster;
-      if (entry.context === "cross_file") {
-        const state = { ...(prev.cross_file[key] || { demerged: [], merged: [] }) };
-        if (entry.action === "demerge") state.demerged = [];
-        else state.merged = [];
-        // Remove entry if both empty
-        if (state.demerged.length === 0 && state.merged.length === 0) {
-          const { [key]: _, ...rest } = prev.cross_file;
-          next.cross_file = rest;
-        } else {
-          next.cross_file = { ...prev.cross_file, [key]: state };
-        }
-      } else if (entry.fileName) {
-        const fileOverrides = { ...(prev.individual[entry.fileName] || {}) };
-        const state = { ...(fileOverrides[key] || { demerged: [], merged: [] }) };
-        if (entry.action === "demerge") state.demerged = [];
-        else state.merged = [];
-        if (state.demerged.length === 0 && state.merged.length === 0) {
-          const { [key]: _, ...rest } = fileOverrides;
-          if (Object.keys(rest).length === 0) {
-            const { [entry.fileName]: __, ...restFiles } = prev.individual;
-            next.individual = restFiles;
+  const handleRemoveChange = useCallback(
+    (entry: {
+      context: "cross_file" | "individual";
+      targetCluster: string;
+      action: "demerge" | "merge_into";
+      fileName?: string;
+    }) => {
+      setGroupingOverrides((prev) => {
+        const next = { ...prev };
+        const key = entry.targetCluster;
+        if (entry.context === "cross_file") {
+          const state = { ...(prev.cross_file[key] || { demerged: [], merged: [] }) };
+          if (entry.action === "demerge") state.demerged = [];
+          else state.merged = [];
+          // Remove entry if both empty
+          if (state.demerged.length === 0 && state.merged.length === 0) {
+            const { [key]: _, ...rest } = prev.cross_file;
+            next.cross_file = rest;
           } else {
-            next.individual = { ...prev.individual, [entry.fileName]: rest };
+            next.cross_file = { ...prev.cross_file, [key]: state };
           }
-        } else {
-          fileOverrides[key] = state;
-          next.individual = { ...prev.individual, [entry.fileName]: fileOverrides };
+        } else if (entry.fileName) {
+          const fileOverrides = { ...(prev.individual[entry.fileName] || {}) };
+          const state = { ...(fileOverrides[key] || { demerged: [], merged: [] }) };
+          if (entry.action === "demerge") state.demerged = [];
+          else state.merged = [];
+          if (state.demerged.length === 0 && state.merged.length === 0) {
+            const { [key]: _, ...rest } = fileOverrides;
+            if (Object.keys(rest).length === 0) {
+              const { [entry.fileName]: __, ...restFiles } = prev.individual;
+              next.individual = restFiles;
+            } else {
+              next.individual = { ...prev.individual, [entry.fileName]: rest };
+            }
+          } else {
+            fileOverrides[key] = state;
+            next.individual = { ...prev.individual, [entry.fileName]: fileOverrides };
+          }
         }
-      }
-      return next;
-    });
-  }, []);
+        return next;
+      });
+    },
+    [],
+  );
 
-  
-  
   // State for sharing individual graphs (Sankey/Node)
   const [shareGraphOpen, setShareGraphOpen] = useState(false);
-  const [shareGraphHtml, setShareGraphHtml] = useState<string>('');
-  
+  const [shareGraphHtml, setShareGraphHtml] = useState<string>("");
+
   // Check for secure result files (new flow)
   const { hasResultFile: hasSecureResultFile, isLoading: resultStatusLoading } = useResultFileStatus(id);
-  
+
   // Secure download hook for new storage + legacy URL fallback
   const { fetchFileForParsing, downloadResultFile, isDownloading } = useSecureDownload();
-  
+
   const toggleSummary = (index: number) => {
-    setExpandedSummaries(prev => {
+    setExpandedSummaries((prev) => {
       const next = new Set(prev);
       if (next.has(index)) {
         next.delete(index);
@@ -226,13 +245,14 @@ export default function CaseAnalysisResults() {
   };
 
   // Fetch case and files with caching
-  const { data: caseData, isLoading: caseLoading, error: caseError } = useQuery({
-    queryKey: ['case-results', id],
+  const {
+    data: caseData,
+    isLoading: caseLoading,
+    error: caseError,
+  } = useQuery({
+    queryKey: ["case-results", id],
     queryFn: async () => {
-      const [caseResult, filesResult] = await Promise.all([
-        getCaseById(id!),
-        getCaseFiles(id!)
-      ]);
+      const [caseResult, filesResult] = await Promise.all([getCaseById(id!), getCaseFiles(id!)]);
       if (!caseResult) throw new Error("Case not found");
       return { case_: caseResult, files: filesResult };
     },
@@ -257,23 +277,27 @@ export default function CaseAnalysisResults() {
 
   // Fetch and parse analysis data with caching - uses secure storage with legacy fallback
   // Include case_.updated_at in queryKey to auto-refresh when new results arrive
-  const { data: analysisData, isLoading: analysisLoading, error: analysisError } = useQuery({
-    queryKey: ['analysis-data', id, activeResultUrl, hasSecureResultFile, viewingPreviousResults, case_?.updated_at],
+  const {
+    data: analysisData,
+    isLoading: analysisLoading,
+    error: analysisError,
+  } = useQuery({
+    queryKey: ["analysis-data", id, activeResultUrl, hasSecureResultFile, viewingPreviousResults, case_?.updated_at],
     queryFn: async () => {
-      console.log('[Analysis] Fetching analysis files for case:', id);
-      console.log('[Analysis] Legacy URL:', activeResultUrl ? 'available' : 'none');
-      console.log('[Analysis] Secure file:', hasSecureResultFile ? 'available' : 'none');
-      
+      console.log("[Analysis] Fetching analysis files for case:", id);
+      console.log("[Analysis] Legacy URL:", activeResultUrl ? "available" : "none");
+      console.log("[Analysis] Secure file:", hasSecureResultFile ? "available" : "none");
+
       // Try secure storage first, fall back to legacy URL
-      const arrayBuffer = await fetchFileForParsing(id!, activeResultUrl, 'result_zip');
+      const arrayBuffer = await fetchFileForParsing(id!, activeResultUrl, "result_zip");
       if (!arrayBuffer) {
-        console.error('[Analysis] Failed to fetch analysis files');
-        throw new Error('Failed to fetch analysis files. Please try again.');
+        console.error("[Analysis] Failed to fetch analysis files");
+        throw new Error("Failed to fetch analysis files. Please try again.");
       }
-      console.log('[Analysis] ✓ Loaded', (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), 'MB');
+      console.log("[Analysis] ✓ Loaded", (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), "MB");
       return loadAnalysisFiles(arrayBuffer, files);
     },
-    enabled: !!id && case_?.status === 'Ready' && !resultStatusLoading && hasAnyResults,
+    enabled: !!id && case_?.status === "Ready" && !resultStatusLoading && hasAnyResults,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 1, // Only retry once to avoid long waits
@@ -284,12 +308,12 @@ export default function CaseAnalysisResults() {
   // Re-analysis flow: apply grouping changes and submit new job
   const handleApplyChanges = async () => {
     if (!analysisData?.zipData || !id || !user) return;
-    
+
     setIsApplyingChanges(true);
     try {
       // 1. Build grouping_logic.json (versioned format)
       let existingVersions: any[] = [];
-      
+
       // Load existing versions from ZIP (if any)
       const existingFile = analysisData.zipData.file("grouping_logic.json");
       if (existingFile) {
@@ -309,33 +333,47 @@ export default function CaseAnalysisResults() {
         timestamp: new Date().toISOString(),
         overrides: {
           individual: {} as Record<string, any[]>,
-          cross_file: [] as any[]
-        }
+          cross_file: [] as any[],
+        },
       };
 
       // Add cross_file overrides
       for (const [cluster, state] of Object.entries(groupingOverrides.cross_file)) {
-        if (state.demerged.length > 0) newVersion.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
-        if (state.merged.length > 0) newVersion.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+        if (state.demerged.length > 0)
+          newVersion.overrides.cross_file.push({ action: "demerge", target_cluster: cluster, names: state.demerged });
+        if (state.merged.length > 0)
+          newVersion.overrides.cross_file.push({ action: "merge_into", target_cluster: cluster, names: state.merged });
       }
 
       // Add individual overrides
       for (const [fileName, clusters] of Object.entries(groupingOverrides.individual)) {
         if (!newVersion.overrides.individual[fileName]) newVersion.overrides.individual[fileName] = [];
         for (const [cluster, state] of Object.entries(clusters)) {
-          if (state.demerged.length > 0) newVersion.overrides.individual[fileName].push({ action: "demerge", target_cluster: cluster, names: state.demerged });
-          if (state.merged.length > 0) newVersion.overrides.individual[fileName].push({ action: "merge_into", target_cluster: cluster, names: state.merged });
+          if (state.demerged.length > 0)
+            newVersion.overrides.individual[fileName].push({
+              action: "demerge",
+              target_cluster: cluster,
+              names: state.demerged,
+            });
+          if (state.merged.length > 0)
+            newVersion.overrides.individual[fileName].push({
+              action: "merge_into",
+              target_cluster: cluster,
+              names: state.merged,
+            });
         }
       }
 
       // Append new version to existing versions
       const overridesPayload = {
-        versions: [...existingVersions, newVersion]
+        versions: [...existingVersions, newVersion],
       };
 
       // 2. Extract raw_transactions_*.xlsx and build new ZIP
       const newZip = new JSZip();
-      const rawFiles = Object.keys(analysisData.zipData.files).filter(n => n.startsWith("raw_transactions_") && n.endsWith(".xlsx"));
+      const rawFiles = Object.keys(analysisData.zipData.files).filter(
+        (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx"),
+      );
       for (const rawFile of rawFiles) {
         const file = analysisData.zipData.file(rawFile);
         if (file) {
@@ -367,12 +405,16 @@ export default function CaseAnalysisResults() {
       setGroupingOverrides({ cross_file: {}, individual: {} });
       setApplyChangesOpen(false);
       queryClient.removeQueries({ queryKey: ["case-results", id] });
-      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === 'analysis-data' && q.queryKey[1] === id });
+      queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === "analysis-data" && q.queryKey[1] === id });
       toast({ title: "Re-analysis started", description: "Navigating to dashboard..." });
       navigate("/app/dashboard");
     } catch (error) {
       console.error("Failed to apply changes:", error);
-      toast({ title: "Failed to apply changes", description: error instanceof Error ? error.message : "Unknown error", variant: "destructive" });
+      toast({
+        title: "Failed to apply changes",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setIsApplyingChanges(false);
     }
@@ -386,11 +428,14 @@ export default function CaseAnalysisResults() {
     }
   }, [caseError, navigate]);
 
-  const loadAnalysisFiles = async (arrayBuffer: ArrayBuffer, originalFiles: CaseFileRecord[]): Promise<ParsedAnalysisData | null> => {
+  const loadAnalysisFiles = async (
+    arrayBuffer: ArrayBuffer,
+    originalFiles: CaseFileRecord[],
+  ): Promise<ParsedAnalysisData | null> => {
     try {
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
-      
+
       const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
         beneficiaryHeaders: [],
@@ -399,9 +444,9 @@ export default function CaseAnalysisResults() {
         mainGraphUrl: null,
         mainGraphHtml: null,
         mainGraphPngUrl: null,
-        mainNodeGraphHtml: null,      // poi_flows_main.html
-        mainSankeyGraphHtml: null,    // poi_flows_sankey.html
-        fundTrailHtml: null,          // fund_trail_main.html - NEW
+        mainNodeGraphHtml: null, // poi_flows_main.html
+        mainSankeyGraphHtml: null, // poi_flows_sankey.html
+        fundTrailHtml: null, // fund_trail_main.html - NEW
         egoImages: [],
         poiHtmlFiles: [],
         poiFileCount: 0,
@@ -415,52 +460,50 @@ export default function CaseAnalysisResults() {
       const fundTrailFile = zipData.file("fund_trail_main.html");
       if (fundTrailFile) {
         parsedData.fundTrailHtml = await fundTrailFile.async("text");
-        console.log('[Analysis] ✓ Fund Trail HTML extracted');
+        console.log("[Analysis] ✓ Fund Trail HTML extracted");
       }
 
       // Parse poi_summary.json FIRST (preferred source for counts)
       let poiSummaryFile = zipData.file("poi_summary.json");
       if (!poiSummaryFile) {
         const allFiles = Object.keys(zipData.files);
-        const poiSummaryPath = allFiles.find(name => 
-          name.endsWith('poi_summary.json') && !name.includes('__MACOSX')
-        );
+        const poiSummaryPath = allFiles.find((name) => name.endsWith("poi_summary.json") && !name.includes("__MACOSX"));
         if (poiSummaryPath) {
           poiSummaryFile = zipData.file(poiSummaryPath);
-          console.log('[Analysis] Found poi_summary.json at nested path:', poiSummaryPath);
+          console.log("[Analysis] Found poi_summary.json at nested path:", poiSummaryPath);
         }
       }
-      
+
       if (poiSummaryFile) {
         try {
           const jsonContent = await poiSummaryFile.async("text");
           const poiSummary = JSON.parse(jsonContent);
-          if (typeof poiSummary.total_pois === 'number') {
+          if (typeof poiSummary.total_pois === "number") {
             parsedData.poiFileCount = poiSummary.total_pois;
-            console.log('[Analysis] POI count from poi_summary.json:', poiSummary.total_pois);
+            console.log("[Analysis] POI count from poi_summary.json:", poiSummary.total_pois);
           }
-          if (typeof poiSummary.total_beneficiaries === 'number') {
+          if (typeof poiSummary.total_beneficiaries === "number") {
             parsedData.totalBeneficiaryCount = poiSummary.total_beneficiaries;
-            console.log('[Analysis] Beneficiary count from poi_summary.json:', poiSummary.total_beneficiaries);
+            console.log("[Analysis] Beneficiary count from poi_summary.json:", poiSummary.total_beneficiaries);
           }
           // If total_pois missing, fall back to file count
-          if (typeof poiSummary.total_pois !== 'number') {
-            parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-              name.startsWith('POI_') && name.endsWith('.xlsx')
+          if (typeof poiSummary.total_pois !== "number") {
+            parsedData.poiFileCount = Object.keys(zipData.files).filter(
+              (name) => name.startsWith("POI_") && name.endsWith(".xlsx"),
             ).length;
-            console.log('[Analysis] poi_summary.json missing total_pois, using file count:', parsedData.poiFileCount);
+            console.log("[Analysis] poi_summary.json missing total_pois, using file count:", parsedData.poiFileCount);
           }
         } catch (error) {
-          console.warn('[Analysis] Failed to parse poi_summary.json, using file count:', error);
-          parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-            name.startsWith('POI_') && name.endsWith('.xlsx')
+          console.warn("[Analysis] Failed to parse poi_summary.json, using file count:", error);
+          parsedData.poiFileCount = Object.keys(zipData.files).filter(
+            (name) => name.startsWith("POI_") && name.endsWith(".xlsx"),
           ).length;
         }
       } else {
-        parsedData.poiFileCount = Object.keys(zipData.files).filter(name => 
-          name.startsWith('POI_') && name.endsWith('.xlsx')
+        parsedData.poiFileCount = Object.keys(zipData.files).filter(
+          (name) => name.startsWith("POI_") && name.endsWith(".xlsx"),
         ).length;
-        console.log('[Analysis] No poi_summary.json, using file count:', parsedData.poiFileCount);
+        console.log("[Analysis] No poi_summary.json, using file count:", parsedData.poiFileCount);
       }
 
       // Process beneficiaries_by_file.xlsx with enhanced formatting
@@ -469,83 +512,103 @@ export default function CaseAnalysisResults() {
         const content = await beneficiariesFile.async("arraybuffer");
         // Copy buffer so SheetJS gets an independent copy (ExcelJS can detach the original on Chrome)
         const contentForSheetJS = content.slice(0);
-        
+
         // Create blob URL for the beneficiaries file
-        const beneficiariesBlob = new Blob([content], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const beneficiariesBlob = new Blob([content], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
         parsedData.beneficiariesFileUrl = URL.createObjectURL(beneficiariesBlob);
-        
+
         // Extract preview JSON for styling
         const previewJsonFile = zipData.file("beneficiaries_by_file.preview.json");
         if (previewJsonFile) {
           const previewContent = await previewJsonFile.async("text");
-          const previewBlob = new Blob([previewContent], { type: 'application/json' });
+          const previewBlob = new Blob([previewContent], { type: "application/json" });
           parsedData.beneficiariesPreviewUrl = URL.createObjectURL(previewBlob);
-          console.log('✅ Preview JSON extracted from ZIP and blob URL created');
+          console.log("✅ Preview JSON extracted from ZIP and blob URL created");
         } else {
           // Fallback logic for test/missing files
           try {
-            const testPreviewResponse = await fetch('/test-files/beneficiaries_by_file.preview.json');
+            const testPreviewResponse = await fetch("/test-files/beneficiaries_by_file.preview.json");
             if (testPreviewResponse.ok) {
               const testPreviewContent = await testPreviewResponse.text();
-              const testPreviewBlob = new Blob([testPreviewContent], { type: 'application/json' });
+              const testPreviewBlob = new Blob([testPreviewContent], { type: "application/json" });
               parsedData.beneficiariesPreviewUrl = URL.createObjectURL(testPreviewBlob);
             }
           } catch (error) {
-            console.warn('⚠️ Failed to fetch static test preview JSON:', error);
+            console.warn("⚠️ Failed to fetch static test preview JSON:", error);
           }
         }
-        
+
         try {
           parsedData.beneficiariesExcelData = await parseExcelFile(content);
         } catch (error) {
-          console.error('Enhanced parsing failed, falling back to basic parsing:', error);
+          console.error("Enhanced parsing failed, falling back to basic parsing:", error);
         }
-        
+
         // Keep existing XLSX parsing for backward compatibility (truncated for brevity, logic unchanged)
         const workbook = XLSX.read(contentForSheetJS, { type: "array", cellStyles: true });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-        
+
         if (jsonData.length > 2) {
           parsedData.beneficiaryHeaders = jsonData[0] as string[];
           // Only set from Excel if poi_summary.json didn't already provide the count
           if (parsedData.totalBeneficiaryCount === 0) {
-            const totalBeneficiaries = jsonData.length - 2; 
+            const totalBeneficiaries = jsonData.length - 2;
             parsedData.totalBeneficiaryCount = Math.max(0, totalBeneficiaries);
           }
-          
+
           parsedData.beneficiaries = jsonData.slice(2, 27).map((row, rowIndex) => {
             const obj: { [key: string]: any } = {};
             parsedData.beneficiaryHeaders.forEach((header, index) => {
               const cellAddress = XLSX.utils.encode_cell({ r: rowIndex + 2, c: index });
               const cell = worksheet[cellAddress];
-              
-              // Enhanced color parsing 
+
+              // Enhanced color parsing
               let backgroundColor, color;
               if (cell?.s) {
                 if (cell.s.fgColor) {
                   if (cell.s.fgColor.rgb) backgroundColor = `#${cell.s.fgColor.rgb}`;
                   else if (cell.s.fgColor.theme !== undefined) {
-                    const themeColors = ['#000000', '#FFFFFF', '#1F497D', '#4F81BD', '#9CBB58', '#F79646', '#C0504D', '#8064A2'];
-                    backgroundColor = themeColors[cell.s.fgColor.theme] || '#FFFFFF';
+                    const themeColors = [
+                      "#000000",
+                      "#FFFFFF",
+                      "#1F497D",
+                      "#4F81BD",
+                      "#9CBB58",
+                      "#F79646",
+                      "#C0504D",
+                      "#8064A2",
+                    ];
+                    backgroundColor = themeColors[cell.s.fgColor.theme] || "#FFFFFF";
                   }
                 }
                 if (cell.s.font?.color) {
                   if (cell.s.font.color.rgb) color = `#${cell.s.font.color.rgb}`;
                   else if (cell.s.font.color.theme !== undefined) {
-                    const themeColors = ['#000000', '#FFFFFF', '#1F497D', '#4F81BD', '#9CBB58', '#F79646', '#C0504D', '#8064A2'];
-                    color = themeColors[cell.s.font.color.theme] || '#000000';
+                    const themeColors = [
+                      "#000000",
+                      "#FFFFFF",
+                      "#1F497D",
+                      "#4F81BD",
+                      "#9CBB58",
+                      "#F79646",
+                      "#C0504D",
+                      "#8064A2",
+                    ];
+                    color = themeColors[cell.s.font.color.theme] || "#000000";
                   }
                 }
                 if (cell.s.patternType && cell.s.bgColor && cell.s.bgColor.rgb) {
                   backgroundColor = `#${cell.s.bgColor.rgb}`;
                 }
               }
-              
+
               obj[header] = {
-                value: row[index] || '',
-                style: backgroundColor || color ? { backgroundColor, color } : undefined
+                value: row[index] || "",
+                style: backgroundColor || color ? { backgroundColor, color } : undefined,
               };
             });
             return obj;
@@ -558,12 +621,12 @@ export default function CaseAnalysisResults() {
       if (mainNodeGraphFile) {
         parsedData.mainNodeGraphHtml = await mainNodeGraphFile.async("text");
       }
-      
+
       const mainSankeyGraphFile = zipData.file("poi_flows_sankey.html");
       if (mainSankeyGraphFile) {
         parsedData.mainSankeyGraphHtml = await mainSankeyGraphFile.async("text");
       }
-      
+
       // Fallback to old format (poi_flows.html)
       const mainGraphHtmlFile = zipData.file("poi_flows.html");
       if (mainGraphHtmlFile) {
@@ -579,51 +642,54 @@ export default function CaseAnalysisResults() {
           parsedData.mainGraphUrl = URL.createObjectURL(content);
         }
       }
-      
+
       const mainGraphPngFile = zipData.file("poi_flows.png");
       if (mainGraphPngFile) {
         const content = await mainGraphPngFile.async("blob");
         parsedData.mainGraphPngUrl = URL.createObjectURL(content);
       }
-      
+
       // Parse per-file sankey graphs from poi_flows_per_file_sankeys folder
       const sankeyPerFileMap = new Map<string, string>();
       const sankeyFolderPrefix = "poi_flows_per_file_sankeys/";
       const sankeyFiles = Object.keys(zipData.files).filter(
-        name => name.startsWith(sankeyFolderPrefix) && name.endsWith('.html')
+        (name) => name.startsWith(sankeyFolderPrefix) && name.endsWith(".html"),
       );
-      
+
       // PARALLEL extraction of all sankey HTML files
       // Helper to normalize strings (needed for pre-indexing)
       const normalizeForSankey = (str: string) => {
-        const cleanExt = str.replace(/\.csv\.xlsx$/, "").replace(/\.xlsx$/, "").replace(/\.pdf$/, "");
-        return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const cleanExt = str
+          .replace(/\.csv\.xlsx$/, "")
+          .replace(/\.xlsx$/, "")
+          .replace(/\.pdf$/, "");
+        return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, "");
       };
-      
+
       const sankeyResults = await Promise.all(
         sankeyFiles.map(async (sankeyPath) => {
           const file = zipData.file(sankeyPath);
           if (!file) return null;
-          
+
           const htmlContent = await file.async("text");
           // Extract original filename from sankey_*.html
           // e.g., "poi_flows_per_file_sankeys/sankey_AGARWAL_BROTHERS.xlsx.html" -> "AGARWAL_BROTHERS"
           const key = sankeyPath
-            .replace(sankeyFolderPrefix, '')
-            .replace('sankey_', '')
-            .replace('.html', '')
-            .replace(/\.(xlsx|pdf|csv)$/i, '');
-          
+            .replace(sankeyFolderPrefix, "")
+            .replace("sankey_", "")
+            .replace(".html", "")
+            .replace(/\.(xlsx|pdf|csv)$/i, "");
+
           return { key, content: htmlContent };
-        })
+        }),
       );
-      
+
       // Populate map from parallel results
-      sankeyResults.filter(Boolean).forEach(r => {
+      sankeyResults.filter(Boolean).forEach((r) => {
         sankeyPerFileMap.set(r!.key, r!.content);
       });
-      console.log('[Analysis] ✓ Loaded', sankeyPerFileMap.size, 'sankey files');
-      
+      console.log("[Analysis] ✓ Loaded", sankeyPerFileMap.size, "sankey files");
+
       // Build normalized lookup index for O(1) matching
       const normalizedSankeyIndex = new Map<string, string>();
       for (const key of sankeyPerFileMap.keys()) {
@@ -631,40 +697,42 @@ export default function CaseAnalysisResults() {
       }
 
       // Process POI HTML files
-      const poiHtmlFiles = Object.keys(zipData.files).filter(name => name.startsWith('name_') && name.endsWith('.html'));
+      const poiHtmlFiles = Object.keys(zipData.files).filter(
+        (name) => name.startsWith("name_") && name.endsWith(".html"),
+      );
       for (const fileName of poiHtmlFiles) {
         const file = zipData.file(fileName);
         if (file) {
           const htmlContent = await file.async("text");
-          const poiName = fileName.replace('name_', '').replace('.html', '').replace(/_/g, ' ');
-          
-          const pngFileName = fileName.replace('.html', '.png');
+          const poiName = fileName.replace("name_", "").replace(".html", "").replace(/_/g, " ");
+
+          const pngFileName = fileName.replace(".html", ".png");
           const pngFile = zipData.file(pngFileName);
           let pngUrl;
           if (pngFile) {
             const pngContent = await pngFile.async("blob");
             pngUrl = URL.createObjectURL(pngContent);
           }
-          
+
           parsedData.poiHtmlFiles.push({
             name: fileName,
             htmlContent,
             title: `POI Analysis - ${poiName}`,
-            pngUrl
+            pngUrl,
           });
         }
       }
 
       // Fallback: Process ego images
       if (parsedData.poiHtmlFiles.length === 0) {
-        const egoFiles = Object.keys(zipData.files).filter(name => name.startsWith('ego_') && name.endsWith('.png'));
+        const egoFiles = Object.keys(zipData.files).filter((name) => name.startsWith("ego_") && name.endsWith(".png"));
         for (const fileName of egoFiles) {
           const file = zipData.file(fileName);
           if (file) {
             const content = await file.async("blob");
             parsedData.egoImages.push({
               name: fileName,
-              url: URL.createObjectURL(content)
+              url: URL.createObjectURL(content),
             });
           }
         }
@@ -673,60 +741,59 @@ export default function CaseAnalysisResults() {
       // poi_summary.json already parsed earlier (before Excel parsing)
 
       // --- FIX START: Robust Normalized File Matching ---
-      
+
       const analysisFileNames = Object.keys(zipData.files);
-      
+
       // Helper to normalize strings: remove extension, lowercase, remove non-alphanumerics
       const normalizeString = (str: string) => {
         // Remove known extensions first to avoid keeping "csv" or "xlsx" in the comparison string
-        const cleanExt = str.replace(/\.csv\.xlsx$/, "").replace(/\.xlsx$/, "").replace(/\.pdf$/, "");
+        const cleanExt = str
+          .replace(/\.csv\.xlsx$/, "")
+          .replace(/\.xlsx$/, "")
+          .replace(/\.pdf$/, "");
         // Remove all non-alphanumeric characters (spaces, underscores, dashes, dots) and lowercase
-        return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return cleanExt.toLowerCase().replace(/[^a-z0-9]/g, "");
       };
 
       for (const originalFile of originalFiles) {
         const originalNormalized = normalizeString(originalFile.file_name);
         // Also create a version with underscores for sankey matching
         const originalWithUnderscores = originalFile.file_name
-          .replace(/\.pdf$/i, '')
-          .replace(/\.xlsx$/i, '')
-          .replace(/\.csv$/i, '')
-          .replace(/\s+/g, '_');
+          .replace(/\.pdf$/i, "")
+          .replace(/\.xlsx$/i, "")
+          .replace(/\.csv$/i, "")
+          .replace(/\s+/g, "_");
 
         // Extract base filename without extension for exact matching
         // Backend creates: raw_transactions_{base}.xlsx and summary_{base}.xlsx
-        const originalBaseName = originalFile.file_name.replace(/\.(pdf|csv|xlsx?)$/i, '');
-        
+        const originalBaseName = originalFile.file_name.replace(/\.(pdf|csv|xlsx?)$/i, "");
+
         // Find Raw Transactions (Pattern: raw_transactions_[base].xlsx) - EXACT MATCH ONLY
-        const rawTransactionsFile = analysisFileNames.find(zipFileName => {
-          if (!zipFileName.startsWith('raw_transactions_')) return false;
-          
+        const rawTransactionsFile = analysisFileNames.find((zipFileName) => {
+          if (!zipFileName.startsWith("raw_transactions_")) return false;
+
           // Extract base name: "raw_transactions_SHIVAM_AGARWAL_2024-25.xlsx" -> "SHIVAM_AGARWAL_2024-25"
-          const zipBaseName = zipFileName
-            .replace('raw_transactions_', '')
-            .replace(/\.xlsx$/i, '');
-          
+          const zipBaseName = zipFileName.replace("raw_transactions_", "").replace(/\.xlsx$/i, "");
+
           // Exact case-insensitive match
           return zipBaseName.toLowerCase() === originalBaseName.toLowerCase();
         });
-        
+
         // Find Summary (Pattern: summary_[base].xlsx) - EXACT MATCH ONLY
-        const summaryFile = analysisFileNames.find(zipFileName => {
-          if (!zipFileName.startsWith('summary_')) return false;
-          
+        const summaryFile = analysisFileNames.find((zipFileName) => {
+          if (!zipFileName.startsWith("summary_")) return false;
+
           // Extract base name: "summary_SHIVAM_AGARWAL_2024-25.xlsx" -> "SHIVAM_AGARWAL_2024-25"
-          const zipBaseName = zipFileName
-            .replace('summary_', '')
-            .replace(/\.xlsx$/i, '');
-          
+          const zipBaseName = zipFileName.replace("summary_", "").replace(/\.xlsx$/i, "");
+
           // Exact case-insensitive match
           return zipBaseName.toLowerCase() === originalBaseName.toLowerCase();
         });
-        
+
         // Find Sankey HTML for this file from sankeyPerFileMap
         // Sankey files are named: sankey_[filename_with_underscores].html
         let sankeyHtml: string | null = null;
-        
+
         // Try exact match with underscores first
         if (sankeyPerFileMap.has(originalWithUnderscores)) {
           sankeyHtml = sankeyPerFileMap.get(originalWithUnderscores)!;
@@ -745,11 +812,11 @@ export default function CaseAnalysisResults() {
           originalFile: originalFile.file_name,
           rawTransactionsFile: rawTransactionsFile || null,
           summaryFile: summaryFile || null,
-          sankeyHtml: sankeyHtml
+          sankeyHtml: sankeyHtml,
         });
         // Summary data is lazy-loaded by SummaryTableViewer when user expands
       }
-      
+
       // --- FIX END ---
 
       parsedData.zipData = zip;
@@ -762,7 +829,7 @@ export default function CaseAnalysisResults() {
   };
 
   const handleDownload = (url: string, filename: string) => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = url;
     link.download = filename;
     link.click();
@@ -770,23 +837,23 @@ export default function CaseAnalysisResults() {
 
   const downloadAllPOIFiles = () => {
     if (!case_) return;
-    downloadResultFile(case_.id, case_.result_zip_url, 'result_zip', `POI_files_${case_.name}.zip`);
+    downloadResultFile(case_.id, case_.result_zip_url, "result_zip", `POI_files_${case_.name}.zip`);
   };
 
   const downloadCompleteReport = () => {
     if (!case_) return;
-    downloadResultFile(case_.id, case_.result_zip_url, 'result_zip', `analysis_report_${case_.name}.zip`);
+    downloadResultFile(case_.id, case_.result_zip_url, "result_zip", `analysis_report_${case_.name}.zip`);
   };
 
   const downloadIndividualFile = async (fileName: string) => {
     if (!analysisData?.zipData) return;
-    
+
     const file = analysisData.zipData.file(fileName);
     if (file) {
       let content: Blob;
-      if (fileName.endsWith('.html')) {
+      if (fileName.endsWith(".html")) {
         const htmlContent = await file.async("text");
-        content = new Blob([htmlContent], { type: 'text/html' });
+        content = new Blob([htmlContent], { type: "text/html" });
       } else {
         content = await file.async("blob");
       }
@@ -812,9 +879,9 @@ export default function CaseAnalysisResults() {
     setLightboxOpen(true);
   };
 
-  const openPOIModal = (poi: typeof analysisData.poiHtmlFiles[0], index?: number) => {
+  const openPOIModal = (poi: (typeof analysisData.poiHtmlFiles)[0], index?: number) => {
     setSelectedPOI(poi);
-    setCurrentPOIIndex(index ?? analysisData?.poiHtmlFiles.findIndex(p => p.name === poi.name) ?? 0);
+    setCurrentPOIIndex(index ?? analysisData?.poiHtmlFiles.findIndex((p) => p.name === poi.name) ?? 0);
     setPOIModalOpen(true);
   };
 
@@ -834,14 +901,14 @@ export default function CaseAnalysisResults() {
 
   const downloadPOIPng = () => {
     if (selectedPOI?.pngUrl) {
-      handleDownload(selectedPOI.pngUrl, selectedPOI.name.replace('.html', '.png'));
-      toast({ title: `Downloading ${selectedPOI.name.replace('.html', '.png')}` });
+      handleDownload(selectedPOI.pngUrl, selectedPOI.name.replace(".html", ".png"));
+      toast({ title: `Downloading ${selectedPOI.name.replace(".html", ".png")}` });
     }
   };
 
   const downloadMainFlowPng = () => {
     if (analysisData?.mainGraphPngUrl) {
-      handleDownload(analysisData.mainGraphPngUrl, 'poi_flows.png');
+      handleDownload(analysisData.mainGraphPngUrl, "poi_flows.png");
       toast({ title: "Downloading poi_flows.png" });
     }
   };
@@ -849,25 +916,25 @@ export default function CaseAnalysisResults() {
   // Lazy load raw transaction data for a specific file
   const loadRawTransactionsData = async (rawFileName: string): Promise<CellData[][] | null> => {
     if (!analysisData?.zipData || !rawFileName) return null;
-    
+
     // Check if already cached in analysisData
     if (analysisData.rawDataMap.has(rawFileName)) {
       return analysisData.rawDataMap.get(rawFileName)!;
     }
-    
+
     try {
       const rawFile = analysisData.zipData.file(rawFileName);
       if (!rawFile) {
         console.warn(`Raw file not found in ZIP: ${rawFileName}`);
         return null;
       }
-      
+
       const content = await rawFile.async("arraybuffer");
       const parsed = await parseExcelFile(content);
-      
+
       // Cache the parsed data
       analysisData.rawDataMap.set(rawFileName, parsed);
-      
+
       return parsed;
     } catch (error) {
       console.error(`Failed to parse raw file ${rawFileName}:`, error);
@@ -890,9 +957,11 @@ export default function CaseAnalysisResults() {
               <Loader2 className="h-12 w-12 mx-auto mb-4 text-primary animate-spin" />
               <h3 className="text-lg font-medium mb-2">Securely Loading Results</h3>
               <p className="text-muted-foreground text-sm">
-                {caseLoading ? 'Fetching case data...' : 
-                 resultStatusLoading ? 'Checking file availability...' : 
-                 'Downloading encrypted files...'}
+                {caseLoading
+                  ? "Fetching case data..."
+                  : resultStatusLoading
+                    ? "Checking file availability..."
+                    : "Downloading encrypted files..."}
               </p>
             </div>
           </CardContent>
@@ -901,7 +970,7 @@ export default function CaseAnalysisResults() {
     );
   }
 
-  if (!case_ || case_.status !== 'Ready') {
+  if (!case_ || case_.status !== "Ready") {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4">
@@ -941,14 +1010,11 @@ export default function CaseAnalysisResults() {
               <FileText className="h-12 w-12 mx-auto mb-4 text-destructive" />
               <h3 className="text-lg font-medium mb-2">Failed to Load Results</h3>
               <p className="text-muted-foreground mb-4">
-                {analysisError instanceof Error 
-                  ? analysisError.message 
-                  : 'Unable to load analysis files. Please try again.'}
+                {analysisError instanceof Error
+                  ? analysisError.message
+                  : "Unable to load analysis files. Please try again."}
               </p>
-              <Button 
-                variant="outline" 
-                onClick={() => window.location.reload()}
-              >
+              <Button variant="outline" onClick={() => window.location.reload()}>
                 Retry
               </Button>
             </div>
@@ -966,7 +1032,7 @@ export default function CaseAnalysisResults() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            {t('analysisResults.backToCase')}
+            {t("analysisResults.backToCase")}
           </Button>
           {(case_ as any).previous_result_zip_url && (
             <Button
@@ -976,12 +1042,14 @@ export default function CaseAnalysisResults() {
               className="gap-2"
             >
               <FileText className="h-4 w-4" />
-              {viewingPreviousResults ? t('analysisResults.viewLatestResults') : t('analysisResults.viewPreviousResults')}
+              {viewingPreviousResults
+                ? t("analysisResults.viewLatestResults")
+                : t("analysisResults.viewPreviousResults")}
             </Button>
           )}
           {viewingPreviousResults && (
             <div className="bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 px-3 py-1.5 rounded-md text-sm font-medium">
-              {t('analysisResults.viewingPreviousResults')}
+              {t("analysisResults.viewingPreviousResults")}
             </div>
           )}
         </div>
@@ -990,20 +1058,25 @@ export default function CaseAnalysisResults() {
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-              {t('analysisResults.title')}
+              {t("analysisResults.title")}
             </h1>
             <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
             {hasGroupingChanges && (
-              <Button onClick={() => setApplyChangesOpen(true)} size="default" variant="outline" className="gap-2 w-full sm:w-auto border-primary text-primary hover:bg-primary/10">
+              <Button
+                onClick={() => setApplyChangesOpen(true)}
+                size="default"
+                variant="outline"
+                className="gap-2 w-full sm:w-auto border-primary text-primary hover:bg-primary/10"
+              >
                 <Settings2 className="h-4 w-4" />
                 Apply Changes
               </Button>
             )}
             <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
-              {t('analysisResults.downloadReport')}
+              {t("analysisResults.downloadReport")}
             </Button>
           </div>
         </div>
@@ -1012,34 +1085,40 @@ export default function CaseAnalysisResults() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{t('analysisResults.totalBeneficiaries')}</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {t("analysisResults.totalBeneficiaries")}
+              </CardTitle>
               <Users className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
-              <p className="text-xs text-muted-foreground">{t('analysisResults.identifiedInAnalysis')}</p>
+              <p className="text-xs text-muted-foreground">{t("analysisResults.identifiedInAnalysis")}</p>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{t('analysisResults.personOfInterest')}</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {t("analysisResults.personOfInterest")}
+              </CardTitle>
               <FileText className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.poiFileCount}</div>
-              <p className="text-xs text-muted-foreground">{t('analysisResults.presentInMultipleFiles')}</p>
+              <p className="text-xs text-muted-foreground">{t("analysisResults.presentInMultipleFiles")}</p>
             </CardContent>
           </Card>
-          
+
           <Card className="border-l-4 border-l-green-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{t('analysisResults.analysisFiles')}</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {t("analysisResults.analysisFiles")}
+              </CardTitle>
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{analysisData.fileSummaries.length}</div>
-              <p className="text-xs text-muted-foreground">{t('analysisResults.originalFilesProcessed')}</p>
+              <p className="text-xs text-muted-foreground">{t("analysisResults.originalFilesProcessed")}</p>
             </CardContent>
           </Card>
         </div>
@@ -1047,7 +1126,7 @@ export default function CaseAnalysisResults() {
         {/* Enhanced Beneficiaries Preview */}
         {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
           <ExcelViewer
-            title={t('analysisResults.topBeneficiaries', { count: Math.min(100, analysisData.totalBeneficiaryCount) })}
+            title={t("analysisResults.topBeneficiaries", { count: Math.min(100, analysisData.totalBeneficiaryCount) })}
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
             maxRows={102}
@@ -1068,18 +1147,20 @@ export default function CaseAnalysisResults() {
         )}
 
         {/* Main Flow Graph - with Tabs for Fund Trail, Sankey and Node graphs */}
-        {(analysisData.fundTrailHtml || analysisData.mainSankeyGraphHtml || analysisData.mainNodeGraphHtml || analysisData.mainGraphHtml || analysisData.mainGraphUrl) && (
+        {(analysisData.fundTrailHtml ||
+          analysisData.mainSankeyGraphHtml ||
+          analysisData.mainNodeGraphHtml ||
+          analysisData.mainGraphHtml ||
+          analysisData.mainGraphUrl) && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/50 dark:to-indigo-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <TrendingUp className="h-5 w-5" />
-                {t('analysisResults.transactionFlowAnalysis')}
+                {t("analysisResults.transactionFlowAnalysis")}
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {t('analysisResults.interactiveVisualization')}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("analysisResults.interactiveVisualization")}</p>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-6 relative">
               {/* Determine available tabs */}
               {(() => {
                 const hasFundTrail = !!analysisData.fundTrailHtml;
@@ -1087,30 +1168,34 @@ export default function CaseAnalysisResults() {
                 const hasNode = !!analysisData.mainNodeGraphHtml;
                 const hasLegacy = !!analysisData.mainGraphHtml || !!analysisData.mainGraphUrl;
                 const tabCount = [hasFundTrail, hasSankey, hasNode, hasLegacy].filter(Boolean).length;
-                
+
                 // Default to fundtrail if available, otherwise sankey
                 const defaultTab = hasFundTrail ? "fundtrail" : hasSankey ? "sankey" : "node";
-                
+
                 if (tabCount > 1) {
                   return (
                     <Tabs defaultValue={defaultTab} className="w-full">
-                      <TabsList className="mb-4 bg-muted/60">
-                        {hasFundTrail && (
-                          <TabsTrigger value="fundtrail" className="data-[state=active]:bg-background">
-                            {t('analysisResults.fundTrail')}
-                          </TabsTrigger>
-                        )}
-                        {hasSankey && (
-                          <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
-                            {t('analysisResults.sankeyGraph')}
-                          </TabsTrigger>
-                        )}
-                        {hasNode && (
-                          <TabsTrigger value="node" className="data-[state=active]:bg-background">
-                            {t('analysisResults.nodeGraph')}
-                          </TabsTrigger>
-                        )}
-                      </TabsList>
+                      <div className="flex items-center justify-between mb-4">
+                        <TabsList className="bg-muted/60">
+                          {hasFundTrail && (
+                            <TabsTrigger value="fundtrail" className="data-[state=active]:bg-background">
+                              {t("analysisResults.fundTrail")}
+                            </TabsTrigger>
+                          )}
+                          {hasSankey && (
+                            <TabsTrigger value="sankey" className="data-[state=active]:bg-background">
+                              {t("analysisResults.sankeyGraph")}
+                            </TabsTrigger>
+                          )}
+                          {hasNode && (
+                            <TabsTrigger value="node" className="data-[state=active]:bg-background">
+                              {t("analysisResults.nodeGraph")}
+                            </TabsTrigger>
+                          )}
+                        </TabsList>
+                        {/* Toolbar slot - FundTrailViewer will render here via portal */}
+                        <div id="fund-trail-toolbar-slot" />
+                      </div>
                       {hasFundTrail && (
                         <TabsContent value="fundtrail">
                           <FundTrailViewer
@@ -1118,6 +1203,7 @@ export default function CaseAnalysisResults() {
                             caseId={id!}
                             onShare={() => setShareFundTrailOpen(true)}
                             className="h-[80vh]"
+                            renderToolbar={(toolbar) => toolbar}
                           />
                         </TabsContent>
                       )}
@@ -1126,7 +1212,7 @@ export default function CaseAnalysisResults() {
                           <HTMLViewer
                             htmlContent={analysisData.mainSankeyGraphHtml!}
                             title="Sankey Graph"
-                            onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                            onDownload={() => downloadIndividualFile("poi_flows_sankey.html")}
                             onShare={() => {
                               setShareGraphHtml(analysisData.mainSankeyGraphHtml!);
                               setShareGraphOpen(true);
@@ -1140,7 +1226,7 @@ export default function CaseAnalysisResults() {
                           <HTMLViewer
                             htmlContent={analysisData.mainNodeGraphHtml!}
                             title="Node Graph"
-                            onDownload={() => downloadIndividualFile('poi_flows_main.html')}
+                            onDownload={() => downloadIndividualFile("poi_flows_main.html")}
                             onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
                             onShare={() => {
                               setShareGraphHtml(analysisData.mainNodeGraphHtml!);
@@ -1153,7 +1239,7 @@ export default function CaseAnalysisResults() {
                     </Tabs>
                   );
                 }
-                
+
                 // Single graph - show directly
                 if (hasFundTrail) {
                   return (
@@ -1170,7 +1256,7 @@ export default function CaseAnalysisResults() {
                     <HTMLViewer
                       htmlContent={analysisData.mainSankeyGraphHtml!}
                       title="Sankey Graph"
-                      onDownload={() => downloadIndividualFile('poi_flows_sankey.html')}
+                      onDownload={() => downloadIndividualFile("poi_flows_sankey.html")}
                       onShare={() => {
                         setShareGraphHtml(analysisData.mainSankeyGraphHtml!);
                         setShareGraphOpen(true);
@@ -1184,7 +1270,7 @@ export default function CaseAnalysisResults() {
                     <HTMLViewer
                       htmlContent={analysisData.mainNodeGraphHtml!}
                       title="Node Graph"
-                      onDownload={() => downloadIndividualFile('poi_flows_main.html')}
+                      onDownload={() => downloadIndividualFile("poi_flows_main.html")}
                       onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
                       onShare={() => {
                         setShareGraphHtml(analysisData.mainNodeGraphHtml!);
@@ -1199,7 +1285,7 @@ export default function CaseAnalysisResults() {
                     <HTMLViewer
                       htmlContent={analysisData.mainGraphHtml}
                       title="Transaction Flow Analysis"
-                      onDownload={() => downloadIndividualFile('poi_flows.html')}
+                      onDownload={() => downloadIndividualFile("poi_flows.html")}
                       onDownloadPng={analysisData.mainGraphPngUrl ? downloadMainFlowPng : undefined}
                       className="h-[70vh]"
                     />
@@ -1208,16 +1294,16 @@ export default function CaseAnalysisResults() {
                 if (analysisData.mainGraphUrl) {
                   return (
                     <div className="relative group">
-                      <img 
-                        src={analysisData.mainGraphUrl} 
-                        alt="POI Flow Analysis" 
+                      <img
+                        src={analysisData.mainGraphUrl}
+                        alt="POI Flow Analysis"
                         className="w-full h-auto rounded-lg border shadow-sm"
                       />
                       <Button
                         variant="secondary"
                         size="sm"
                         className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                        onClick={() => handleDownload(analysisData.mainGraphUrl!, 'poi_flows.png')}
+                        onClick={() => handleDownload(analysisData.mainGraphUrl!, "poi_flows.png")}
                       >
                         <Download className="h-4 w-4" />
                       </Button>
@@ -1235,16 +1321,14 @@ export default function CaseAnalysisResults() {
           <CardHeader>
             <CardTitle className="text-xl flex items-center gap-2">
               <Download className="h-5 w-5" />
-              {t('analysisResults.poiRawData')}
+              {t("analysisResults.poiRawData")}
             </CardTitle>
-            <p className="text-sm text-muted-foreground">
-              {t('analysisResults.downloadDetailedAnalysis')}
-            </p>
+            <p className="text-sm text-muted-foreground">{t("analysisResults.downloadDetailedAnalysis")}</p>
           </CardHeader>
           <CardContent>
             <Button onClick={downloadAllPOIFiles} variant="outline" size="sm" className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
-              {t('analysisResults.downloadAllPOI')} ({analysisData.poiFileCount} files)
+              {t("analysisResults.downloadAllPOI")} ({analysisData.poiFileCount} files)
             </Button>
           </CardContent>
         </Card>
@@ -1255,18 +1339,16 @@ export default function CaseAnalysisResults() {
             <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 dark:from-violet-950/50 dark:to-purple-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <Eye className="h-5 w-5" />
-                {t('analysisResults.interactivePOIAnalysis')}
+                {t("analysisResults.interactivePOIAnalysis")}
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {t('analysisResults.individualNetworkAnalysis')}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("analysisResults.individualNetworkAnalysis")}</p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="relative">
                 <ScrollArea className="w-full whitespace-nowrap rounded-md border">
                   <div className="flex gap-4 p-4">
                     {analysisData.poiHtmlFiles.map((poiFile, index) => (
-                      <div 
+                      <div
                         key={index}
                         className="flex-shrink-0 cursor-pointer group relative"
                         onClick={() => openPOIModal(poiFile, index)}
@@ -1274,19 +1356,11 @@ export default function CaseAnalysisResults() {
                         <div className="relative w-64 h-40 rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
                           {poiFile.pngUrl ? (
                             <div className="relative h-full">
-                              <img 
-                                src={poiFile.pngUrl} 
-                                alt={poiFile.title}
-                                className="w-full h-full object-cover"
-                              />
+                              <img src={poiFile.pngUrl} alt={poiFile.title} className="w-full h-full object-cover" />
                               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                               <div className="absolute bottom-0 left-0 right-0 p-3">
-                                <p className="text-sm font-medium text-white truncate">
-                                  {poiFile.title}
-                                </p>
-                                <p className="text-xs text-white/80 mt-1">
-                                  Click to view interactive graph
-                                </p>
+                                <p className="text-sm font-medium text-white truncate">{poiFile.title}</p>
+                                <p className="text-xs text-white/80 mt-1">Click to view interactive graph</p>
                               </div>
                               <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                                 <Eye className="h-8 w-8 text-white drop-shadow-lg" />
@@ -1305,7 +1379,7 @@ export default function CaseAnalysisResults() {
                           )}
                         </div>
                         <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-64">
-                          {poiFile.name.replace('name_', '').replace('.html', '').replace(/_/g, ' ')}
+                          {poiFile.name.replace("name_", "").replace(".html", "").replace(/_/g, " ")}
                         </p>
                       </div>
                     ))}
@@ -1329,33 +1403,33 @@ export default function CaseAnalysisResults() {
                 Individual ego networks showing relationship patterns for each person of interest.
               </p>
             </CardHeader>
-             <CardContent className="p-6">
-               <ScrollArea className="w-full whitespace-nowrap rounded-md border">
-                 <div className="flex gap-4 p-4">
-                   {analysisData.egoImages.map((image, index) => (
-                     <div 
-                       key={index}
-                       className="flex-shrink-0 cursor-pointer group relative"
-                       onClick={() => openLightbox(index)}
-                     >
-                       <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
-                         <img 
-                           src={image.url} 
-                           alt={`Ego network for ${image.name}`}
-                           className="w-full h-full object-cover"
-                         />
-                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                           <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                         </div>
-                       </div>
-                       <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-48">
-                         {image.name.replace('ego_', '').replace('.png', '')}
-                       </p>
-                     </div>
-                   ))}
-                 </div>
-               </ScrollArea>
-             </CardContent>
+            <CardContent className="p-6">
+              <ScrollArea className="w-full whitespace-nowrap rounded-md border">
+                <div className="flex gap-4 p-4">
+                  {analysisData.egoImages.map((image, index) => (
+                    <div
+                      key={index}
+                      className="flex-shrink-0 cursor-pointer group relative"
+                      onClick={() => openLightbox(index)}
+                    >
+                      <div className="relative w-48 h-32 bg-muted rounded-lg overflow-hidden border shadow-md hover:shadow-lg transition-all transform hover:scale-105">
+                        <img
+                          src={image.url}
+                          alt={`Ego network for ${image.name}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                          <Eye className="h-6 w-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2 text-center truncate font-medium w-48">
+                        {image.name.replace("ego_", "").replace(".png", "")}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </CardContent>
           </Card>
         )}
 
@@ -1365,11 +1439,9 @@ export default function CaseAnalysisResults() {
             <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                {t('analysisResults.fileAnalysisSummary')}
+                {t("analysisResults.fileAnalysisSummary")}
               </CardTitle>
-              <p className="text-sm text-muted-foreground">
-                {t('analysisResults.fileAnalysisSummaryDesc')}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("analysisResults.fileAnalysisSummaryDesc")}</p>
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
@@ -1384,7 +1456,7 @@ export default function CaseAnalysisResults() {
                         <h4 className="font-semibold text-sm flex items-center gap-2">
                           <span className="text-muted-foreground text-xs font-medium">{index + 1}.</span>
                           <FileText className="h-4 w-4 text-primary" />
-                          <span className="text-muted-foreground">{t('analysisResults.originalFile')}:</span>
+                          <span className="text-muted-foreground">{t("analysisResults.originalFile")}:</span>
                           <TooltipProvider>
                             <Tooltip>
                               <TooltipTrigger asChild>
@@ -1403,27 +1475,31 @@ export default function CaseAnalysisResults() {
                             className="h-6 w-6 ml-1 hover:bg-primary/10"
                             onClick={async () => {
                               // Find matching file by name (with flexible matching)
-                              const file = files.find(f => 
-                                f.file_name === summary.originalFile || 
-                                f.file_name.replace(/\s+/g, '_') === summary.originalFile ||
-                                summary.originalFile.replace(/\s+/g, '_') === f.file_name
+                              const file = files.find(
+                                (f) =>
+                                  f.file_name === summary.originalFile ||
+                                  f.file_name.replace(/\s+/g, "_") === summary.originalFile ||
+                                  summary.originalFile.replace(/\s+/g, "_") === f.file_name,
                               );
-                              
+
                               if (file) {
                                 try {
                                   // Get current user and construct path like CaseDetail does
-                                  const { data: { user }, error: authError } = await supabase.auth.getUser();
+                                  const {
+                                    data: { user },
+                                    error: authError,
+                                  } = await supabase.auth.getUser();
                                   if (authError || !user) {
                                     throw new Error("Authentication required");
                                   }
-                                  
+
                                   // Construct path: userId/caseId/filename
                                   const filePath = `${user.id}/${id}/${file.file_name}`;
-                                  
+
                                   const { data: signedData, error } = await supabase.storage
-                                    .from('case-files')
+                                    .from("case-files")
                                     .createSignedUrl(filePath, 3600);
-                                  
+
                                   if (signedData?.signedUrl) {
                                     setPreviewFile({ name: summary.originalFile, url: signedData.signedUrl });
                                   } else {
@@ -1431,10 +1507,18 @@ export default function CaseAnalysisResults() {
                                   }
                                 } catch (error) {
                                   console.error("Preview error:", error);
-                                  toast({ title: "Preview not available", description: "Could not load file", variant: "destructive" });
+                                  toast({
+                                    title: "Preview not available",
+                                    description: "Could not load file",
+                                    variant: "destructive",
+                                  });
                                 }
                               } else {
-                                toast({ title: "Preview not available", description: "Source file not found in case files", variant: "destructive" });
+                                toast({
+                                  title: "Preview not available",
+                                  description: "Source file not found in case files",
+                                  variant: "destructive",
+                                });
                               }
                             }}
                             title="Preview file"
@@ -1444,21 +1528,27 @@ export default function CaseAnalysisResults() {
                         </h4>
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
-                            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground hover:text-foreground">
-                              <span className="text-xs">{t('actions.viewSummary')}</span>
-                              <ChevronDown className={cn(
-                                "h-4 w-4 transition-transform duration-200",
-                                expandedSummaries.has(index) && "rotate-180"
-                              )} />
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-2 text-muted-foreground hover:text-foreground"
+                            >
+                              <span className="text-xs">{t("actions.viewSummary")}</span>
+                              <ChevronDown
+                                className={cn(
+                                  "h-4 w-4 transition-transform duration-200",
+                                  expandedSummaries.has(index) && "rotate-180",
+                                )}
+                              />
                             </Button>
                           </CollapsibleTrigger>
                         )}
                       </div>
                       <div className="flex items-center gap-3 flex-wrap">
-        {summary.rawTransactionsFile && (
+                        {summary.rawTransactionsFile && (
                           <div className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 px-3 py-2 rounded-lg">
                             <div className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></div>
-                            <span className="text-muted-foreground">{t('analysisResults.rawTransactions')}</span>
+                            <span className="text-muted-foreground">{t("analysisResults.rawTransactions")}</span>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1466,14 +1556,14 @@ export default function CaseAnalysisResults() {
                               className="h-7 gap-1.5"
                             >
                               <Download className="h-3 w-3" />
-                              {t('analysisResults.download')}
+                              {t("analysisResults.download")}
                             </Button>
                           </div>
                         )}
                         {summary.summaryFile && (
                           <div className="flex items-center gap-2 text-sm bg-green-50 dark:bg-green-950/30 px-3 py-2 rounded-lg">
                             <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
-                            <span className="text-muted-foreground">{t('analysisResults.summary')}</span>
+                            <span className="text-muted-foreground">{t("analysisResults.summary")}</span>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1481,7 +1571,7 @@ export default function CaseAnalysisResults() {
                               className="h-7 gap-1.5"
                             >
                               <Download className="h-3 w-3" />
-                              {t('analysisResults.download')}
+                              {t("analysisResults.download")}
                             </Button>
                           </div>
                         )}
@@ -1493,15 +1583,17 @@ export default function CaseAnalysisResults() {
                               variant="outline"
                               onClick={() => {
                                 // Find the index among files that have sankey graphs
-                                const filesWithSankey = analysisData.fileSummaries.filter(s => s.sankeyHtml);
-                                const sankeyIndex = filesWithSankey.findIndex(s => s.originalFile === summary.originalFile);
+                                const filesWithSankey = analysisData.fileSummaries.filter((s) => s.sankeyHtml);
+                                const sankeyIndex = filesWithSankey.findIndex(
+                                  (s) => s.originalFile === summary.originalFile,
+                                );
                                 setCurrentFileSankeyIndex(sankeyIndex >= 0 ? sankeyIndex : 0);
                                 setFileSankeyModalOpen(true);
                               }}
                               className="h-7 gap-1.5 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800 hover:bg-violet-100 dark:hover:bg-violet-900/50"
                             >
                               <BarChart3 className="h-3 w-3" />
-                              {t('analysisResults.graph')}
+                              {t("analysisResults.graph")}
                             </Button>
                           </div>
                         )}
@@ -1509,7 +1601,7 @@ export default function CaseAnalysisResults() {
                     </div>
                     {summary.summaryFile && (
                       <CollapsibleContent className="pt-4 px-1">
-                        <LazySummaryTableViewer 
+                        <LazySummaryTableViewer
                           summaryFileName={summary.summaryFile}
                           rawTransactionsFileName={summary.rawTransactionsFile}
                           zipData={analysisData.zipData || null}
@@ -1518,12 +1610,17 @@ export default function CaseAnalysisResults() {
                           onCacheData={(fileName, data) => {
                             analysisData.summaryDataMap.set(fileName, data);
                           }}
-                          onLoadRawData={summary.rawTransactionsFile 
-                            ? () => loadRawTransactionsData(summary.rawTransactionsFile!)
-                            : undefined
+                          onLoadRawData={
+                            summary.rawTransactionsFile
+                              ? () => loadRawTransactionsData(summary.rawTransactionsFile!)
+                              : undefined
                           }
                           onSaveGroupingOverride={handleSaveGroupingOverride}
-                          pendingOverrides={groupingOverrides.individual[summary.summaryFile.replace(/^summary_/i, '').replace(/\.xlsx$/i, '')] || {}}
+                          pendingOverrides={
+                            groupingOverrides.individual[
+                              summary.summaryFile.replace(/^summary_/i, "").replace(/\.xlsx$/i, "")
+                            ] || {}
+                          }
                         />
                       </CollapsibleContent>
                     )}
@@ -1564,7 +1661,7 @@ export default function CaseAnalysisResults() {
         fileUrl={previewFile?.url || ""}
         onDownload={() => {
           if (previewFile?.url) {
-            const link = document.createElement('a');
+            const link = document.createElement("a");
             link.href = previewFile.url;
             link.download = previewFile.name;
             link.click();
@@ -1575,11 +1672,11 @@ export default function CaseAnalysisResults() {
 
       {/* Per-File Sankey Modal */}
       {(() => {
-        const filesWithSankey = analysisData.fileSummaries.filter(s => s.sankeyHtml);
+        const filesWithSankey = analysisData.fileSummaries.filter((s) => s.sankeyHtml);
         const currentSankey = filesWithSankey[currentFileSankeyIndex];
-        
+
         if (!currentSankey) return null;
-        
+
         return (
           <FileSankeyModal
             isOpen={fileSankeyModalOpen}
@@ -1588,14 +1685,18 @@ export default function CaseAnalysisResults() {
             htmlContent={currentSankey.sankeyHtml!}
             onDownload={() => {
               if (currentSankey.sankeyHtml) {
-                const blob = new Blob([currentSankey.sankeyHtml], { type: 'text/html' });
+                const blob = new Blob([currentSankey.sankeyHtml], { type: "text/html" });
                 const url = URL.createObjectURL(blob);
-                handleDownload(url, `sankey_${currentSankey.originalFile.replace(/\.[^/.]+$/, '')}.html`);
+                handleDownload(url, `sankey_${currentSankey.originalFile.replace(/\.[^/.]+$/, "")}.html`);
                 toast({ title: `Downloading sankey graph` });
               }
             }}
-            onPrevious={currentFileSankeyIndex > 0 ? () => setCurrentFileSankeyIndex(prev => prev - 1) : undefined}
-            onNext={currentFileSankeyIndex < filesWithSankey.length - 1 ? () => setCurrentFileSankeyIndex(prev => prev + 1) : undefined}
+            onPrevious={currentFileSankeyIndex > 0 ? () => setCurrentFileSankeyIndex((prev) => prev - 1) : undefined}
+            onNext={
+              currentFileSankeyIndex < filesWithSankey.length - 1
+                ? () => setCurrentFileSankeyIndex((prev) => prev + 1)
+                : undefined
+            }
             currentIndex={currentFileSankeyIndex}
             totalCount={filesWithSankey.length}
           />
@@ -1618,7 +1719,7 @@ export default function CaseAnalysisResults() {
           open={shareGraphOpen}
           onOpenChange={(open) => {
             setShareGraphOpen(open);
-            if (!open) setShareGraphHtml('');
+            if (!open) setShareGraphHtml("");
           }}
           caseId={id!}
           fundTrailHtml={shareGraphHtml}

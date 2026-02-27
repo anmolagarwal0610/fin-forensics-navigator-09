@@ -1193,7 +1193,7 @@ export default function CaseAnalysisResults() {
                             </TabsTrigger>
                           )}
                         </TabsList>
-                        {/* Toolbar container for Fund Trail - positioned here */}
+                        {/* Toolbar slot - FundTrailViewer will render here via portal */}
                         <div id="fund-trail-toolbar-slot" />
                       </div>
                       {hasFundTrail && (
@@ -1203,7 +1203,7 @@ export default function CaseAnalysisResults() {
                             caseId={id!}
                             onShare={() => setShareFundTrailOpen(true)}
                             className="h-[80vh]"
-                            renderToolbar={(toolbar) => <div className="absolute right-6 top-6 z-20">{toolbar}</div>}
+                            renderToolbar={(toolbar) => toolbar}
                           />
                         </TabsContent>
                       )}

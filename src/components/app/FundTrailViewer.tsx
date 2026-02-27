@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import ReactDOM from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -273,13 +274,18 @@ export default function FundTrailViewer({
     );
   }
 
+  // Find the toolbar slot in parent for portal rendering
+  const toolbarSlot = typeof document !== "undefined" ? document.getElementById("fund-trail-toolbar-slot") : null;
+
   return (
     <div
       ref={containerRef}
       className={cn("flex flex-col relative", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
     >
-      {/* Render toolbar externally if renderToolbar prop provided, otherwise render internally */}
-      {renderToolbar ? (
+      {/* Render toolbar: use portal to slot if available, or renderToolbar prop, or internal */}
+      {toolbarSlot && renderToolbar ? (
+        ReactDOM.createPortal(renderToolbar(toolbar), toolbarSlot)
+      ) : renderToolbar ? (
         renderToolbar(toolbar)
       ) : (
         <div className="flex items-center justify-end gap-2 mb-2">{toolbar}</div>

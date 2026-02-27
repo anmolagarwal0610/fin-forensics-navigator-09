@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Share2, Loader2, Maximize2, Minimize2, Download, RotateCcw } from "lucide-react";
+import { Share2, Loader2, Maximize2, Minimize2, Download, RotateCcw, Save } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FundTrailViewerProps {
@@ -20,16 +20,13 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const savedPositionsRef = useRef<{ positions: any; filters: any } | null>(null);
-  const hasLoadedInitialRef = useRef(false);
-
-  // Fetch saved positions from DB
-  const { data: savedView, isLoading: loadingView } = useQuery({
+  // Fetch saved view_data from DB
+  const { data: savedViewData, isLoading: loadingView } = useQuery({
     queryKey: ["fund-trail-view", caseId],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("fund_trail_views")
-        .select("positions, filters")
+        .select("view_data")
         .eq("case_id", caseId)
         .maybeSingle();
 
@@ -37,34 +34,29 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         console.error("Error fetching saved view:", error);
         return null;
       }
-      return data;
+      return data?.view_data ?? null;
     },
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: true,
   });
 
-  useEffect(() => {
-    if (savedView && !hasLoadedInitialRef.current) {
-      savedPositionsRef.current = savedView;
-      hasLoadedInitialRef.current = true;
-    }
-  }, [savedView]);
-
+  // Save view mutation using view_data column
   const saveViewMutation = useMutation({
-    mutationFn: async ({ positions, filters }: { positions: any; filters: any }) => {
+    mutationFn: async (viewData: any) => {
+      // We need to provide a value for the required `positions` column for backward compat
       const { error } = await supabase.from("fund_trail_views").upsert(
         {
           case_id: caseId,
-          positions,
-          filters,
+          view_data: viewData,
+          positions: viewData.positions || {},
+          filters: viewData.filters || null,
+          version: viewData.version || "3.0",
           updated_at: new Date().toISOString(),
         },
         { onConflict: "case_id" },
       );
-
       if (error) throw error;
-      savedPositionsRef.current = { positions, filters };
     },
     onSuccess: () => {
       toast({ title: "View saved successfully" });
@@ -75,165 +67,62 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     },
   });
 
-  // FIXED: Proper HTML injection for saved positions
-  const modifiedHtml = useMemo(() => {
-    if (!htmlContent) return "";
-
-    const viewData = savedPositionsRef.current || savedView;
-    let modified = htmlContent;
-
-    // Inject saved positions by replacing the variable initialization
-    if (viewData?.positions && Object.keys(viewData.positions).length > 0) {
-      const positionsJson = JSON.stringify(viewData.positions);
-
-      // Pattern 1: Replace "let savedPositions = DATA.savedPositions || null;"
-      modified = modified.replace(
-        /let\s+savedPositions\s*=\s*DATA\.savedPositions\s*\|\|\s*null\s*;/,
-        `let savedPositions = ${positionsJson};`,
-      );
-
-      // Pattern 2: Also try "let savedPositions = null;" if DATA.savedPositions pattern not found
-      if (modified.includes("let savedPositions = null;")) {
-        modified = modified.replace(/let\s+savedPositions\s*=\s*null\s*;/, `let savedPositions = ${positionsJson};`);
-      }
-
-      // Set hasSavedView to true
-      modified = modified.replace(/let\s+hasSavedView\s*=\s*!!savedPositions\s*;/, `let hasSavedView = true;`);
-
-      // Also try direct false replacement
-      modified = modified.replace(/let\s+hasSavedView\s*=\s*false\s*;/, `let hasSavedView = true;`);
-    }
-
-    // Inject saved filters
-    if (viewData?.filters) {
-      const { selectedOwners, topN: savedTopN } = viewData.filters;
-
-      if (selectedOwners && Array.isArray(selectedOwners) && selectedOwners.length > 0) {
-        const ownersJson = JSON.stringify(selectedOwners);
-        // Replace the selectedOwners initialization
-        modified = modified.replace(
-          /let\s+selectedOwners\s*=\s*new\s+Set\(DATA\.owners\.map\(\s*i\s*=>\s*DATA\.nodes\[i\]\.id\s*\)\);/,
-          `let selectedOwners = new Set(${ownersJson});`,
-        );
-      }
-
-      if (savedTopN && typeof savedTopN === "number") {
-        modified = modified.replace(/let\s+topN\s*=\s*25\s*;/, `let topN = ${savedTopN};`);
-      }
-    }
-
-    // Override saveView function to post message instead of alert
-    const injection = `
-      <script>
-        (function() {
-          var originalSaveView;
-          
-          function setupSaveViewOverride() {
-            if (typeof window.saveView === 'function' && window.saveView !== overriddenSaveView) {
-              originalSaveView = window.saveView;
-              window.saveView = overriddenSaveView;
-            }
-          }
-          
-          function overriddenSaveView() {
-            var positions = {};
-            if (typeof d3 !== 'undefined') {
-              d3.selectAll('.node').each(function(d) {
-                if (d && d.id) {
-                  positions[d.id] = { x: d.x, y: d.y };
-                }
-              });
-            }
-            
-            var filters = {
-              selectedOwners: typeof selectedOwners !== 'undefined' ? Array.from(selectedOwners) : [],
-              topN: typeof topN !== 'undefined' ? topN : 25
-            };
-            
-            var data = {
-              positions: positions,
-              filters: filters,
-              timestamp: new Date().toISOString(),
-              version: '1.0'
-            };
-            
-            window.parent.postMessage({
-              type: 'FUNDTRAIL_SAVE',
-              payload: data
-            }, '*');
-            
-            if (typeof savedPositions !== 'undefined') {
-              savedPositions = positions;
-            }
-            if (typeof hasSavedView !== 'undefined') {
-              hasSavedView = true;
-            }
-            if (typeof hasUnsavedChanges !== 'undefined') {
-              hasUnsavedChanges = false;
-            }
-            if (typeof updateUIState === 'function') {
-              updateUIState();
-            }
-            
-            console.log('Fund Trail View Saved:', data);
-            return data;
-          }
-          
-          // Try to setup immediately
-          setupSaveViewOverride();
-          
-          // Also setup after DOM ready
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', setupSaveViewOverride);
-          }
-          
-          // And after a short delay to catch late definitions
-          setTimeout(setupSaveViewOverride, 100);
-          setTimeout(setupSaveViewOverride, 500);
-        })();
-      </script>
-    `;
-
-    if (modified.includes("</body>")) {
-      return modified.replace("</body>", `${injection}</body>`);
-    } else if (modified.includes("</html>")) {
-      return modified.replace("</html>", `${injection}</html>`);
-    }
-    return modified + injection;
-  }, [htmlContent, savedView]);
-
-  const handleMessage = useCallback(
-    async (event: MessageEvent) => {
-      if (event.data?.type === "FUNDTRAIL_SAVE") {
-        setIsSaving(true);
-        const { positions, filters } = event.data.payload;
-
-        try {
-          await saveViewMutation.mutateAsync({ positions, filters });
-        } finally {
-          setIsSaving(false);
+  // Load saved view into iframe after it loads
+  const handleIframeLoad = useCallback(() => {
+    if (!savedViewData || !iframeRef.current?.contentWindow) return;
+    try {
+      const win = iframeRef.current.contentWindow as any;
+      // Wait for the HTML's JS to initialize, then call loadFundTrailView
+      const tryLoad = (attempts: number) => {
+        if (typeof win.loadFundTrailView === "function") {
+          win.loadFundTrailView(savedViewData);
+          console.log("Fund Trail view loaded from saved data");
+        } else if (attempts > 0) {
+          setTimeout(() => tryLoad(attempts - 1), 200);
+        } else {
+          console.warn("loadFundTrailView not available on iframe");
         }
-      }
-    },
-    [saveViewMutation],
-  );
+      };
+      // Give the iframe time to initialize
+      setTimeout(() => tryLoad(15), 300);
+    } catch (err) {
+      console.error("Error loading fund trail view:", err);
+    }
+  }, [savedViewData]);
 
-  useEffect(() => {
-    window.addEventListener("message", handleMessage);
-    return () => window.removeEventListener("message", handleMessage);
-  }, [handleMessage]);
+  // Save handler: call getFundTrailViewData() on the iframe
+  const handleSave = useCallback(async () => {
+    if (!iframeRef.current?.contentWindow) {
+      toast({ title: "Graph not ready", variant: "destructive" });
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const win = iframeRef.current.contentWindow as any;
+      if (typeof win.getFundTrailViewData !== "function") {
+        toast({ title: "Save not supported by this graph version", variant: "destructive" });
+        return;
+      }
+      const viewData = win.getFundTrailViewData();
+      if (!viewData) {
+        toast({ title: "No view data returned", variant: "destructive" });
+        return;
+      }
+      await saveViewMutation.mutateAsync(viewData);
+    } catch (err) {
+      console.error("Error saving view:", err);
+      toast({ title: "Failed to save view", variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [saveViewMutation]);
 
   const toggleFullscreen = () => {
     if (!containerRef.current) return;
-
     if (!isFullscreen) {
-      if (containerRef.current.requestFullscreen) {
-        containerRef.current.requestFullscreen();
-      }
+      containerRef.current.requestFullscreen?.();
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      }
+      document.exitFullscreen?.();
     }
   };
 
@@ -241,7 +130,6 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
-
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
@@ -283,6 +171,10 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
             Saving...
           </span>
         )}
+        <Button onClick={handleSave} variant="outline" size="sm" disabled={isSaving}>
+          <Save className="h-4 w-4 mr-1.5" />
+          Save View
+        </Button>
         <Button onClick={handleDownload} variant="outline" size="sm">
           <Download className="h-4 w-4 mr-1.5" />
           Download
@@ -302,7 +194,8 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       <iframe
         key={iframeKey}
         ref={iframeRef}
-        srcDoc={modifiedHtml}
+        srcDoc={htmlContent}
+        onLoad={handleIframeLoad}
         className={cn("w-full border rounded-lg bg-white flex-1", isFullscreen ? "h-full" : "h-[72vh]")}
         sandbox="allow-scripts allow-same-origin"
         title="Fund Trail Analysis"

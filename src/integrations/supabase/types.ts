@@ -248,6 +248,7 @@ export type Database = {
           positions: Json
           updated_at: string | null
           version: string | null
+          view_data: Json | null
         }
         Insert: {
           case_id: string
@@ -257,6 +258,7 @@ export type Database = {
           positions: Json
           updated_at?: string | null
           version?: string | null
+          view_data?: Json | null
         }
         Update: {
           case_id?: string
@@ -266,6 +268,7 @@ export type Database = {
           positions?: Json
           updated_at?: string | null
           version?: string | null
+          view_data?: Json | null
         }
         Relationships: [
           {

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { SubscriptionBadge } from "@/components/app/SubscriptionBadge";
 import { GrantAccessDialog } from "@/components/app/GrantAccessDialog";
 import { RevokeAccessDialog } from "@/components/app/RevokeAccessDialog";
 import { AddPagesDialog } from "@/components/app/AddPagesDialog";
-import { useAdminUsers } from "@/hooks/useAdminUsers";
+import { useAdminUsers, AdminUser } from "@/hooks/useAdminUsers";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { Search, UserPlus, Shield, Plus } from "lucide-react";
 import { format } from "date-fns";
@@ -20,7 +20,19 @@ export default function AdminUsers() {
   const navigate = useNavigate();
   const { isAdmin, loading: adminLoading } = useIsAdmin();
   const [searchQuery, setSearchQuery] = useState("");
-  const { data: users, isLoading, refetch } = useAdminUsers(searchQuery);
+  const { data: allUsers, isLoading, refetch } = useAdminUsers();
+
+  const users = useMemo(() => {
+    if (!allUsers) return undefined;
+    if (!searchQuery.trim()) return allUsers;
+    const q = searchQuery.toLowerCase();
+    return allUsers.filter((u: AdminUser) =>
+      u.email.toLowerCase().includes(q) ||
+      u.user_id.toLowerCase().includes(q) ||
+      u.full_name.toLowerCase().includes(q) ||
+      u.organization_name.toLowerCase().includes(q)
+    );
+  }, [allUsers, searchQuery]);
   const [grantDialogOpen, setGrantDialogOpen] = useState(false);
   const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
   const [addPagesDialogOpen, setAddPagesDialogOpen] = useState(false);

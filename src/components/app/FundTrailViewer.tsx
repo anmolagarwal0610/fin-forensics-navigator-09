@@ -79,23 +79,23 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
 
     // Get the latest savedViewData from the query cache
     const cachedData = queryClient.getQueryData<any>(["fund-trail-view", caseId]);
-    
+
     if (!cachedData) {
       console.log("No saved view data to apply");
       return;
     }
 
     console.log("Applying saved view...");
-    
+
     const win = iframe.contentWindow as any;
-    
+
     // Retry mechanism to wait for iframe JS to initialize
     let attempts = 0;
     const maxAttempts = 30;
-    
+
     const tryApply = () => {
       attempts++;
-      
+
       if (typeof win.loadFundTrailView === "function") {
         console.log("Calling loadFundTrailView");
         win.loadFundTrailView(cachedData);
@@ -105,7 +105,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         console.error("loadFundTrailView not found after", maxAttempts, "attempts");
       }
     };
-    
+
     // Start after a short delay to let iframe initialize
     setTimeout(tryApply, 500);
   }, [caseId, queryClient]);
@@ -177,7 +177,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     // Invalidate to refetch fresh data
     await queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
     // Force iframe to reload
-    setIframeKey(prev => prev + 1);
+    setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
   }, [queryClient, caseId]);
 
@@ -233,42 +233,3 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     </div>
   );
 }
-```
-
----
-
-## Key Changes:
-
-1. **Removed `iframeReady` state** - It was causing timing issues with useEffect dependencies
-
-2. **Simplified `applySavedView`** - Now directly reads from query cache using `queryClient.getQueryData()` instead of relying on state
-
-3. **Call `applySavedView` directly in `handleIframeLoad`** - No useEffect dependency issues
-
-4. **Fixed refresh flow** - Invalidates query first, then resets iframe
-
----
-
-## Expected Console Output After Fix:
-
-**On first load:**
-```
-Fetched saved view: Found (or Not found)
-Iframe loaded, setting ready state
-Applying saved view...
-Calling loadFundTrailView
-Loading Fund Trail View: {...}  // This comes from HTML
-```
-
-**On save:**
-```
-Fund Trail View Saved: {...}  // From HTML
-```
-
-**On refresh:**
-```
-Fetched saved view: Found
-Iframe loaded, setting ready state
-Applying saved view...
-Calling loadFundTrailView
-Loading Fund Trail View: {...}

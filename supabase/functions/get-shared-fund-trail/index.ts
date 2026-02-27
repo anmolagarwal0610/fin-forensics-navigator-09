@@ -78,58 +78,28 @@ Deno.serve(async (req) => {
 
     let html = await file.text();
 
-    // Fetch saved view positions for this case
+    // Fetch saved view data for this case (using new view_data column)
     const { data: savedView } = await supabase
       .from("fund_trail_views")
-      .select("positions, filters")
+      .select("view_data")
       .eq("case_id", share.case_id)
       .maybeSingle();
 
-    // FIXED: Inject saved positions with correct regex patterns
-    if (savedView?.positions && Object.keys(savedView.positions).length > 0) {
-      const positionsJson = JSON.stringify(savedView.positions);
+    // Build injection script: load saved view + disable save in shared mode
+    const viewDataJson = savedView?.view_data ? JSON.stringify(savedView.view_data) : "null";
 
-      // Pattern 1: Replace "let savedPositions = DATA.savedPositions || null;"
-      html = html.replace(
-        /let\s+savedPositions\s*=\s*DATA\.savedPositions\s*\|\|\s*null\s*;/,
-        `let savedPositions = ${positionsJson};`,
-      );
-
-      // Pattern 2: Also try "let savedPositions = null;" as fallback
-      html = html.replace(/let\s+savedPositions\s*=\s*null\s*;/, `let savedPositions = ${positionsJson};`);
-
-      // Set hasSavedView to true
-      html = html.replace(/let\s+hasSavedView\s*=\s*!!savedPositions\s*;/, `let hasSavedView = true;`);
-
-      // Also try direct false replacement
-      html = html.replace(/let\s+hasSavedView\s*=\s*false\s*;/, `let hasSavedView = true;`);
-    }
-
-    // Inject saved filters
-    if (savedView?.filters) {
-      const { selectedOwners, topN } = savedView.filters;
-
-      if (selectedOwners && Array.isArray(selectedOwners) && selectedOwners.length > 0) {
-        const ownersJson = JSON.stringify(selectedOwners);
-        // Replace the selectedOwners initialization
-        html = html.replace(
-          /let\s+selectedOwners\s*=\s*new\s+Set\(DATA\.owners\.map\(\s*i\s*=>\s*DATA\.nodes\[i\]\.id\s*\)\);/,
-          `let selectedOwners = new Set(${ownersJson});`,
-        );
-      }
-
-      if (topN && typeof topN === "number") {
-        html = html.replace(/let\s+topN\s*=\s*25\s*;/, `let topN = ${topN};`);
-      }
-    }
-
-    // Script to disable save and hide save button in shared view
     const injection = `
       <script>
         (function() {
           window.IS_SHARED_VIEW = true;
+          var savedViewData = ${viewDataJson};
           
           function setupSharedView() {
+            // Load saved view data if available
+            if (savedViewData && typeof window.loadFundTrailView === 'function') {
+              window.loadFundTrailView(savedViewData);
+            }
+            
             // Disable save function
             if (typeof window.saveView === 'function') {
               window.saveView = function() {
@@ -169,9 +139,10 @@ Deno.serve(async (req) => {
             document.addEventListener('DOMContentLoaded', setupSharedView);
           }
           
-          // And after delays to catch late renders
+          // And after delays to catch late renders and ensure loadFundTrailView is available
           setTimeout(setupSharedView, 100);
           setTimeout(setupSharedView, 500);
+          setTimeout(setupSharedView, 1500);
         })();
       </script>
     `;

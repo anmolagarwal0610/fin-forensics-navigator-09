@@ -14,11 +14,10 @@ export interface AdminUser {
   created_at: string;
 }
 
-export function useAdminUsers(searchQuery: string = '') {
+export function useAdminUsers() {
   return useQuery({
-    queryKey: ['admin-users', searchQuery],
+    queryKey: ['admin-users'],
     queryFn: async () => {
-      // Call secure edge function instead of client-side auth.admin
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -36,20 +35,7 @@ export function useAdminUsers(searchQuery: string = '') {
         throw response.error;
       }
 
-      const { users } = response.data;
-      
-      // Filter by search query client-side (already filtered by backend too)
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        return users.filter((u: AdminUser) => 
-          u.email.toLowerCase().includes(query) ||
-          u.user_id.toLowerCase().includes(query) ||
-          u.full_name.toLowerCase().includes(query) ||
-          u.organization_name.toLowerCase().includes(query)
-        );
-      }
-
-      return users;
+      return response.data.users as AdminUser[];
     },
   });
 }

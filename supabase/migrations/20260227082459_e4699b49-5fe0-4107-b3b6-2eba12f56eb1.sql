@@ -1,0 +1,1 @@
+ALTER TABLE public.fund_trail_views ADD COLUMN IF NOT EXISTS view_data jsonb;

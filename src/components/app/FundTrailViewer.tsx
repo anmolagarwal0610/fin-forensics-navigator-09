@@ -22,6 +22,9 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
 
+  // Track if we've already applied the saved view (prevent double-apply)
+  const hasAppliedView = useRef(false);
+
   // Fetch saved view_data from DB
   const {
     data: savedViewData,
@@ -30,6 +33,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   } = useQuery({
     queryKey: ["fund-trail-view", caseId],
     queryFn: async () => {
+      console.log("[FundTrailViewer] Fetching saved view for case:", caseId);
       const { data, error } = await supabase
         .from("fund_trail_views")
         .select("view_data")
@@ -37,19 +41,22 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         .maybeSingle();
 
       if (error) {
-        console.error("Error fetching saved view:", error);
+        console.error("[FundTrailViewer] Error fetching saved view:", error);
         return null;
       }
+
+      console.log("[FundTrailViewer] Fetched view_data:", data?.view_data ? "Found" : "Not found");
       return data?.view_data ?? null;
     },
-    staleTime: 0, // Always fetch fresh
+    staleTime: 0,
     refetchOnWindowFocus: false,
     refetchOnMount: true,
   });
 
-  // Save view mutation using view_data column
+  // Save view mutation
   const saveViewMutation = useMutation({
     mutationFn: async (viewData: any) => {
+      console.log("[FundTrailViewer] Saving view data to Supabase...");
       const { error } = await supabase.from("fund_trail_views").upsert(
         {
           case_id: caseId,
@@ -64,87 +71,127 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       if (error) throw error;
     },
     onSuccess: () => {
-      // Invalidate and refetch the saved view query
       queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
       toast({ title: "View saved successfully" });
     },
     onError: (error) => {
-      console.error("Error saving view:", error);
+      console.error("[FundTrailViewer] Error saving view:", error);
       toast({ title: "Failed to save view", variant: "destructive" });
     },
   });
 
   // Function to apply saved view to iframe
   const applySavedViewToIframe = useCallback((viewData: any) => {
-    if (!viewData || !iframeRef.current?.contentWindow) {
-      console.log("Cannot apply view: no viewData or iframe not ready");
+    if (!viewData) {
+      console.log("[FundTrailViewer] No viewData to apply");
       return;
     }
 
-    try {
-      const win = iframeRef.current.contentWindow as any;
+    if (!iframeRef.current?.contentWindow) {
+      console.log("[FundTrailViewer] Iframe not ready");
+      return;
+    }
 
-      const tryLoad = (attempts: number) => {
+    const win = iframeRef.current.contentWindow as any;
+
+    const tryLoad = (attempts: number) => {
+      try {
+        // Check if the function exists
         if (typeof win.loadFundTrailView === "function") {
-          console.log("Applying saved Fund Trail view...");
-          win.loadFundTrailView(viewData);
-          console.log("Fund Trail view loaded successfully");
+          console.log("[FundTrailViewer] Calling loadFundTrailView...");
+          const result = win.loadFundTrailView(viewData);
+          console.log("[FundTrailViewer] loadFundTrailView result:", result);
+          hasAppliedView.current = true;
+        } else if (typeof win.getFundTrailViewData === "function" && attempts > 10) {
+          // getFundTrailViewData exists but loadFundTrailView doesn't
+          // This means the HTML might be an older version
+          console.warn(
+            "[FundTrailViewer] getFundTrailViewData exists but loadFundTrailView doesn't. HTML may need updating.",
+          );
+          if (attempts > 0) {
+            setTimeout(() => tryLoad(attempts - 1), 300);
+          }
         } else if (attempts > 0) {
-          console.log(`Waiting for loadFundTrailView... (${attempts} attempts left)`);
+          console.log(`[FundTrailViewer] Waiting for iframe JS... (${attempts} attempts left)`);
           setTimeout(() => tryLoad(attempts - 1), 300);
         } else {
-          console.warn("loadFundTrailView not available on iframe after all attempts");
+          console.error("[FundTrailViewer] loadFundTrailView not available after all attempts");
+          // Log what IS available
+          console.log(
+            "[FundTrailViewer] Available window functions:",
+            Object.keys(win)
+              .filter((k) => typeof win[k] === "function")
+              .slice(0, 20),
+          );
         }
-      };
+      } catch (err) {
+        console.error("[FundTrailViewer] Error in tryLoad:", err);
+        if (attempts > 0) {
+          setTimeout(() => tryLoad(attempts - 1), 300);
+        }
+      }
+    };
 
-      // Give the iframe time to initialize
-      tryLoad(20);
-    } catch (err) {
-      console.error("Error loading fund trail view:", err);
-    }
+    // Start trying after a short delay
+    setTimeout(() => tryLoad(25), 500);
   }, []);
 
   // Handle iframe load event
   const handleIframeLoad = useCallback(() => {
-    console.log("Iframe loaded, setting ready state");
+    console.log("[FundTrailViewer] Iframe onLoad fired");
     setIframeReady(true);
+    hasAppliedView.current = false; // Reset for new iframe
   }, []);
 
   // Apply saved view when iframe is ready AND savedViewData is available
   useEffect(() => {
-    if (iframeReady && savedViewData) {
-      console.log("Both iframe ready and savedViewData available, applying view...");
+    if (iframeReady && savedViewData && !hasAppliedView.current) {
+      console.log("[FundTrailViewer] Conditions met, applying saved view...");
       applySavedViewToIframe(savedViewData);
+    } else {
+      console.log("[FundTrailViewer] Conditions not met:", {
+        iframeReady,
+        hasSavedViewData: !!savedViewData,
+        hasAppliedView: hasAppliedView.current,
+      });
     }
   }, [iframeReady, savedViewData, applySavedViewToIframe]);
 
   // Reset iframe ready state when iframe key changes (refresh)
   useEffect(() => {
     setIframeReady(false);
+    hasAppliedView.current = false;
   }, [iframeKey]);
 
-  // Save handler: call getFundTrailViewData() on the iframe
+  // Save handler
   const handleSave = useCallback(async () => {
     if (!iframeRef.current?.contentWindow) {
       toast({ title: "Graph not ready", variant: "destructive" });
       return;
     }
+
     setIsSaving(true);
+
     try {
       const win = iframeRef.current.contentWindow as any;
+
       if (typeof win.getFundTrailViewData !== "function") {
+        console.error("[FundTrailViewer] getFundTrailViewData not found on window");
         toast({ title: "Save not supported by this graph version", variant: "destructive" });
         return;
       }
+
       const viewData = win.getFundTrailViewData();
+      console.log("[FundTrailViewer] Got view data:", viewData);
+
       if (!viewData) {
         toast({ title: "No view data returned", variant: "destructive" });
         return;
       }
-      console.log("Saving view data:", viewData);
+
       await saveViewMutation.mutateAsync(viewData);
     } catch (err) {
-      console.error("Error saving view:", err);
+      console.error("[FundTrailViewer] Error in handleSave:", err);
       toast({ title: "Failed to save view", variant: "destructive" });
     } finally {
       setIsSaving(false);
@@ -181,9 +228,10 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   };
 
   const handleRefresh = useCallback(async () => {
-    // First refetch the saved view data
+    console.log("[FundTrailViewer] Refreshing...");
+    // Refetch saved data first
     await refetchSavedView();
-    // Then reset the iframe (this will trigger handleIframeLoad when it loads)
+    // Then reset iframe
     setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
   }, [refetchSavedView]);

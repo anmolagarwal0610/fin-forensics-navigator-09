@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -17,11 +17,17 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   const [isSaving, setIsSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [iframeReady, setIframeReady] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
 
   // Fetch saved view_data from DB
-  const { data: savedViewData, isLoading: loadingView } = useQuery({
+  const {
+    data: savedViewData,
+    isLoading: loadingView,
+    refetch: refetchSavedView,
+  } = useQuery({
     queryKey: ["fund-trail-view", caseId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -36,7 +42,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       }
       return data?.view_data ?? null;
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0, // Always fetch fresh
     refetchOnWindowFocus: false,
     refetchOnMount: true,
   });
@@ -44,7 +50,6 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   // Save view mutation using view_data column
   const saveViewMutation = useMutation({
     mutationFn: async (viewData: any) => {
-      // We need to provide a value for the required `positions` column for backward compat
       const { error } = await supabase.from("fund_trail_views").upsert(
         {
           case_id: caseId,
@@ -59,6 +64,8 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       if (error) throw error;
     },
     onSuccess: () => {
+      // Invalidate and refetch the saved view query
+      queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
       toast({ title: "View saved successfully" });
     },
     onError: (error) => {
@@ -67,28 +74,54 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     },
   });
 
-  // Load saved view into iframe after it loads
-  const handleIframeLoad = useCallback(() => {
-    if (!savedViewData || !iframeRef.current?.contentWindow) return;
+  // Function to apply saved view to iframe
+  const applySavedViewToIframe = useCallback((viewData: any) => {
+    if (!viewData || !iframeRef.current?.contentWindow) {
+      console.log("Cannot apply view: no viewData or iframe not ready");
+      return;
+    }
+
     try {
       const win = iframeRef.current.contentWindow as any;
-      // Wait for the HTML's JS to initialize, then call loadFundTrailView
+
       const tryLoad = (attempts: number) => {
         if (typeof win.loadFundTrailView === "function") {
-          win.loadFundTrailView(savedViewData);
-          console.log("Fund Trail view loaded from saved data");
+          console.log("Applying saved Fund Trail view...");
+          win.loadFundTrailView(viewData);
+          console.log("Fund Trail view loaded successfully");
         } else if (attempts > 0) {
-          setTimeout(() => tryLoad(attempts - 1), 200);
+          console.log(`Waiting for loadFundTrailView... (${attempts} attempts left)`);
+          setTimeout(() => tryLoad(attempts - 1), 300);
         } else {
-          console.warn("loadFundTrailView not available on iframe");
+          console.warn("loadFundTrailView not available on iframe after all attempts");
         }
       };
+
       // Give the iframe time to initialize
-      setTimeout(() => tryLoad(15), 300);
+      tryLoad(20);
     } catch (err) {
       console.error("Error loading fund trail view:", err);
     }
-  }, [savedViewData]);
+  }, []);
+
+  // Handle iframe load event
+  const handleIframeLoad = useCallback(() => {
+    console.log("Iframe loaded, setting ready state");
+    setIframeReady(true);
+  }, []);
+
+  // Apply saved view when iframe is ready AND savedViewData is available
+  useEffect(() => {
+    if (iframeReady && savedViewData) {
+      console.log("Both iframe ready and savedViewData available, applying view...");
+      applySavedViewToIframe(savedViewData);
+    }
+  }, [iframeReady, savedViewData, applySavedViewToIframe]);
+
+  // Reset iframe ready state when iframe key changes (refresh)
+  useEffect(() => {
+    setIframeReady(false);
+  }, [iframeKey]);
 
   // Save handler: call getFundTrailViewData() on the iframe
   const handleSave = useCallback(async () => {
@@ -108,6 +141,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         toast({ title: "No view data returned", variant: "destructive" });
         return;
       }
+      console.log("Saving view data:", viewData);
       await saveViewMutation.mutateAsync(viewData);
     } catch (err) {
       console.error("Error saving view:", err);
@@ -146,10 +180,13 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     URL.revokeObjectURL(url);
   };
 
-  const handleRefresh = () => {
-    setIframeKey(prev => prev + 1);
+  const handleRefresh = useCallback(async () => {
+    // First refetch the saved view data
+    await refetchSavedView();
+    // Then reset the iframe (this will trigger handleIframeLoad when it loads)
+    setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
-  };
+  }, [refetchSavedView]);
 
   if (loadingView) {
     return (

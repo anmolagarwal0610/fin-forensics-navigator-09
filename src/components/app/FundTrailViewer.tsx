@@ -11,13 +11,20 @@ interface FundTrailViewerProps {
   caseId: string;
   onShare: () => void;
   className?: string;
+  renderToolbar?: (toolbar: React.ReactNode) => React.ReactNode;
 }
 
-export default function FundTrailViewer({ htmlContent, caseId, onShare, className }: FundTrailViewerProps) {
+export default function FundTrailViewer({
+  htmlContent,
+  caseId,
+  onShare,
+  className,
+  renderToolbar,
+}: FundTrailViewerProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
-  const [isApplyingView, setIsApplyingView] = useState(true); // NEW: Start as true
+  const [isApplyingView, setIsApplyingView] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -88,13 +95,13 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   const applySavedView = useCallback(() => {
     const iframe = iframeRef.current;
     if (!iframe?.contentWindow) {
-      setIsApplyingView(false); // NEW: Hide overlay
+      setIsApplyingView(false);
       return;
     }
 
     const cachedData = queryClient.getQueryData<any>(["fund-trail-view", caseId]);
     if (!cachedData) {
-      setIsApplyingView(false); // NEW: Hide overlay
+      setIsApplyingView(false);
       return;
     }
 
@@ -107,7 +114,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
 
       if (typeof win.loadFundTrailView === "function") {
         win.loadFundTrailView(cachedData);
-        setIsApplyingView(false); // NEW: Hide overlay
+        setIsApplyingView(false);
         return;
       }
 
@@ -116,14 +123,14 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         if (cachedData.filters && typeof win.applyFilters === "function") {
           win.applyFilters(cachedData.filters);
         }
-        setIsApplyingView(false); // NEW: Hide overlay
+        setIsApplyingView(false);
         return;
       }
 
       if (attempts < maxAttempts) {
         setTimeout(tryApply, 200);
       } else {
-        setIsApplyingView(false); // NEW: Hide overlay after max attempts
+        setIsApplyingView(false);
       }
     };
 
@@ -226,11 +233,37 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   };
 
   const handleRefresh = useCallback(async () => {
-    setIsApplyingView(true); // NEW: Show overlay on refresh
+    setIsApplyingView(true);
     await queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
     setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
   }, [queryClient, caseId]);
+
+  // Toolbar component
+  const toolbar = (
+    <div className="flex items-center gap-2">
+      {isSaving && (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          Saving...
+        </span>
+      )}
+      <Button onClick={handleDownload} variant="outline" size="sm">
+        <Download className="h-4 w-4 mr-1.5" />
+        Download
+      </Button>
+      <Button onClick={onShare} variant="outline" size="sm">
+        <Share2 className="h-4 w-4 mr-1.5" />
+        Share
+      </Button>
+      <Button onClick={handleRefresh} variant="outline" size="sm" title="Refresh graph">
+        <RotateCcw className="h-4 w-4" />
+      </Button>
+      <Button onClick={toggleFullscreen} variant="outline" size="sm">
+        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+      </Button>
+    </div>
+  );
 
   if (loadingView) {
     return (
@@ -245,32 +278,16 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       ref={containerRef}
       className={cn("flex flex-col relative", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
     >
-      <div className="flex items-center justify-end gap-2 mb-2">
-        {isSaving && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground mr-2">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Saving...
-          </span>
-        )}
-        <Button onClick={handleDownload} variant="outline" size="sm">
-          <Download className="h-4 w-4 mr-1.5" />
-          Download
-        </Button>
-        <Button onClick={onShare} variant="outline" size="sm">
-          <Share2 className="h-4 w-4 mr-1.5" />
-          Share
-        </Button>
-        <Button onClick={handleRefresh} variant="outline" size="sm" title="Refresh graph">
-          <RotateCcw className="h-4 w-4" />
-        </Button>
-        <Button onClick={toggleFullscreen} variant="outline" size="sm">
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </Button>
-      </div>
+      {/* Render toolbar externally if renderToolbar prop provided, otherwise render internally */}
+      {renderToolbar ? (
+        renderToolbar(toolbar)
+      ) : (
+        <div className="flex items-center justify-end gap-2 mb-2">{toolbar}</div>
+      )}
 
-      {/* NEW: Loading overlay while applying saved view */}
+      {/* Loading overlay while applying saved view */}
       {isApplyingView && savedViewData && (
-        <div className="absolute inset-0 top-10 bg-background/90 flex items-center justify-center z-10 rounded-lg">
+        <div className="absolute inset-0 bg-background/90 flex items-center justify-center z-10 rounded-lg">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin" />
             <span>Loading saved view...</span>

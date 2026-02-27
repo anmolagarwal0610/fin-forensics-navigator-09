@@ -17,6 +17,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   const [isSaving, setIsSaving] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeKey, setIframeKey] = useState(0);
+  const [isApplyingView, setIsApplyingView] = useState(true); // NEW: Start as true
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -36,11 +37,9 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         return null;
       }
 
-      // Handle both new format (view_data) and old format (positions/filters)
       if (data?.view_data) {
         return data.view_data;
       } else if (data?.positions) {
-        // Backward compatibility: construct view_data from old format
         return {
           positions: data.positions,
           filters: data.filters,
@@ -55,7 +54,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     refetchOnMount: true,
   });
 
-  // Save view mutation - supports both old and new HTML formats
+  // Save view mutation
   const saveViewMutation = useMutation({
     mutationFn: async (viewData: any) => {
       const payload = {
@@ -72,11 +71,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         .upsert(payload, { onConflict: "case_id" })
         .select();
 
-      if (error) {
-        console.error("Supabase save error:", error);
-        throw error;
-      }
-
+      if (error) throw error;
       return data;
     },
     onSuccess: () => {
@@ -92,10 +87,16 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   // Apply saved view to iframe
   const applySavedView = useCallback(() => {
     const iframe = iframeRef.current;
-    if (!iframe?.contentWindow) return;
+    if (!iframe?.contentWindow) {
+      setIsApplyingView(false); // NEW: Hide overlay
+      return;
+    }
 
     const cachedData = queryClient.getQueryData<any>(["fund-trail-view", caseId]);
-    if (!cachedData) return;
+    if (!cachedData) {
+      setIsApplyingView(false); // NEW: Hide overlay
+      return;
+    }
 
     const win = iframe.contentWindow as any;
     let attempts = 0;
@@ -104,24 +105,25 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     const tryApply = () => {
       attempts++;
 
-      // New HTML format: loadFundTrailView function
       if (typeof win.loadFundTrailView === "function") {
         win.loadFundTrailView(cachedData);
+        setIsApplyingView(false); // NEW: Hide overlay
         return;
       }
 
-      // Old HTML format: direct position/filter application
       if (typeof win.applyPositions === "function" && cachedData.positions) {
         win.applyPositions(cachedData.positions);
         if (cachedData.filters && typeof win.applyFilters === "function") {
           win.applyFilters(cachedData.filters);
         }
+        setIsApplyingView(false); // NEW: Hide overlay
         return;
       }
 
-      // Retry if functions not yet available
       if (attempts < maxAttempts) {
         setTimeout(tryApply, 200);
+      } else {
+        setIsApplyingView(false); // NEW: Hide overlay after max attempts
       }
     };
 
@@ -133,10 +135,9 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     applySavedView();
   }, [applySavedView]);
 
-  // Listen for postMessage from iframe (new HTML format)
+  // Listen for postMessage from iframe
   useEffect(() => {
     const handleMessage = async (event: MessageEvent) => {
-      // Handle new HTML format: postMessage
       if (event.data?.type === "fundtrail:save") {
         const viewData = event.data.data;
         if (viewData && !isSaving) {
@@ -156,7 +157,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
     return () => window.removeEventListener("message", handleMessage);
   }, [saveViewMutation, isSaving]);
 
-  // Listen for CustomEvent from iframe (old HTML format - backup)
+  // Listen for CustomEvent from iframe (backward compatibility)
   useEffect(() => {
     const iframe = iframeRef.current;
     if (!iframe) return;
@@ -173,19 +174,16 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
       }
     };
 
-    // Try to attach listener when iframe loads
     const attachListener = () => {
       try {
         if (iframe.contentWindow) {
           iframe.contentWindow.addEventListener("fundtrail:save", handleIframeSave);
         }
-      } catch (e) {
-        // Cross-origin restriction, ignore
-      }
+      } catch (e) {}
     };
 
     iframe.addEventListener("load", attachListener);
-    attachListener(); // Try immediately too
+    attachListener();
 
     return () => {
       iframe.removeEventListener("load", attachListener);
@@ -193,9 +191,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
         if (iframe.contentWindow) {
           iframe.contentWindow.removeEventListener("fundtrail:save", handleIframeSave);
         }
-      } catch (e) {
-        // Cross-origin restriction, ignore
-      }
+      } catch (e) {}
     };
   }, [saveViewMutation, isSaving, iframeKey]);
 
@@ -230,6 +226,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   };
 
   const handleRefresh = useCallback(async () => {
+    setIsApplyingView(true); // NEW: Show overlay on refresh
     await queryClient.invalidateQueries({ queryKey: ["fund-trail-view", caseId] });
     setIframeKey((prev) => prev + 1);
     toast({ title: "Graph refreshed" });
@@ -246,7 +243,7 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
   return (
     <div
       ref={containerRef}
-      className={cn("flex flex-col", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
+      className={cn("flex flex-col relative", isFullscreen && "fixed inset-0 z-50 bg-background p-4", className)}
     >
       <div className="flex items-center justify-end gap-2 mb-2">
         {isSaving && (
@@ -270,6 +267,16 @@ export default function FundTrailViewer({ htmlContent, caseId, onShare, classNam
           {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
         </Button>
       </div>
+
+      {/* NEW: Loading overlay while applying saved view */}
+      {isApplyingView && savedViewData && (
+        <div className="absolute inset-0 top-10 bg-background/90 flex items-center justify-center z-10 rounded-lg">
+          <div className="flex items-center gap-2 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading saved view...</span>
+          </div>
+        </div>
+      )}
 
       <iframe
         key={iframeKey}

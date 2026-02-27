@@ -291,16 +291,6 @@ export default function FundTrailViewer({
         <div className="flex items-center justify-end gap-2 mb-2">{toolbar}</div>
       )}
 
-      {/* Loading overlay while applying saved view */}
-      {isApplyingView && savedViewData && (
-        <div className="absolute inset-0 bg-background/90 flex items-center justify-center z-10 rounded-lg">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Loading saved view...</span>
-          </div>
-        </div>
-      )}
-
       <iframe
         key={iframeKey}
         ref={iframeRef}

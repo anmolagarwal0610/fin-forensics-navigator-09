@@ -1,31 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { ArrowLeft, Save, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ArrowLeft, Save, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import {
-  REQUIRED_HEADERS,
-  HEADER_LABELS,
-  matchHeaderRowPartial,
-  type RequiredHeader,
-} from "@/utils/headerKeywords";
+import { REQUIRED_HEADERS, HEADER_LABELS, matchHeaderRowPartial, type RequiredHeader } from "@/utils/headerKeywords";
 import type { HeaderStatus } from "@/workers/headerDetection.worker";
 
 interface MapColumnsDialogProps {
@@ -73,10 +55,7 @@ export default function MapColumnsDialog({
   const [manualMapping, setManualMapping] = useState<Record<number, RequiredHeader>>({});
 
   // Max columns across all rows
-  const maxCols = useMemo(
-    () => rows.reduce((max, row) => Math.max(max, row.length), 0),
-    [rows]
-  );
+  const maxCols = useMemo(() => rows.reduce((max, row) => Math.max(max, row.length), 0), [rows]);
 
   // Reset state when dialog opens
   useEffect(() => {
@@ -93,7 +72,7 @@ export default function MapColumnsDialog({
         for (const header of partial.unmatched) {
           const mappedValue = initialMapping[header];
           if (mappedValue) {
-            const colIdx = headerRow.findIndex(c => c === mappedValue);
+            const colIdx = headerRow.findIndex((c) => c === mappedValue);
             if (colIdx >= 0) mapping[colIdx] = header;
           }
         }
@@ -121,7 +100,7 @@ export default function MapColumnsDialog({
         if (partialMatch.matched[h]) set.add(h);
       }
     }
-    Object.values(manualMapping).forEach(h => set.add(h));
+    Object.values(manualMapping).forEach((h) => set.add(h));
     return set;
   }, [partialMatch, manualMapping]);
 
@@ -170,18 +149,18 @@ export default function MapColumnsDialog({
   };
 
   const handleCheckbox = (rowIdx: number) => {
-    setSelectedRow(prev => (prev === rowIdx ? null : rowIdx));
+    setSelectedRow((prev) => (prev === rowIdx ? null : rowIdx));
   };
 
   const handleDropdownChange = (colIdx: number, value: string) => {
     if (value === "__clear__") {
-      setManualMapping(prev => {
+      setManualMapping((prev) => {
         const next = { ...prev };
         delete next[colIdx];
         return next;
       });
     } else {
-      setManualMapping(prev => {
+      setManualMapping((prev) => {
         // Remove this header from any other column first
         const next = { ...prev };
         for (const [k, v] of Object.entries(next)) {
@@ -203,9 +182,7 @@ export default function MapColumnsDialog({
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-2 space-y-3">
-          <DialogTitle>
-            {step === 1 ? "Select Header Row" : "Map Header Columns"}
-          </DialogTitle>
+          <DialogTitle>{step === 1 ? "Select Header Row" : "Map Header Columns"}</DialogTitle>
           <DialogDescription>
             {step === 1
               ? "Select the row that contains your column headers."
@@ -218,7 +195,7 @@ export default function MapColumnsDialog({
             <Input
               value={accountHolder}
               onChange={(e) => setAccountHolder(e.target.value)}
-              placeholder="Account Name (Optional)"
+              placeholder="Account Owner Name (Optional)"
               className="h-8 w-64 text-sm"
             />
           </div>
@@ -251,13 +228,7 @@ export default function MapColumnsDialog({
                   {rows.map((row, idx) => {
                     const isSelected = selectedRow === idx;
                     return (
-                      <tr
-                        key={idx}
-                        className={cn(
-                          "transition-colors",
-                          isSelected && "bg-primary/10"
-                        )}
-                      >
+                      <tr key={idx} className={cn("transition-colors", isSelected && "bg-primary/10")}>
                         <td className="px-2 py-1 border border-border text-center sticky left-0 z-10 bg-inherit">
                           <Checkbox
                             checked={isSelected}
@@ -269,10 +240,7 @@ export default function MapColumnsDialog({
                           {idx + 1}
                         </td>
                         {Array.from({ length: maxCols }, (_, colIdx) => (
-                          <td
-                            key={colIdx}
-                            className="px-3 py-1 border border-border whitespace-nowrap"
-                          >
+                          <td key={colIdx} className="px-3 py-1 border border-border whitespace-nowrap">
                             {row[colIdx] ?? ""}
                           </td>
                         ))}
@@ -292,24 +260,6 @@ export default function MapColumnsDialog({
         ) : (
           /* ───── STEP 2: Map Header Columns ───── */
           <div className="flex-1 min-h-0 flex flex-col px-6 pb-6 gap-4">
-            {/* Warning for unmatched headers */}
-            {partialMatch && partialMatch.unmatched.length > 0 && (
-              <Alert className="border-warning/50 bg-warning/5">
-                <AlertTriangle className="h-4 w-4 text-warning" />
-                <AlertDescription className="text-sm">
-                  {(() => {
-                    const names = partialMatch.unmatched.map(h => HEADER_LABELS[h]);
-                    const formatted = names.length === 1
-                      ? <strong>{names[0]}</strong>
-                      : names.length === 2
-                        ? <><strong>{names[0]}</strong> &amp; <strong>{names[1]}</strong></>
-                        : <>{names.slice(0, -1).map((n, i) => <span key={i}><strong>{n}</strong>{i < names.length - 2 ? ', ' : ''}</span>)} &amp; <strong>{names[names.length - 1]}</strong></>;
-                    const fieldWord = names.length === 1 ? 'field' : 'fields';
-                    return <>Could not detect {formatted} header. Please add {names.length === 1 ? 'this' : 'these'} {fieldWord} from the dropdown.</>;
-                  })()}
-                </AlertDescription>
-              </Alert>
-            )}
             <div className="flex-1 min-h-0 overflow-auto border rounded-lg max-h-[55vh]">
               <table className="text-xs border-collapse">
                 <thead className="sticky top-0 z-10">
@@ -341,10 +291,7 @@ export default function MapColumnsDialog({
                         // If auto-matched, show value with checkmark
                         if (isAutoMatched) {
                           return (
-                            <td
-                              key={colIdx}
-                              className="px-3 py-1.5 border border-border whitespace-nowrap"
-                            >
+                            <td key={colIdx} className="px-3 py-1.5 border border-border whitespace-nowrap">
                               <div className="flex items-center gap-1.5">
                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
                                 <span className="font-medium">{cellValue}</span>
@@ -355,24 +302,16 @@ export default function MapColumnsDialog({
 
                         // Empty cell — no dropdown
                         if (!cellValue.trim()) {
-                          return (
-                            <td
-                              key={colIdx}
-                              className="px-3 py-1.5 border border-border"
-                            />
-                          );
+                          return <td key={colIdx} className="px-3 py-1.5 border border-border" />;
                         }
 
                         // Unmatched — show dropdown
                         const availableHeaders = REQUIRED_HEADERS.filter(
-                          h => !assignedHeaders.has(h) || manualMapping[colIdx] === h
+                          (h) => !assignedHeaders.has(h) || manualMapping[colIdx] === h,
                         );
 
                         return (
-                          <td
-                            key={colIdx}
-                            className="px-1 py-1 border border-border"
-                          >
+                          <td key={colIdx} className="px-1 py-1 border border-border">
                             <Select
                               value={manualValue ?? ""}
                               onValueChange={(val) => handleDropdownChange(colIdx, val)}
@@ -386,7 +325,7 @@ export default function MapColumnsDialog({
                                     — Clear —
                                   </SelectItem>
                                 )}
-                                {availableHeaders.map(h => (
+                                {availableHeaders.map((h) => (
                                   <SelectItem key={h} value={h} className="text-xs">
                                     {HEADER_LABELS[h]}
                                   </SelectItem>
@@ -406,10 +345,7 @@ export default function MapColumnsDialog({
                         {(selectedRow ?? 0) + 2 + idx}
                       </td>
                       {Array.from({ length: maxCols }, (_, colIdx) => (
-                        <td
-                          key={colIdx}
-                          className="px-3 py-1 border border-border whitespace-nowrap"
-                        >
+                        <td key={colIdx} className="px-3 py-1 border border-border whitespace-nowrap">
                           {row[colIdx] ?? ""}
                         </td>
                       ))}

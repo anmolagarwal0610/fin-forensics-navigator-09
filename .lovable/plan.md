@@ -1,43 +1,80 @@
+# Plan: Revamp MapColumnsDialog & Header Detection Logic
+
+## Summary of Changes
+
+The MapColumnsDialog gets a complete redesign: Step 1 shows an Excel-like table with checkboxes; Step 2 replaces the old form-based mapping with a table view where dropdowns appear inline on unmatched header columns. Keywords get updated, HTML-disguised files skip anomaly detection, and `no-headers`/`single-column` cases no longer show the CTA.
+
+---
+
+## 1. Update Keywords (`src/utils/headerKeywords.ts`)
+
+Add missing keywords to each category:
+
+- **date**: `transaction_date`(with underscore), `trans_date`, `tran_date`
+- **description**: `transaction_details`, `tran_details`, `tran_particular`
+- **debit**: `dr_amt`, `withdrawal_amount`(with underscore), `withdrawls`, `amount_withdrawn`
+- **credit**: `cr_amt`, `deposit_amount`(with underscore), `amount_deposited`
+
+Also add a new export `matchHeaderRowPartial(row)` that returns `{ matched: Record<RequiredHeader, {value, colIndex}>, unmatched: RequiredHeader[] }` — used by Step 2 to know which columns need dropdowns vs which auto-matched.
+
+## 2. Update Worker (`src/workers/headerDetection.worker.ts`)
+
+- **HTML-disguised files**: If `isHtmlDisguised(buffer)` returns true, immediately return `status: 'ok'` with empty rows — skip anomaly detection entirely. Backend handles these.
+- **Embedded-HTML Excel detection**: After parsing, check if any cell in the first 5 rows contains `<img` or `<html` or `style=` patterns. If detected, return `status: 'ok'` — treat as normal, no anomaly.
+- **no-headers / single-column**: Keep returning these statuses (used by CaseUpload to decide not to show CTA).
+
+## 3. Redesign MapColumnsDialog (`src/components/app/MapColumnsDialog.tsx`) — Full Rewrite
+
+### Step 1: "Select Header Row"
+
+- **Layout**: Full-width dialog (`max-w-[90vw]`), Excel-like table showing all columns from the parsed rows
+- **Table**: Each row renders all cell values in separate `<td>` columns. First column is a checkbox (radio-style — only one selectable). Column headers show "Col A", "Col B", etc.
+- **Scrolling**: Native `div` with `overflow-x-auto overflow-y-auto` and `max-h-[55vh]` (no Radix ScrollArea per memory constraint). Shows up to 50 rows, ~15 visible initially.
+- **Checkbox behavior**: Clicking selects row, clicking again deselects. Only one row selectable at a time. Selected row gets `bg-primary/10` highlight. No hover effect.
+- **Subheading**: "Select the row that contains your column headers."
+- **Account Name**: Input field at top, right of the file badge: `Account Name (Optional)` placeholder
+- **Close button**: Add explicit `<X>` icon to the dialog's close button (currently missing the icon in `dialog.tsx`), make it `h-5 w-5`
+
+### Step 2: "Map Header Columns"
+
+- **Layout**: Same wide dialog. Shows a table with the selected header row as the first row, followed by up to 25 data rows below it.
+- **Header row rendering**: For each column in the header row:
+  - Run `matchHeaderRowPartial` to identify which columns matched a keyword
+  - **Matched columns**: Show the cell value as-is (plain text, maybe with a subtle green checkmark)
+  - **Unmatched columns**: Show a dropdown (`<Select>`) populated with the 5 required fields (Date, Description, Debit, Credit, Balance). Already-selected fields are excluded from other dropdowns.
+- **Data rows**: Rendered as plain read-only cells below the header row, giving users context about what data is in each column
+- **Subheading**: "Map the highlighted columns to the required fields. Columns already matched are shown as-is."
+- **Save enabled**: When all 5 required fields are assigned (either auto-matched or manually selected)
+- **Back button**: Returns to Step 1
+- **Save button**: Collects the final mapping (merging auto-matched + manual selections)
+
+### Close button fix
+
+In `dialog.tsx`, the `<X>` icon is missing (line 23 is blank between the Close component tags). Add `<X className="h-5 w-5" />` there.
+
+## 4. Update CaseUpload.tsx (`src/pages/app/CaseUpload.tsx`)
+
+- **Remove CTA for `no-headers` and `single-column**`: These statuses no longer trigger the ⚠️ button. Only `anomaly` shows the CTA.
+- Line 794: Change condition from `file.headerStatus === 'anomaly' || file.headerStatus === 'no-headers' || file.headerStatus === 'single-column'` to just `file.headerStatus === 'anomaly'`
+- The `MapColumnsDialog` no longer needs to handle `no-headers`/`single-column` disabled states since those files won't open it.
+
+## 5. Dialog Close Button (`src/components/ui/dialog.tsx`)
+
+Add the missing `<X>` icon inside the close button on line 23:
+
+```
+<X className="h-5 w-5" />
+```
+
+---
+
+## Files Changed
 
 
-# Validation: Sample Files vs. Plan Coverage
-
-I analyzed all 8 uploaded files against the planned header detection logic. Here's how each maps to our use cases:
-
-## File-by-File Analysis
-
-| File | Format | Headers Found | Keywords Matched | Plan Status |
-|------|--------|--------------|------------------|-------------|
-| `abbott_health.xlsx` | Standard XLSX | Row 0: "Capture Date", "DEBIT AMOUNT", "CREDIT AMOUNT", "LEDGER BALANCE...", "Narration" | Debit ✓ (`debit_amount`), Credit ✓ (`credit_amount`), Description ✓ (`narration`), Date ✗ (`capture_date` not in list), Balance ✗ (`ledger_balance_before_the_transaction` not in list) | **Anomaly** — user maps Date + Balance |
-| `ABHISHEK_DUBEY.xls` | Legacy XLS | Row 0: "Tran_Date", "Dr_Amt", "Cr_Amt", "Balance", "Narration" | Balance ✓, Description ✓ (`narration`), Date ✗ (`tran_date`), Debit ✗ (`dr_amt`), Credit ✗ (`cr_amt`) | **Anomaly** — user maps 3 columns |
-| `ARISTO_PHARMACEUTICALS.csv` | CSV with metadata rows | Row 2 (not row 0): "PostDate", "bal_amt", "Credit", "Debit", "Description" | Date ✓ (`post_date`), Debit ✓, Credit ✓, Description ✓, Balance ✗ (`bal_amt`) | **Anomaly** — user selects row 2, maps bal_amt→Balance |
-| `Azad_Medical-HDFC.xlsx` | XLSX | Nearly empty / unusual structure | Insufficient columns | **no-headers** — Save disabled, "No Headers Detected" |
-| `Chandauli.csv.xls` | CSV disguised as XLS, single-column | All data comma-separated in one cell per row | Max columns = 1 | **single-column** — Save disabled, "No Headers Detected" |
-| `ICORE_STMT.xlsx` | XLSX (processed result file) | Row 0: "debit", "credit", "balance", "date", "transaction_flag"... | Debit ✓, Credit ✓, Balance ✓, Date ✓, Description ✗ (no matching column) | **Anomaly** — user maps description |
-| `MarutiEnter.csv` | Standard CSV | Row 0: "Transaction Date", "Description", "Debit/Credit Flag", "Amount", "Running Total" | Date ✓ (`transaction_date`), Description ✓, Debit ✗, Credit ✗, Balance ✗ (`running_total`) | **Anomaly** — user maps 3 columns |
-| `Statement_7566362116.xls` | **HTML disguised as XLS** | HTML `<table>` with bank statement data | Format sniffer detects `<html>`, `<table>`, `<tr>` in first 500 bytes → SheetJS parses HTML table → then keyword matching runs | **HTML sniffer → Anomaly or OK** depending on parsed headers |
-
-## Coverage Confirmation
-
-All edge cases from the plan are represented:
-
-- **Standard anomaly (partial keyword match):** `abbott_health.xlsx`, `ABHISHEK_DUBEY.xls`, `ICORE_STMT.xlsx`, `MarutiEnter.csv`
-- **Header row not at row 0:** `ARISTO_PHARMACEUTICALS.csv` (headers at row 2 after metadata)
-- **Single-column data:** `Chandauli.csv.xls` (Case 2 from requirements)
-- **No headers / too few columns:** `Azad_Medical-HDFC.xlsx` (Case 1 from requirements)
-- **HTML-disguised Excel:** `Statement_7566362116.xls` (format sniffer case)
-- **Legacy .xls binary format:** `ABHISHEK_DUBEY.xls` (SheetJS handles both .xlsx and .xls)
-
-## No Changes Needed to the Plan
-
-The existing plan covers every sample file correctly. The keyword normalization strategy (lowercase, trim, spaces→underscores, exact match) works as intended — files that don't match become anomalies, and users manually map them.
-
-**One observation:** Keywords like `bal_amt`, `dr_amt`, `cr_amt`, `tran_date`, `capture_date`, `running_total` are intentionally NOT in the keyword lists. This is correct behavior — these files should trigger the anomaly flow so users can map them. The keyword list is deliberately conservative to catch edge cases.
-
-**Tech stack confirmed:**
-- SheetJS (`xlsx`) — already installed in the project
-- Vite Web Workers — supported natively via `new Worker(new URL(...), { type: 'module' })`, no config changes needed
-- All existing UI components (Dialog, Select, Input, Button, Badge) available for the modal
-
-The plan is ready for implementation as-is.
-
+| File                                      | Change                                                                        |
+| ----------------------------------------- | ----------------------------------------------------------------------------- |
+| `src/utils/headerKeywords.ts`             | Add new keywords; add `matchHeaderRowPartial` function                        |
+| `src/workers/headerDetection.worker.ts`   | Skip HTML-disguised files; detect embedded HTML in cells                      |
+| `src/components/app/MapColumnsDialog.tsx` | Full rewrite: Excel-like table Step 1 with checkboxes, inline dropdown Step 2 |
+| `src/pages/app/CaseUpload.tsx`            | Remove CTA for no-headers/single-column                                       |
+| `src/components/ui/dialog.tsx`            | Add missing X icon to close button                                            |

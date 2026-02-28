@@ -1,80 +1,81 @@
-# Plan: Revamp MapColumnsDialog & Header Detection Logic
 
-## Summary of Changes
 
-The MapColumnsDialog gets a complete redesign: Step 1 shows an Excel-like table with checkboxes; Step 2 replaces the old form-based mapping with a table view where dropdowns appear inline on unmatched header columns. Keywords get updated, HTML-disguised files skip anomaly detection, and `no-headers`/`single-column` cases no longer show the CTA.
+# Plan: Fix 5 Issues
 
----
+## Issue 1: Duplicate Job Submissions
 
-## 1. Update Keywords (`src/utils/headerKeywords.ts`)
+**Root cause**: No guard against double-clicks on "Start Analysis". The `submitting` state is set to `true` at line 377 but there's no early-exit check or button disabling that accounts for rapid clicks before the async flow sets state.
 
-Add missing keywords to each category:
+**Fix** (in `src/pages/app/CaseUpload.tsx`):
+- Add a `useRef` flag (`submittingRef`) that is set synchronously before any async work, and checked at the top of `handleStartAnalysis`. This prevents double invocations even if React state hasn't re-rendered yet.
+- Add a pre-flight check in `startJob()` (`src/lib/startJob.ts`) that queries `jobs` table for any active (PENDING/RUNNING/STARTED) job with the same `session_id` before inserting a new one. If found, throw an error to prevent duplicate.
 
-- **date**: `transaction_date`(with underscore), `trans_date`, `tran_date`
-- **description**: `transaction_details`, `tran_details`, `tran_particular`
-- **debit**: `dr_amt`, `withdrawal_amount`(with underscore), `withdrawls`, `amount_withdrawn`
-- **credit**: `cr_amt`, `deposit_amount`(with underscore), `amount_deposited`
-
-Also add a new export `matchHeaderRowPartial(row)` that returns `{ matched: Record<RequiredHeader, {value, colIndex}>, unmatched: RequiredHeader[] }` — used by Step 2 to know which columns need dropdowns vs which auto-matched.
-
-## 2. Update Worker (`src/workers/headerDetection.worker.ts`)
-
-- **HTML-disguised files**: If `isHtmlDisguised(buffer)` returns true, immediately return `status: 'ok'` with empty rows — skip anomaly detection entirely. Backend handles these.
-- **Embedded-HTML Excel detection**: After parsing, check if any cell in the first 5 rows contains `<img` or `<html` or `style=` patterns. If detected, return `status: 'ok'` — treat as normal, no anomaly.
-- **no-headers / single-column**: Keep returning these statuses (used by CaseUpload to decide not to show CTA).
-
-## 3. Redesign MapColumnsDialog (`src/components/app/MapColumnsDialog.tsx`) — Full Rewrite
-
-### Step 1: "Select Header Row"
-
-- **Layout**: Full-width dialog (`max-w-[90vw]`), Excel-like table showing all columns from the parsed rows
-- **Table**: Each row renders all cell values in separate `<td>` columns. First column is a checkbox (radio-style — only one selectable). Column headers show "Col A", "Col B", etc.
-- **Scrolling**: Native `div` with `overflow-x-auto overflow-y-auto` and `max-h-[55vh]` (no Radix ScrollArea per memory constraint). Shows up to 50 rows, ~15 visible initially.
-- **Checkbox behavior**: Clicking selects row, clicking again deselects. Only one row selectable at a time. Selected row gets `bg-primary/10` highlight. No hover effect.
-- **Subheading**: "Select the row that contains your column headers."
-- **Account Name**: Input field at top, right of the file badge: `Account Name (Optional)` placeholder
-- **Close button**: Add explicit `<X>` icon to the dialog's close button (currently missing the icon in `dialog.tsx`), make it `h-5 w-5`
-
-### Step 2: "Map Header Columns"
-
-- **Layout**: Same wide dialog. Shows a table with the selected header row as the first row, followed by up to 25 data rows below it.
-- **Header row rendering**: For each column in the header row:
-  - Run `matchHeaderRowPartial` to identify which columns matched a keyword
-  - **Matched columns**: Show the cell value as-is (plain text, maybe with a subtle green checkmark)
-  - **Unmatched columns**: Show a dropdown (`<Select>`) populated with the 5 required fields (Date, Description, Debit, Credit, Balance). Already-selected fields are excluded from other dropdowns.
-- **Data rows**: Rendered as plain read-only cells below the header row, giving users context about what data is in each column
-- **Subheading**: "Map the highlighted columns to the required fields. Columns already matched are shown as-is."
-- **Save enabled**: When all 5 required fields are assigned (either auto-matched or manually selected)
-- **Back button**: Returns to Step 1
-- **Save button**: Collects the final mapping (merging auto-matched + manual selections)
-
-### Close button fix
-
-In `dialog.tsx`, the `<X>` icon is missing (line 23 is blank between the Close component tags). Add `<X className="h-5 w-5" />` there.
-
-## 4. Update CaseUpload.tsx (`src/pages/app/CaseUpload.tsx`)
-
-- **Remove CTA for `no-headers` and `single-column**`: These statuses no longer trigger the ⚠️ button. Only `anomaly` shows the CTA.
-- Line 794: Change condition from `file.headerStatus === 'anomaly' || file.headerStatus === 'no-headers' || file.headerStatus === 'single-column'` to just `file.headerStatus === 'anomaly'`
-- The `MapColumnsDialog` no longer needs to handle `no-headers`/`single-column` disabled states since those files won't open it.
-
-## 5. Dialog Close Button (`src/components/ui/dialog.tsx`)
-
-Add the missing `<X>` icon inside the close button on line 23:
-
-```
-<X className="h-5 w-5" />
-```
+**Files changed**: `src/pages/app/CaseUpload.tsx`, `src/lib/startJob.ts`
 
 ---
 
-## Files Changed
+## Issue 2: Add/Remove Files — Same Name Re-Upload Blocked
 
+**Root cause**: In `handleStartAnalysis` (line 486-527), file deletions and additions both happen *after* the job starts, and the `addFiles` function (line 168-176 in `api/cases.ts`) checks for existing filenames and skips duplicates. When a user removes `anmol.xlsx` (pre-existing) and re-adds `anmol.pdf`, the deletion and addition happen concurrently — the addition's duplicate check finds the old record before deletion runs.
 
-| File                                      | Change                                                                        |
-| ----------------------------------------- | ----------------------------------------------------------------------------- |
-| `src/utils/headerKeywords.ts`             | Add new keywords; add `matchHeaderRowPartial` function                        |
-| `src/workers/headerDetection.worker.ts`   | Skip HTML-disguised files; detect embedded HTML in cells                      |
-| `src/components/app/MapColumnsDialog.tsx` | Full rewrite: Excel-like table Step 1 with checkboxes, inline dropdown Step 2 |
-| `src/pages/app/CaseUpload.tsx`            | Remove CTA for no-headers/single-column                                       |
-| `src/components/ui/dialog.tsx`            | Add missing X icon to close button                                            |
+**Fix** (in `src/pages/app/CaseUpload.tsx`):
+- Reorder the add-files flow: perform file **deletions first**, then **additions second**, both **before** starting the job.
+- Move the deletion logic (lines 501-527) before the `startJobFlow` call (line 448).
+- Move the addition logic (lines 486-499) after deletions but before `startJobFlow`.
+
+**Files changed**: `src/pages/app/CaseUpload.tsx`
+
+---
+
+## Issue 3: Case Deletion Failing
+
+**Root cause**: The `delete_case_storage_files` BEFORE DELETE trigger on `cases` table tries to `DELETE FROM storage.objects` directly. A newer Supabase system trigger `protect_delete` on `storage.objects` blocks direct SQL deletions with error: *"Direct deletion from storage tables is not allowed. Use the Storage API instead."*
+
+**Fix**: Remove the direct `DELETE FROM storage.objects` statements from the trigger. Instead, only delete the *table records* (result_files, shared_fund_trails, fund_trail_views) in the trigger — which cascades handle anyway. For storage cleanup, either:
+- Option A: Simplify the trigger to only handle table records that don't have CASCADE (but they all do — so the trigger can be simplified to a no-op or removed).
+- Option B: Set the `storage.allow_delete_query` setting before deletion.
+
+**Recommended**: Use `SET LOCAL storage.allow_delete_query = 'true'` at the start of the trigger function, since it's already `SECURITY DEFINER`. This allows the trigger to work as intended.
+
+**Fix via DB migration**: Update the `delete_case_storage_files` function to add `PERFORM set_config('storage.allow_delete_query', 'true', true);` at the beginning.
+
+---
+
+## Issue 4: HTML-Disguised Files Still Showing Anomaly
+
+**Root cause**: The current `hasEmbeddedHtml` check in the worker (line 36-46) only checks for `<img`, `<html`, and `style=`. But some bank files have the HTML spread across multiple columns where individual cells contain fragments like `images/indian-bank-logo`, `watermark`, `position : fixed`, `opacity`, `z-index`, `pointer-events` without the full `<img` tag in a single cell.
+
+**Fix** (in `src/workers/headerDetection.worker.ts`):
+- Expand `hasEmbeddedHtml` to also check for patterns: `watermark`, `indian-bank-logo`, `position : fixed`, `pointer-events`, `opacity:`, `z-index:`, `<meta`, `<head`, `content-type`, `text/html`. These are clear indicators of HTML/image-based bank statement files.
+- Also check concatenated row content (join all cells in a row) for these patterns, since the HTML may be split across columns.
+
+**Files changed**: `src/workers/headerDetection.worker.ts`
+
+---
+
+## Issue 5: Warning Message for Missing Headers in Map Header Columns
+
+**Root cause**: No warning message exists in Step 2 of `MapColumnsDialog`.
+
+**Fix** (in `src/components/app/MapColumnsDialog.tsx`):
+- In Step 2, below the `DialogDescription`, add an `Alert` box showing which headers were not auto-detected.
+- Use `partialMatch.unmatched` to build the message:
+  - 1 missing: "Could not detect **Date** header. Please add this field from the dropdown."
+  - 2 missing: "Could not detect **Date & Balance** header. Please add these fields from the dropdown."
+  - 3+ missing: "Could not detect **Date, Description & Balance** header. Please add these fields from the dropdown."
+- Format: Join with commas, last one with "&". Use singular "field" for 1, "fields" for 2+.
+
+**Files changed**: `src/components/app/MapColumnsDialog.tsx`
+
+---
+
+## Summary
+
+| # | Issue | File(s) | Type |
+|---|-------|---------|------|
+| 1 | Duplicate job submissions | `CaseUpload.tsx`, `startJob.ts` | FE guard + DB check |
+| 2 | Same-name re-upload blocked | `CaseUpload.tsx` | Reorder delete→add→job |
+| 3 | Case deletion failing | DB migration (trigger fix) | `SET storage.allow_delete_query` |
+| 4 | HTML files showing anomaly | `headerDetection.worker.ts` | Expand detection patterns |
+| 5 | Missing header warning | `MapColumnsDialog.tsx` | Add Alert in Step 2 |
+

@@ -1,101 +1,43 @@
 
 
-# Plan: Fund Trail Save/Load Refactor, Admin Search Fix, Result ZIP Retention
+# Validation: Sample Files vs. Plan Coverage
 
-## 1. Fund Trail Save/Load — Switch to `getFundTrailViewData()` / `loadFundTrailView()`
+I analyzed all 8 uploaded files against the planned header detection logic. Here's how each maps to our use cases:
 
-**Current approach:** Regex-based HTML injection for positions/filters before rendering, plus a `postMessage`-based save override. This is fragile and only handles `positions` and `filters`.
+## File-by-File Analysis
 
-**New approach:** The embedded HTML now exposes `getFundTrailViewData()` and `loadFundTrailView(data)` on the iframe's `contentWindow`. The save data is a single rich JSON blob (with groups, dissolvedGroups, memberMappings, nodeStates, modifiedLinks, etc.).
+| File | Format | Headers Found | Keywords Matched | Plan Status |
+|------|--------|--------------|------------------|-------------|
+| `abbott_health.xlsx` | Standard XLSX | Row 0: "Capture Date", "DEBIT AMOUNT", "CREDIT AMOUNT", "LEDGER BALANCE...", "Narration" | Debit ✓ (`debit_amount`), Credit ✓ (`credit_amount`), Description ✓ (`narration`), Date ✗ (`capture_date` not in list), Balance ✗ (`ledger_balance_before_the_transaction` not in list) | **Anomaly** — user maps Date + Balance |
+| `ABHISHEK_DUBEY.xls` | Legacy XLS | Row 0: "Tran_Date", "Dr_Amt", "Cr_Amt", "Balance", "Narration" | Balance ✓, Description ✓ (`narration`), Date ✗ (`tran_date`), Debit ✗ (`dr_amt`), Credit ✗ (`cr_amt`) | **Anomaly** — user maps 3 columns |
+| `ARISTO_PHARMACEUTICALS.csv` | CSV with metadata rows | Row 2 (not row 0): "PostDate", "bal_amt", "Credit", "Debit", "Description" | Date ✓ (`post_date`), Debit ✓, Credit ✓, Description ✓, Balance ✗ (`bal_amt`) | **Anomaly** — user selects row 2, maps bal_amt→Balance |
+| `Azad_Medical-HDFC.xlsx` | XLSX | Nearly empty / unusual structure | Insufficient columns | **no-headers** — Save disabled, "No Headers Detected" |
+| `Chandauli.csv.xls` | CSV disguised as XLS, single-column | All data comma-separated in one cell per row | Max columns = 1 | **single-column** — Save disabled, "No Headers Detected" |
+| `ICORE_STMT.xlsx` | XLSX (processed result file) | Row 0: "debit", "credit", "balance", "date", "transaction_flag"... | Debit ✓, Credit ✓, Balance ✓, Date ✓, Description ✗ (no matching column) | **Anomaly** — user maps description |
+| `MarutiEnter.csv` | Standard CSV | Row 0: "Transaction Date", "Description", "Debit/Credit Flag", "Amount", "Running Total" | Date ✓ (`transaction_date`), Description ✓, Debit ✗, Credit ✗, Balance ✗ (`running_total`) | **Anomaly** — user maps 3 columns |
+| `Statement_7566362116.xls` | **HTML disguised as XLS** | HTML `<table>` with bank statement data | Format sniffer detects `<html>`, `<table>`, `<tr>` in first 500 bytes → SheetJS parses HTML table → then keyword matching runs | **HTML sniffer → Anomaly or OK** depending on parsed headers |
 
-### Database Migration
-Add a `view_data` jsonb column to `fund_trail_views`:
-```sql
-ALTER TABLE public.fund_trail_views ADD COLUMN view_data jsonb;
-```
+## Coverage Confirmation
 
-### File: `src/components/app/FundTrailViewer.tsx`
+All edge cases from the plan are represented:
 
-**Save flow changes:**
-- Remove the injected `<script>` that overrides `saveView` with `postMessage`
-- Remove the `handleMessage` / `window.addEventListener("message", ...)` logic
-- Add a "Save View" button to the toolbar
-- On click: call `iframeRef.current.contentWindow.getFundTrailViewData()`, then upsert the returned JSON into `fund_trail_views.view_data`
+- **Standard anomaly (partial keyword match):** `abbott_health.xlsx`, `ABHISHEK_DUBEY.xls`, `ICORE_STMT.xlsx`, `MarutiEnter.csv`
+- **Header row not at row 0:** `ARISTO_PHARMACEUTICALS.csv` (headers at row 2 after metadata)
+- **Single-column data:** `Chandauli.csv.xls` (Case 2 from requirements)
+- **No headers / too few columns:** `Azad_Medical-HDFC.xlsx` (Case 1 from requirements)
+- **HTML-disguised Excel:** `Statement_7566362116.xls` (format sniffer case)
+- **Legacy .xls binary format:** `ABHISHEK_DUBEY.xls` (SheetJS handles both .xlsx and .xls)
 
-**Load flow changes:**
-- Remove all regex-based HTML modification (`modifiedHtml` useMemo that replaces `savedPositions`, `hasSavedView`, `selectedOwners`, `topN`)
-- Pass raw `htmlContent` directly to `srcDoc`
-- After iframe loads (`onLoad` event), call `iframeRef.current.contentWindow.loadFundTrailView(savedViewData)` if saved data exists
-- Query now selects `view_data` instead of `positions, filters`
+## No Changes Needed to the Plan
 
-**Shared views:** Check `ShareFundTrailDialog` — shared views should also use `view_data` for read-only rendering via `loadFundTrailView`.
+The existing plan covers every sample file correctly. The keyword normalization strategy (lowercase, trim, spaces→underscores, exact match) works as intended — files that don't match become anomalies, and users manually map them.
 
----
+**One observation:** Keywords like `bal_amt`, `dr_amt`, `cr_amt`, `tran_date`, `capture_date`, `running_total` are intentionally NOT in the keyword lists. This is correct behavior — these files should trigger the anomaly flow so users can map them. The keyword list is deliberately conservative to catch edge cases.
 
-## 2. Admin Users Search — Client-Side Filtering
+**Tech stack confirmed:**
+- SheetJS (`xlsx`) — already installed in the project
+- Vite Web Workers — supported natively via `new Worker(new URL(...), { type: 'module' })`, no config changes needed
+- All existing UI components (Dialog, Select, Input, Button, Badge) available for the modal
 
-**Current:** `searchQuery` is part of the react-query key. Every keystroke changes the key, triggering a new edge function invocation (slow network call per character).
-
-### File: `src/hooks/useAdminUsers.ts`
-- Remove `searchQuery` from the query key and function parameter
-- Query key becomes `['admin-users']` (load once)
-- Return all users; no client-side filtering in the hook
-
-### File: `src/pages/app/AdminUsers.tsx`
-- Call `useAdminUsers()` with no argument (loads full list once)
-- Apply `searchQuery` filter locally via `useMemo` on the returned `users` array
-- Search is instant with no network calls per keystroke
-
----
-
-## 3. Result ZIP Retention — Keep Only 2 Latest Per Case
-
-**Current:** Step 4 in `cleanup-storage` deletes ALL `is_current = false` result files. This means only 1 file (the current one) is ever kept.
-
-**Requirement:** Keep the 2 most recent result ZIPs per case, delete the rest.
-
-### File: `supabase/functions/cleanup-storage/index.ts`
-
-**Replace Step 4** logic:
-- Query all `result_files` grouped by `case_id`, ordered by `created_at DESC`
-- For each case, keep the 2 newest records (regardless of `is_current` flag)
-- Delete storage files and DB records for all others
-- This handles cases that have been re-run many times
-
-```text
-For each case_id:
-  files = SELECT * FROM result_files WHERE case_id = X ORDER BY created_at DESC
-  keep = files[0..1]  (2 newest)
-  delete = files[2..]  (everything else)
-  -> remove from storage bucket
-  -> delete from result_files table
-```
-
-### Cron Job Setup
-Run a SQL insert (via Supabase SQL editor, not migration) to schedule the cleanup at midnight daily:
-```sql
-SELECT cron.schedule(
-  'nightly-storage-cleanup',
-  '0 0 * * *',
-  $$ SELECT net.http_post(
-    url:='https://rwzpffsaivgjuuthvkfa.supabase.co/functions/v1/cleanup-storage',
-    headers:='{"Content-Type":"application/json","Authorization":"Bearer <anon_key>"}'::jsonb,
-    body:='{}'::jsonb
-  ) AS request_id; $$
-);
-```
-Will provide the exact SQL with the anon key for the user to run.
-
----
-
-## Summary
-
-| File | Change |
-|------|--------|
-| Migration | Add `view_data` jsonb column to `fund_trail_views` |
-| `src/components/app/FundTrailViewer.tsx` | Replace regex injection + postMessage with `getFundTrailViewData()` / `loadFundTrailView()` API; add Save button |
-| `src/hooks/useAdminUsers.ts` | Remove search param from query; load all users once |
-| `src/pages/app/AdminUsers.tsx` | Filter users client-side with `useMemo` |
-| `supabase/functions/cleanup-storage/index.ts` | Step 4: keep 2 latest result ZIPs per case instead of only current |
-| Cron job SQL | Schedule cleanup at midnight daily |
+The plan is ready for implementation as-is.
 

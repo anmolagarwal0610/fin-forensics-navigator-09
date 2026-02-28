@@ -33,13 +33,28 @@ function isHtmlDisguised(buffer: ArrayBuffer): boolean {
  * Check if any cell in the first few rows contains embedded HTML/image patterns
  * (e.g. bank logo watermarks like <img src='images/indian-bank-logo...')
  */
+const HTML_PATTERNS = [
+  '<img', '<html', '<head', '<meta', '<table', '<tr',
+  'style=', 'content-type', 'text/html',
+  'watermark', 'indian-bank-logo',
+  'position : fixed', 'position: fixed',
+  'pointer-events', 'z-index:', 'z-index:-',
+  'opacity:', 'opacity:0',
+];
+
 function hasEmbeddedHtml(rows: string[][], checkRows = 5): boolean {
   for (let i = 0; i < Math.min(checkRows, rows.length); i++) {
+    // Check individual cells
     for (const cell of rows[i]) {
       const lower = cell.toLowerCase();
-      if (lower.includes('<img') || lower.includes('<html') || lower.includes("style=")) {
+      if (HTML_PATTERNS.some(p => lower.includes(p))) {
         return true;
       }
+    }
+    // Also check concatenated row (HTML fragments split across columns)
+    const rowJoined = rows[i].join(' ').toLowerCase();
+    if (HTML_PATTERNS.some(p => rowJoined.includes(p))) {
+      return true;
     }
   }
   return false;

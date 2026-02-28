@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Save, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   REQUIRED_HEADERS,
@@ -291,6 +292,24 @@ export default function MapColumnsDialog({
         ) : (
           /* ───── STEP 2: Map Header Columns ───── */
           <div className="flex-1 min-h-0 flex flex-col px-6 pb-6 gap-4">
+            {/* Warning for unmatched headers */}
+            {partialMatch && partialMatch.unmatched.length > 0 && (
+              <Alert className="border-warning/50 bg-warning/5">
+                <AlertTriangle className="h-4 w-4 text-warning" />
+                <AlertDescription className="text-sm">
+                  {(() => {
+                    const names = partialMatch.unmatched.map(h => HEADER_LABELS[h]);
+                    const formatted = names.length === 1
+                      ? <strong>{names[0]}</strong>
+                      : names.length === 2
+                        ? <><strong>{names[0]}</strong> &amp; <strong>{names[1]}</strong></>
+                        : <>{names.slice(0, -1).map((n, i) => <span key={i}><strong>{n}</strong>{i < names.length - 2 ? ', ' : ''}</span>)} &amp; <strong>{names[names.length - 1]}</strong></>;
+                    const fieldWord = names.length === 1 ? 'field' : 'fields';
+                    return <>Could not detect {formatted} header. Please add {names.length === 1 ? 'this' : 'these'} {fieldWord} from the dropdown.</>;
+                  })()}
+                </AlertDescription>
+              </Alert>
+            )}
             <div className="flex-1 min-h-0 overflow-auto border rounded-lg max-h-[55vh]">
               <table className="text-xs border-collapse">
                 <thead className="sticky top-0 z-10">

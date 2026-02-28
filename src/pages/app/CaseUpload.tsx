@@ -64,6 +64,7 @@ export default function CaseUpload() {
   const [loading, setLoading] = useState(true);
   const [loadingPreExisting, setLoadingPreExisting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [savingForLater, setSavingForLater] = useState(false);
   const [useHitl, setUseHitl] = useState(false);
   const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]);
@@ -364,8 +365,16 @@ export default function CaseUpload() {
   const handleStartAnalysis = async () => {
     if (!case_ || files.length === 0 || !canSubmit) return;
 
+    // Synchronous double-click guard (prevents re-entry before React re-renders)
+    if (submittingRef.current) {
+      console.warn('⚠️ handleStartAnalysis already in progress, ignoring duplicate call');
+      return;
+    }
+    submittingRef.current = true;
+
     // Check if we have enough pages (only for new files)
     if (totalPages > pagesRemaining) {
+      submittingRef.current = false;
       toast({
         title: "Insufficient Pages",
         description: `You need ${totalPages} pages but only have ${pagesRemaining} remaining. Upgrade to continue.`,
@@ -444,7 +453,46 @@ export default function CaseUpload() {
       // - For ADD FILES mode: true → we manually insert only new files below
       const skipFileInsertion = isAddFilesMode;
 
-      // Start job flow with Realtime tracking - do this FIRST before tracking pages
+      // ── STEP A: Delete removed pre-existing files FIRST (before additions) ──
+      if (isAddFilesMode && originalDbFiles.length > 0) {
+        try {
+          const currentPreExistingBaseNames = files
+            .filter(f => f.isPreExisting)
+            .map(f => getFileBaseName(f.name));
+          
+          const dbFilesToDelete = originalDbFiles.filter(dbFileName => 
+            !currentPreExistingBaseNames.includes(getFileBaseName(dbFileName))
+          );
+          
+          if (dbFilesToDelete.length > 0) {
+            console.log(`🗑️ Deleting ${dbFilesToDelete.length} removed files BEFORE additions:`, dbFilesToDelete);
+            for (const fileName of dbFilesToDelete) {
+              await deleteCaseFile(case_.id, fileName);
+            }
+            console.log(`✅ Deleted ${dbFilesToDelete.length} removed files from database/storage`);
+          }
+        } catch (deleteError) {
+          console.error("Failed to delete removed files:", deleteError);
+          throw new Error("Failed to remove files. Please try again.");
+        }
+      }
+
+      // ── STEP B: Insert NEW file records AFTER deletions (for Add Files mode) ──
+      if (isAddFilesMode && newFiles.length > 0) {
+        try {
+          const fileRecords = newFiles.map(f => ({
+            name: sanitizeFilename(f.name),
+            url: `${user.id}/${case_.id}/${sanitizeFilename(f.name)}`
+          }));
+          await addFiles(case_.id, fileRecords);
+          console.log(`✅ Inserted ${newFiles.length} new file records into database`);
+        } catch (insertError) {
+          console.error("Failed to insert new file records:", insertError);
+          throw new Error("Failed to add new files. Please try again.");
+        }
+      }
+
+      // ── STEP C: Start job flow AFTER file operations complete ──
       const { job_id } = await startJobFlow(
         uploadFiles,
         task,
@@ -457,8 +505,6 @@ export default function CaseUpload() {
         (finalJob) => {
           console.log("Job completed:", finalJob);
           if (finalJob.status === "SUCCEEDED") {
-            // Remove cached data completely to force fresh fetch on Results page
-            // This is critical for Add Files flow where new results replace old ones
             queryClient.removeQueries({ queryKey: ['case-results', case_.id] });
             queryClient.removeQueries({ 
               predicate: (query) => 
@@ -471,7 +517,6 @@ export default function CaseUpload() {
                 ? "Your case is ready for review. Go to your dashboard to continue."
                 : "Your results are ready. View them from your dashboard.",
             });
-            // No auto-navigation - user navigates manually from dashboard
           } else if (finalJob.status === "FAILED") {
             toast({
               title: "Analysis Failed",
@@ -482,49 +527,6 @@ export default function CaseUpload() {
         },
         skipFileInsertion,
       );
-
-      // Insert ONLY NEW file records into database (for Add Files mode)
-      if (isAddFilesMode && newFiles.length > 0) {
-        try {
-          const fileRecords = newFiles.map(f => ({
-            name: sanitizeFilename(f.name),
-            url: `${user.id}/${case_.id}/${sanitizeFilename(f.name)}`
-          }));
-          await addFiles(case_.id, fileRecords);
-          console.log(`✅ Inserted ${newFiles.length} new file records into database`);
-        } catch (insertError) {
-          console.error("Failed to insert new file records:", insertError);
-          // Don't throw - job is already running, just log the issue
-        }
-      }
-
-      // Delete removed pre-existing files from database/storage (for Add Files mode)
-      if (isAddFilesMode && originalDbFiles.length > 0) {
-        try {
-          // Get current pre-existing files in the file list (by base name)
-          const currentPreExistingBaseNames = files
-            .filter(f => f.isPreExisting)
-            .map(f => getFileBaseName(f.name));
-          
-          // Find which ORIGINAL DB files should be deleted
-          // A DB file should be deleted if its base name is NOT in current pre-existing list
-          const dbFilesToDelete = originalDbFiles.filter(dbFileName => 
-            !currentPreExistingBaseNames.includes(getFileBaseName(dbFileName))
-          );
-          
-          if (dbFilesToDelete.length > 0) {
-            console.log(`🗑️ Will delete ${dbFilesToDelete.length} files:`, dbFilesToDelete);
-            // Delete by EXACT file name (not base name) for precision
-            for (const fileName of dbFilesToDelete) {
-              await deleteCaseFile(case_.id, fileName);
-            }
-            console.log(`✅ Deleted ${dbFilesToDelete.length} removed files from database/storage`);
-          }
-        } catch (deleteError) {
-          console.error("Failed to delete removed files:", deleteError);
-          // Don't throw - job is already running, just log the issue
-        }
-      }
 
       // Track page usage ONLY AFTER job successfully started (prevents double-charging on retries)
       if (totalPages > 0) {
@@ -568,6 +570,7 @@ export default function CaseUpload() {
       });
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 

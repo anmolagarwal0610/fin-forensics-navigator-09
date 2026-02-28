@@ -23,6 +23,13 @@ interface FileItem {
   isVerifying?: boolean;
   verifyError?: string;
   isPreExisting?: boolean;
+  // Header detection fields (Excel/CSV only)
+  headerStatus?: 'pending' | 'ok' | 'anomaly' | 'no-headers' | 'single-column' | 'mapped';
+  parsedRows?: string[][];
+  detectedHeaderRow?: number | null;
+  columnMapping?: Record<string, string>;
+  headerRowIndex?: number;
+  accountHolderName?: string;
 }
 
 interface FileUploaderProps {

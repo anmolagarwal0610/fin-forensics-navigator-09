@@ -29,18 +29,35 @@ function isHtmlDisguised(buffer: ArrayBuffer): boolean {
   return text.includes('<html') || text.includes('<table') || text.includes('<tr');
 }
 
+/**
+ * Check if any cell in the first few rows contains embedded HTML/image patterns
+ * (e.g. bank logo watermarks like <img src='images/indian-bank-logo...')
+ */
+function hasEmbeddedHtml(rows: string[][], checkRows = 5): boolean {
+  for (let i = 0; i < Math.min(checkRows, rows.length); i++) {
+    for (const cell of rows[i]) {
+      const lower = cell.toLowerCase();
+      if (lower.includes('<img') || lower.includes('<html') || lower.includes("style=")) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function processFile(data: HeaderDetectionRequest): HeaderDetectionResult {
   const { buffer, fileName } = data;
 
   try {
-    // Format sniffer: detect HTML-disguised files
-    const htmlMode = isHtmlDisguised(buffer);
+    // HTML-disguised files: skip anomaly detection entirely, backend handles these
+    if (isHtmlDisguised(buffer)) {
+      return { fileName, status: 'ok', rows: [], detectedHeaderRow: null, detectedMapping: null };
+    }
 
     // Parse with SheetJS
     const workbook = XLSX.read(buffer, {
       type: 'array',
       sheetRows: 50, // Only first 50 rows
-      ...(htmlMode ? {} : {}), // SheetJS auto-detects HTML tables
     });
 
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -59,6 +76,11 @@ function processFile(data: HeaderDetectionRequest): HeaderDetectionResult {
     const rows: string[][] = rawRows.map(row =>
       (row as any[]).map(cell => (cell === null || cell === undefined ? '' : String(cell)))
     );
+
+    // Check for embedded HTML in cells (bank logo watermarks etc.) — treat as normal
+    if (hasEmbeddedHtml(rows)) {
+      return { fileName, status: 'ok', rows: [], detectedHeaderRow: null, detectedMapping: null };
+    }
 
     // Check single-column case: max columns across all rows <= 1
     const maxCols = rows.reduce((max, row) => Math.max(max, row.filter(c => c.trim() !== '').length), 0);

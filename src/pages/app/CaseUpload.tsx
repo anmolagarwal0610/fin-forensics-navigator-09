@@ -791,7 +791,7 @@ export default function CaseUpload() {
                     </span>
                   );
                 }
-                if (file.headerStatus === 'anomaly' || file.headerStatus === 'no-headers' || file.headerStatus === 'single-column') {
+                if (file.headerStatus === 'anomaly') {
                   return (
                     <Button
                       variant="ghost"

@@ -8,7 +8,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -16,13 +17,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Save, AlertCircle } from "lucide-react";
+import { ArrowLeft, Save, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   REQUIRED_HEADERS,
   HEADER_LABELS,
+  matchHeaderRowPartial,
   type RequiredHeader,
 } from "@/utils/headerKeywords";
 import type { HeaderStatus } from "@/workers/headerDetection.worker";
@@ -43,6 +43,17 @@ interface MapColumnsDialogProps {
   }) => void;
 }
 
+/** Generate Excel-style column label: A, B, ... Z, AA, AB ... */
+function colLabel(index: number): string {
+  let label = "";
+  let n = index;
+  while (n >= 0) {
+    label = String.fromCharCode(65 + (n % 26)) + label;
+    n = Math.floor(n / 26) - 1;
+  }
+  return label;
+}
+
 export default function MapColumnsDialog({
   open,
   onClose,
@@ -54,49 +65,95 @@ export default function MapColumnsDialog({
   initialAccountHolder,
   onSave,
 }: MapColumnsDialogProps) {
-  const [step, setStep] = useState<1 | 2>(initialMapping ? 2 : 1);
-  const [selectedRow, setSelectedRow] = useState<number | null>(
-    initialHeaderRow ?? null
-  );
-  const [mapping, setMapping] = useState<Partial<Record<RequiredHeader, string>>>(
-    initialMapping ?? {}
-  );
-  const [accountHolder, setAccountHolder] = useState(initialAccountHolder ?? "");
+  const [step, setStep] = useState<1 | 2>(1);
+  const [selectedRow, setSelectedRow] = useState<number | null>(null);
+  const [accountHolder, setAccountHolder] = useState("");
+  // Manual mapping: colIndex -> RequiredHeader
+  const [manualMapping, setManualMapping] = useState<Record<number, RequiredHeader>>({});
 
-  const isDisabled = headerStatus === "no-headers" || headerStatus === "single-column";
+  // Max columns across all rows
+  const maxCols = useMemo(
+    () => rows.reduce((max, row) => Math.max(max, row.length), 0),
+    [rows]
+  );
 
-  // Reset state when dialog opens with new file
+  // Reset state when dialog opens
   useEffect(() => {
     if (open) {
-      if (initialMapping) {
+      if (initialMapping && initialHeaderRow != null) {
         setStep(2);
-        setSelectedRow(initialHeaderRow ?? null);
-        setMapping(initialMapping);
+        setSelectedRow(initialHeaderRow);
         setAccountHolder(initialAccountHolder ?? "");
+        // Reconstruct manualMapping from initialMapping
+        const headerRow = rows[initialHeaderRow] ?? [];
+        const partial = matchHeaderRowPartial(headerRow);
+        const mapping: Record<number, RequiredHeader> = {};
+        // For unmatched headers, find the column that was mapped
+        for (const header of partial.unmatched) {
+          const mappedValue = initialMapping[header];
+          if (mappedValue) {
+            const colIdx = headerRow.findIndex(c => c === mappedValue);
+            if (colIdx >= 0) mapping[colIdx] = header;
+          }
+        }
+        setManualMapping(mapping);
       } else {
         setStep(1);
         setSelectedRow(null);
-        setMapping({});
+        setManualMapping({});
         setAccountHolder("");
       }
     }
   }, [open, fileName]);
 
-  // Get column values from selected row for dropdowns
-  const headerOptions = useMemo(() => {
-    if (selectedRow === null || !rows[selectedRow]) return [];
-    return rows[selectedRow]
-      .map((val, idx) => ({ value: val, index: idx }))
-      .filter((opt) => opt.value.trim() !== "");
+  // Partial match info for step 2
+  const partialMatch = useMemo(() => {
+    if (selectedRow === null || !rows[selectedRow]) return null;
+    return matchHeaderRowPartial(rows[selectedRow]);
   }, [selectedRow, rows]);
 
-  const allMapped = REQUIRED_HEADERS.every(
-    (h) => mapping[h] && mapping[h]!.trim() !== ""
-  );
-  const canSave = !isDisabled && allMapped && selectedRow !== null;
+  // Which required headers are already assigned (auto or manual)
+  const assignedHeaders = useMemo(() => {
+    const set = new Set<RequiredHeader>();
+    if (partialMatch) {
+      for (const h of REQUIRED_HEADERS) {
+        if (partialMatch.matched[h]) set.add(h);
+      }
+    }
+    Object.values(manualMapping).forEach(h => set.add(h));
+    return set;
+  }, [partialMatch, manualMapping]);
+
+  // Set of column indices that are auto-matched
+  const autoMatchedCols = useMemo(() => {
+    const set = new Set<number>();
+    if (partialMatch) {
+      for (const h of REQUIRED_HEADERS) {
+        const m = partialMatch.matched[h];
+        if (m) set.add(m.colIndex);
+      }
+    }
+    return set;
+  }, [partialMatch]);
+
+  const allAssigned = assignedHeaders.size === REQUIRED_HEADERS.length;
+  const canSave = allAssigned && selectedRow !== null;
 
   const handleSave = () => {
-    if (!canSave || selectedRow === null) return;
+    if (!canSave || selectedRow === null || !partialMatch) return;
+    // Build the full column mapping
+    const headerRow = rows[selectedRow];
+    const mapping: Record<string, string> = {};
+    for (const h of REQUIRED_HEADERS) {
+      const auto = partialMatch.matched[h];
+      if (auto) {
+        mapping[h] = headerRow[auto.colIndex];
+      } else {
+        // Find from manual
+        const entry = Object.entries(manualMapping).find(([, v]) => v === h);
+        if (entry) mapping[h] = headerRow[Number(entry[0])];
+      }
+    }
     onSave({
       headerRowIndex: selectedRow,
       columnMapping: mapping as Record<RequiredHeader, string>,
@@ -106,173 +163,249 @@ export default function MapColumnsDialog({
 
   const handleNext = () => {
     if (selectedRow !== null) {
-      // Pre-populate mapping with empty values
-      if (Object.keys(mapping).length === 0) {
-        const init: Partial<Record<RequiredHeader, string>> = {};
-        REQUIRED_HEADERS.forEach((h) => (init[h] = ""));
-        setMapping(init);
-      }
+      setManualMapping({});
       setStep(2);
     }
   };
 
+  const handleCheckbox = (rowIdx: number) => {
+    setSelectedRow(prev => (prev === rowIdx ? null : rowIdx));
+  };
+
+  const handleDropdownChange = (colIdx: number, value: string) => {
+    if (value === "__clear__") {
+      setManualMapping(prev => {
+        const next = { ...prev };
+        delete next[colIdx];
+        return next;
+      });
+    } else {
+      setManualMapping(prev => {
+        // Remove this header from any other column first
+        const next = { ...prev };
+        for (const [k, v] of Object.entries(next)) {
+          if (v === value) delete next[Number(k)];
+        }
+        next[colIdx] = value as RequiredHeader;
+        return next;
+      });
+    }
+  };
+
+  // Data rows for step 2 (rows after the header row, up to 25)
+  const dataRows = useMemo(() => {
+    if (selectedRow === null) return [];
+    return rows.slice(selectedRow + 1, selectedRow + 26);
+  }, [selectedRow, rows]);
+
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+      <DialogContent className="max-w-[90vw] max-h-[90vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-2 space-y-3">
+          <DialogTitle>
             {step === 1 ? "Select Header Row" : "Map Header Columns"}
           </DialogTitle>
           <DialogDescription>
             {step === 1
-              ? "Please select the row which best depicts the header row."
-              : "Please select the header against the required header from the dropdown and Save the configuration."}
+              ? "Select the row that contains your column headers."
+              : "Map the highlighted columns to the required fields. Columns already matched are shown as-is."}
           </DialogDescription>
-          <Badge variant="outline" className="w-fit text-xs mt-1">
-            {fileName}
-          </Badge>
+          <div className="flex items-center gap-3 flex-wrap">
+            <Badge variant="outline" className="text-xs shrink-0">
+              {fileName}
+            </Badge>
+            <Input
+              value={accountHolder}
+              onChange={(e) => setAccountHolder(e.target.value)}
+              placeholder="Account Name (Optional)"
+              className="h-8 w-64 text-sm"
+            />
+          </div>
         </DialogHeader>
 
         {step === 1 ? (
           /* ───── STEP 1: Select Header Row ───── */
-          <div className="flex-1 min-h-0 flex flex-col gap-4">
-            {isDisabled && (
-              <div className="flex items-center gap-2 p-3 rounded-lg border border-warning/40 bg-warning/10 text-warning-foreground text-sm">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                <span>
-                  {headerStatus === "single-column"
-                    ? "All data appears to be in a single column. Headers cannot be mapped."
-                    : "Fewer than 5 columns detected. Headers cannot be mapped."}
-                </span>
-              </div>
-            )}
-            <ScrollArea className="flex-1 border rounded-lg max-h-[50vh]">
-              <div className="min-w-max">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-muted z-10">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-muted-foreground font-medium w-12">
-                        Row
+          <div className="flex-1 min-h-0 flex flex-col px-6 pb-6 gap-4">
+            <div className="flex-1 min-h-0 overflow-auto border rounded-lg max-h-[55vh]">
+              <table className="text-xs border-collapse">
+                <thead className="sticky top-0 z-10 bg-muted">
+                  <tr>
+                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground sticky left-0 bg-muted z-20">
+                      ✓
+                    </th>
+                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground">
+                      #
+                    </th>
+                    {Array.from({ length: maxCols }, (_, i) => (
+                      <th
+                        key={i}
+                        className="px-3 py-1.5 border border-border text-center font-medium text-muted-foreground whitespace-nowrap min-w-[100px]"
+                      >
+                        {colLabel(i)}
                       </th>
-                      <th className="px-3 py-2 text-left text-muted-foreground font-medium">
-                        Data
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((row, idx) => {
-                      const cellText = row.filter((c) => c.trim()).join(" | ");
-                      if (!cellText.trim()) return null;
-                      return (
-                        <tr
-                          key={idx}
-                          onClick={() => !isDisabled && setSelectedRow(idx)}
-                          className={cn(
-                            "cursor-pointer transition-colors border-b",
-                            isDisabled && "cursor-not-allowed opacity-60",
-                            selectedRow === idx
-                              ? "bg-primary/10 border-primary/30"
-                              : "hover:bg-muted/60"
-                          )}
-                        >
-                          <td className="px-3 py-2 text-muted-foreground font-mono text-xs">
-                            {idx + 1}
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, idx) => {
+                    const isSelected = selectedRow === idx;
+                    return (
+                      <tr
+                        key={idx}
+                        className={cn(
+                          "transition-colors",
+                          isSelected && "bg-primary/10"
+                        )}
+                      >
+                        <td className="px-2 py-1 border border-border text-center sticky left-0 z-10 bg-inherit">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => handleCheckbox(idx)}
+                            className="h-4 w-4"
+                          />
+                        </td>
+                        <td className="px-2 py-1 border border-border text-center text-muted-foreground font-mono">
+                          {idx + 1}
+                        </td>
+                        {Array.from({ length: maxCols }, (_, colIdx) => (
+                          <td
+                            key={colIdx}
+                            className="px-3 py-1 border border-border whitespace-nowrap"
+                          >
+                            {row[colIdx] ?? ""}
                           </td>
-                          <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">
-                            {cellText}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </ScrollArea>
+                        ))}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
 
             <div className="flex justify-end">
-              <Button
-                onClick={handleNext}
-                disabled={selectedRow === null || isDisabled}
-              >
+              <Button onClick={handleNext} disabled={selectedRow === null}>
                 Next
               </Button>
             </div>
           </div>
         ) : (
           /* ───── STEP 2: Map Header Columns ───── */
-          <div className="flex-1 min-h-0 flex flex-col gap-4">
-            {isDisabled && (
-              <div className="flex items-center gap-2 p-3 rounded-lg border border-warning/40 bg-warning/10 text-warning-foreground text-sm">
-                <AlertCircle className="h-4 w-4 shrink-0" />
-                No Headers Detected
-              </div>
-            )}
+          <div className="flex-1 min-h-0 flex flex-col px-6 pb-6 gap-4">
+            <div className="flex-1 min-h-0 overflow-auto border rounded-lg max-h-[55vh]">
+              <table className="text-xs border-collapse">
+                <thead className="sticky top-0 z-10">
+                  {/* Column labels row */}
+                  <tr className="bg-muted">
+                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground">
+                      #
+                    </th>
+                    {Array.from({ length: maxCols }, (_, i) => (
+                      <th
+                        key={i}
+                        className="px-3 py-1.5 border border-border text-center font-medium text-muted-foreground whitespace-nowrap min-w-[120px]"
+                      >
+                        {colLabel(i)}
+                      </th>
+                    ))}
+                  </tr>
+                  {/* Header row with dropdowns for unmatched */}
+                  {selectedRow !== null && rows[selectedRow] && (
+                    <tr className="bg-primary/5 border-b-2 border-primary/30">
+                      <td className="px-2 py-1.5 border border-border text-center text-muted-foreground font-mono font-bold">
+                        {selectedRow + 1}
+                      </td>
+                      {Array.from({ length: maxCols }, (_, colIdx) => {
+                        const cellValue = rows[selectedRow][colIdx] ?? "";
+                        const isAutoMatched = autoMatchedCols.has(colIdx);
+                        const manualValue = manualMapping[colIdx];
 
-            <div className="space-y-3">
-              {REQUIRED_HEADERS.map((header) => (
-                <div
-                  key={header}
-                  className="flex items-center gap-4"
-                >
-                  <Label className="w-32 text-sm font-medium shrink-0">
-                    {HEADER_LABELS[header]}
-                  </Label>
-                  <Select
-                    value={mapping[header] || ""}
-                    onValueChange={(val) =>
-                      setMapping((prev) => ({ ...prev, [header]: val }))
-                    }
-                    disabled={isDisabled || headerOptions.length === 0}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue
-                        placeholder={
-                          isDisabled || headerOptions.length === 0
-                            ? "No Headers Detected"
-                            : "Select Header"
+                        // If auto-matched, show value with checkmark
+                        if (isAutoMatched) {
+                          return (
+                            <td
+                              key={colIdx}
+                              className="px-3 py-1.5 border border-border whitespace-nowrap"
+                            >
+                              <div className="flex items-center gap-1.5">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                                <span className="font-medium">{cellValue}</span>
+                              </div>
+                            </td>
+                          );
                         }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {headerOptions.map((opt) => (
-                        <SelectItem key={opt.index} value={opt.value}>
-                          {opt.value}
-                        </SelectItem>
+
+                        // Empty cell — no dropdown
+                        if (!cellValue.trim()) {
+                          return (
+                            <td
+                              key={colIdx}
+                              className="px-3 py-1.5 border border-border"
+                            />
+                          );
+                        }
+
+                        // Unmatched — show dropdown
+                        const availableHeaders = REQUIRED_HEADERS.filter(
+                          h => !assignedHeaders.has(h) || manualMapping[colIdx] === h
+                        );
+
+                        return (
+                          <td
+                            key={colIdx}
+                            className="px-1 py-1 border border-border"
+                          >
+                            <Select
+                              value={manualValue ?? ""}
+                              onValueChange={(val) => handleDropdownChange(colIdx, val)}
+                            >
+                              <SelectTrigger className="h-7 text-xs border-warning/50 bg-warning/5">
+                                <SelectValue placeholder={cellValue} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {manualValue && (
+                                  <SelectItem value="__clear__" className="text-xs text-muted-foreground">
+                                    — Clear —
+                                  </SelectItem>
+                                )}
+                                {availableHeaders.map(h => (
+                                  <SelectItem key={h} value={h} className="text-xs">
+                                    {HEADER_LABELS[h]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  )}
+                </thead>
+                <tbody>
+                  {dataRows.map((row, idx) => (
+                    <tr key={idx}>
+                      <td className="px-2 py-1 border border-border text-center text-muted-foreground font-mono">
+                        {(selectedRow ?? 0) + 2 + idx}
+                      </td>
+                      {Array.from({ length: maxCols }, (_, colIdx) => (
+                        <td
+                          key={colIdx}
+                          className="px-3 py-1 border border-border whitespace-nowrap"
+                        >
+                          {row[colIdx] ?? ""}
+                        </td>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
 
-            {/* Account Holder Name */}
-            <div className="flex items-center gap-4 pt-2 border-t">
-              <Label className="w-32 text-sm font-medium shrink-0">
-                Account Holder's Name
-              </Label>
-              <Input
-                value={accountHolder}
-                onChange={(e) => setAccountHolder(e.target.value)}
-                placeholder="Optional"
-                className="flex-1"
-                disabled={isDisabled}
-              />
-            </div>
-
-            <div className="flex justify-between pt-2">
-              <Button
-                variant="outline"
-                onClick={() => setStep(1)}
-                className="gap-2"
-              >
+            <div className="flex justify-between">
+              <Button variant="outline" onClick={() => setStep(1)} className="gap-2">
                 <ArrowLeft className="h-4 w-4" />
                 Back
               </Button>
-              <Button
-                onClick={handleSave}
-                disabled={!canSave}
-                className="gap-2"
-              >
+              <Button onClick={handleSave} disabled={!canSave} className="gap-2">
                 <Save className="h-4 w-4" />
                 Save
               </Button>

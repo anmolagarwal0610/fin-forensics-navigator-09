@@ -1175,7 +1175,7 @@ export default function CaseAnalysisResults() {
                 if (tabCount > 1) {
                   return (
                     <Tabs defaultValue={defaultTab} className="w-full">
-                      <div className="flex items-center justify-between mb-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                         <TabsList className="bg-muted/60">
                           {hasFundTrail && (
                             <TabsTrigger value="fundtrail" className="data-[state=active]:bg-background">
@@ -1452,8 +1452,8 @@ export default function CaseAnalysisResults() {
                     onOpenChange={() => toggleSummary(index)}
                   >
                     <div className="border rounded-lg p-4 bg-gradient-to-r from-muted/30 to-muted/50 hover:from-muted/50 hover:to-muted/70 transition-all">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-semibold text-sm flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                        <h4 className="font-semibold text-sm flex items-center gap-2 min-w-0 flex-wrap">
                           <span className="text-muted-foreground text-xs font-medium">{index + 1}.</span>
                           <FileText className="h-4 w-4 text-primary" />
                           <span className="text-muted-foreground">{t("analysisResults.originalFile")}:</span>

@@ -388,7 +388,7 @@ export default function SummaryTableViewer({
     <>
       <div className="w-full">
         <div className="overflow-auto h-[300px] sm:h-[400px] w-full rounded-md border">
-          <table className="w-full text-xs sm:text-sm table-fixed">
+          <table className="w-full text-xs sm:text-sm table-auto min-w-[600px]">
             <thead className="sticky top-0 z-10 bg-muted/95">
               <tr>
                 {headerRow?.map((cell, colIdx) => {

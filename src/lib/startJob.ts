@@ -20,6 +20,20 @@ export async function startJob(
   
   console.log(`📝 Creating job ${job_id} in Supabase first...`);
   
+  // 0. PRE-FLIGHT: Check for existing active job on this session
+  const { data: activeJobs, error: checkError } = await supabase
+    .from('jobs')
+    .select('id, status')
+    .eq('session_id', sessionId)
+    .in('status', ['PENDING', 'RUNNING', 'STARTED']);
+  
+  if (checkError) {
+    console.warn('⚠️ Pre-flight check failed, proceeding anyway:', checkError);
+  } else if (activeJobs && activeJobs.length > 0) {
+    console.warn(`🚫 Active job already exists for session ${sessionId}:`, activeJobs[0]);
+    throw new Error(`A job is already running for this case (${activeJobs[0].id.slice(0, 8)}...). Please wait for it to complete.`);
+  }
+  
   // 1. INSERT job into Supabase FIRST (source of truth)
   const { error: insertError } = await supabase
     .from('jobs')

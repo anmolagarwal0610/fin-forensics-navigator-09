@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import FileUploader from "@/components/app/FileUploader";
+import MapColumnsDialog from "@/components/app/MapColumnsDialog";
 import {
   getCaseById,
   getCaseFiles,
@@ -25,8 +26,9 @@ import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
-import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save } from "lucide-react";
+import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save, AlertTriangle, Loader2 } from "lucide-react";
 import { Link } from "react-router-dom";
+import type { RequiredHeader } from "@/utils/headerKeywords";
 import JSZip from "jszip";
 import { countFilePages } from "@/utils/pageCounter";
 import { sanitizeFilename } from "@/lib/utils";
@@ -41,7 +43,14 @@ interface FileItem {
   password?: string;
   passwordVerified?: boolean;
   isVerifying?: boolean;
-  isPreExisting?: boolean; // Files loaded from previous results
+  isPreExisting?: boolean;
+  // Header detection fields
+  headerStatus?: 'pending' | 'ok' | 'anomaly' | 'no-headers' | 'single-column' | 'mapped';
+  parsedRows?: string[][];
+  detectedHeaderRow?: number | null;
+  columnMapping?: Record<string, string>;
+  headerRowIndex?: number;
+  accountHolderName?: string;
 }
 
 export default function CaseUpload() {
@@ -55,11 +64,14 @@ export default function CaseUpload() {
   const [loading, setLoading] = useState(true);
   const [loadingPreExisting, setLoadingPreExisting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
   const [savingForLater, setSavingForLater] = useState(false);
   const [useHitl, setUseHitl] = useState(false);
-  const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]); // Track original pre-existing filenames (from ZIP)
-  const [originalDbFiles, setOriginalDbFiles] = useState<string[]>([]); // Track actual DB file names for accurate deletion
-  const [existingGroupingLogic, setExistingGroupingLogic] = useState<string | null>(null); // grouping_logic.json from previous result ZIP
+  const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]);
+  const [originalDbFiles, setOriginalDbFiles] = useState<string[]>([]);
+  const [existingGroupingLogic, setExistingGroupingLogic] = useState<string | null>(null);
+  const [mapDialogFile, setMapDialogFile] = useState<FileItem | null>(null);
+  const workerRef = useRef<Worker | null>(null);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
   const { fetchFileForParsing } = useSecureDownload();
@@ -80,6 +92,80 @@ export default function CaseUpload() {
     totalPages <= pagesRemaining &&
     !hasLockedFiles &&
     !isMaintenanceMode;
+
+  // ─── Header Detection Worker ───
+  const isExcelOrCsv = (name: string) => /\.(xlsx|xls|csv)$/i.test(name);
+
+  useEffect(() => {
+    workerRef.current = new Worker(
+      new URL('@/workers/headerDetection.worker.ts', import.meta.url),
+      { type: 'module' }
+    );
+    return () => { workerRef.current?.terminate(); };
+  }, []);
+
+  const runHeaderDetection = useCallback((file: FileItem) => {
+    if (!workerRef.current || file.isPreExisting || !isExcelOrCsv(file.name)) return;
+
+    // Mark as pending
+    setFiles(prev => prev.map(f =>
+      f.file === file.file ? { ...f, headerStatus: 'pending' as const } : f
+    ));
+
+    const worker = workerRef.current;
+    const handler = (e: MessageEvent) => {
+      if (e.data.fileName !== file.name) return;
+      worker.removeEventListener('message', handler);
+
+      const { status, rows, detectedHeaderRow, detectedMapping } = e.data;
+      setFiles(prev => prev.map(f =>
+        f.file === file.file
+          ? {
+              ...f,
+              headerStatus: status,
+              parsedRows: rows,
+              detectedHeaderRow,
+              columnMapping: detectedMapping || undefined,
+            }
+          : f
+      ));
+    };
+
+    worker.addEventListener('message', handler);
+    file.file.arrayBuffer().then(buffer => {
+      worker.postMessage({ buffer, fileName: file.name }, [buffer]);
+    });
+  }, []);
+
+  // Run header detection whenever files change (for new Excel/CSV files without a status)
+  useEffect(() => {
+    files.forEach(f => {
+      if (!f.isPreExisting && isExcelOrCsv(f.name) && !f.headerStatus) {
+        runHeaderDetection(f);
+      }
+    });
+  }, [files, runHeaderDetection]);
+
+  const handleMapDialogSave = useCallback((data: {
+    headerRowIndex: number;
+    columnMapping: Record<RequiredHeader, string>;
+    accountHolderName: string;
+  }) => {
+    if (!mapDialogFile) return;
+    setFiles(prev => prev.map(f =>
+      f.file === mapDialogFile.file
+        ? {
+            ...f,
+            headerStatus: 'mapped' as const,
+            headerRowIndex: data.headerRowIndex,
+            columnMapping: data.columnMapping,
+            accountHolderName: data.accountHolderName,
+          }
+        : f
+    ));
+    setMapDialogFile(null);
+  }, [mapDialogFile]);
+
 
   useEffect(() => {
     if (!id) return;
@@ -279,8 +365,16 @@ export default function CaseUpload() {
   const handleStartAnalysis = async () => {
     if (!case_ || files.length === 0 || !canSubmit) return;
 
+    // Synchronous double-click guard (prevents re-entry before React re-renders)
+    if (submittingRef.current) {
+      console.warn('⚠️ handleStartAnalysis already in progress, ignoring duplicate call');
+      return;
+    }
+    submittingRef.current = true;
+
     // Check if we have enough pages (only for new files)
     if (totalPages > pagesRemaining) {
+      submittingRef.current = false;
       toast({
         title: "Insufficient Pages",
         description: `You need ${totalPages} pages but only have ${pagesRemaining} remaining. Upgrade to continue.`,
@@ -317,6 +411,24 @@ export default function CaseUpload() {
         console.log('📋 Including grouping_logic.json in upload ZIP');
       }
 
+      // Include header_mapping.json for files with manual mappings
+      const mappedFiles = files.filter(f => f.headerStatus === 'mapped' && f.columnMapping && f.headerRowIndex !== undefined);
+      if (mappedFiles.length > 0) {
+        const headerMappingJson = {
+          files_config: mappedFiles.map(f => ({
+            fileName: sanitizeFilename(f.name),
+            hasManualMapping: true,
+            headerRowIndex: f.headerRowIndex,
+            accountHolderName: f.accountHolderName || '',
+            columnMapping: f.columnMapping,
+          })),
+        };
+        const mappingBlob = new Blob([JSON.stringify(headerMappingJson, null, 2)], { type: 'application/json' });
+        const mappingFile = new File([mappingBlob], 'header_mapping.json', { type: 'application/json' });
+        uploadFiles.push(mappingFile);
+        console.log(`📋 Including header_mapping.json with ${mappedFiles.length} file(s)`);
+      }
+
       // Extract passwords for protected files
       const passwords = files
         .filter((f) => f.needsPassword && f.passwordVerified && f.password)
@@ -341,7 +453,46 @@ export default function CaseUpload() {
       // - For ADD FILES mode: true → we manually insert only new files below
       const skipFileInsertion = isAddFilesMode;
 
-      // Start job flow with Realtime tracking - do this FIRST before tracking pages
+      // ── STEP A: Delete removed pre-existing files FIRST (before additions) ──
+      if (isAddFilesMode && originalDbFiles.length > 0) {
+        try {
+          const currentPreExistingBaseNames = files
+            .filter(f => f.isPreExisting)
+            .map(f => getFileBaseName(f.name));
+          
+          const dbFilesToDelete = originalDbFiles.filter(dbFileName => 
+            !currentPreExistingBaseNames.includes(getFileBaseName(dbFileName))
+          );
+          
+          if (dbFilesToDelete.length > 0) {
+            console.log(`🗑️ Deleting ${dbFilesToDelete.length} removed files BEFORE additions:`, dbFilesToDelete);
+            for (const fileName of dbFilesToDelete) {
+              await deleteCaseFile(case_.id, fileName);
+            }
+            console.log(`✅ Deleted ${dbFilesToDelete.length} removed files from database/storage`);
+          }
+        } catch (deleteError) {
+          console.error("Failed to delete removed files:", deleteError);
+          throw new Error("Failed to remove files. Please try again.");
+        }
+      }
+
+      // ── STEP B: Insert NEW file records AFTER deletions (for Add Files mode) ──
+      if (isAddFilesMode && newFiles.length > 0) {
+        try {
+          const fileRecords = newFiles.map(f => ({
+            name: sanitizeFilename(f.name),
+            url: `${user.id}/${case_.id}/${sanitizeFilename(f.name)}`
+          }));
+          await addFiles(case_.id, fileRecords);
+          console.log(`✅ Inserted ${newFiles.length} new file records into database`);
+        } catch (insertError) {
+          console.error("Failed to insert new file records:", insertError);
+          throw new Error("Failed to add new files. Please try again.");
+        }
+      }
+
+      // ── STEP C: Start job flow AFTER file operations complete ──
       const { job_id } = await startJobFlow(
         uploadFiles,
         task,
@@ -354,8 +505,6 @@ export default function CaseUpload() {
         (finalJob) => {
           console.log("Job completed:", finalJob);
           if (finalJob.status === "SUCCEEDED") {
-            // Remove cached data completely to force fresh fetch on Results page
-            // This is critical for Add Files flow where new results replace old ones
             queryClient.removeQueries({ queryKey: ['case-results', case_.id] });
             queryClient.removeQueries({ 
               predicate: (query) => 
@@ -368,7 +517,6 @@ export default function CaseUpload() {
                 ? "Your case is ready for review. Go to your dashboard to continue."
                 : "Your results are ready. View them from your dashboard.",
             });
-            // No auto-navigation - user navigates manually from dashboard
           } else if (finalJob.status === "FAILED") {
             toast({
               title: "Analysis Failed",
@@ -379,49 +527,6 @@ export default function CaseUpload() {
         },
         skipFileInsertion,
       );
-
-      // Insert ONLY NEW file records into database (for Add Files mode)
-      if (isAddFilesMode && newFiles.length > 0) {
-        try {
-          const fileRecords = newFiles.map(f => ({
-            name: sanitizeFilename(f.name),
-            url: `${user.id}/${case_.id}/${sanitizeFilename(f.name)}`
-          }));
-          await addFiles(case_.id, fileRecords);
-          console.log(`✅ Inserted ${newFiles.length} new file records into database`);
-        } catch (insertError) {
-          console.error("Failed to insert new file records:", insertError);
-          // Don't throw - job is already running, just log the issue
-        }
-      }
-
-      // Delete removed pre-existing files from database/storage (for Add Files mode)
-      if (isAddFilesMode && originalDbFiles.length > 0) {
-        try {
-          // Get current pre-existing files in the file list (by base name)
-          const currentPreExistingBaseNames = files
-            .filter(f => f.isPreExisting)
-            .map(f => getFileBaseName(f.name));
-          
-          // Find which ORIGINAL DB files should be deleted
-          // A DB file should be deleted if its base name is NOT in current pre-existing list
-          const dbFilesToDelete = originalDbFiles.filter(dbFileName => 
-            !currentPreExistingBaseNames.includes(getFileBaseName(dbFileName))
-          );
-          
-          if (dbFilesToDelete.length > 0) {
-            console.log(`🗑️ Will delete ${dbFilesToDelete.length} files:`, dbFilesToDelete);
-            // Delete by EXACT file name (not base name) for precision
-            for (const fileName of dbFilesToDelete) {
-              await deleteCaseFile(case_.id, fileName);
-            }
-            console.log(`✅ Deleted ${dbFilesToDelete.length} removed files from database/storage`);
-          }
-        } catch (deleteError) {
-          console.error("Failed to delete removed files:", deleteError);
-          // Don't throw - job is already running, just log the issue
-        }
-      }
 
       // Track page usage ONLY AFTER job successfully started (prevents double-charging on retries)
       if (totalPages > 0) {
@@ -465,6 +570,7 @@ export default function CaseUpload() {
       });
     } finally {
       setSubmitting(false);
+      submittingRef.current = false;
     }
   };
 
@@ -665,17 +771,58 @@ export default function CaseUpload() {
             <FileUploader
               files={files}
               onFilesChange={setFiles}
-              renderFileExtra={(file) =>
-                file.isPreExisting ? (
-                  <Badge
-                    variant="outline"
-                    className="text-xs gap-1 bg-green-50 text-green-700 border-green-200 dark:bg-green-950/30 dark:text-green-400 dark:border-green-800"
-                  >
-                    <CheckCircle2 className="h-3 w-3" />
-                    {t("caseUpload.alreadyProcessed")}
-                  </Badge>
-                ) : null
-              }
+              renderFileExtra={(file) => {
+                // Pre-existing badge
+                if (file.isPreExisting) {
+                  return (
+                    <Badge
+                      variant="outline"
+                      className="text-xs gap-1 bg-success/10 text-success border-success/30"
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      {t("caseUpload.alreadyProcessed")}
+                    </Badge>
+                  );
+                }
+
+                // Header detection CTAs for Excel/CSV
+                if (file.headerStatus === 'pending') {
+                  return (
+                    <span className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Detecting headers...
+                    </span>
+                  );
+                }
+                if (file.headerStatus === 'anomaly') {
+                  return (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs gap-1 text-warning hover:text-warning"
+                      onClick={(e) => { e.stopPropagation(); setMapDialogFile(file); }}
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      Map File Columns
+                    </Button>
+                  );
+                }
+                if (file.headerStatus === 'mapped') {
+                  return (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2 text-xs gap-1 text-success hover:text-success"
+                      onClick={(e) => { e.stopPropagation(); setMapDialogFile(file); }}
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      Header Columns Mapped
+                    </Button>
+                  );
+                }
+
+                return null;
+              }}
             />
           )}
 
@@ -766,6 +913,27 @@ export default function CaseUpload() {
           )}
         </CardContent>
       </Card>
+
+      {/* Map Columns Dialog */}
+      <MapColumnsDialog
+        open={!!mapDialogFile}
+        onClose={() => setMapDialogFile(null)}
+        fileName={mapDialogFile?.name ?? ''}
+        rows={mapDialogFile?.parsedRows ?? []}
+        headerStatus={
+          (mapDialogFile?.headerStatus === 'mapped'
+            ? 'anomaly'
+            : mapDialogFile?.headerStatus) as any ?? 'anomaly'
+        }
+        initialHeaderRow={mapDialogFile?.headerRowIndex ?? mapDialogFile?.detectedHeaderRow}
+        initialMapping={
+          mapDialogFile?.headerStatus === 'mapped'
+            ? (mapDialogFile.columnMapping as Record<RequiredHeader, string>)
+            : null
+        }
+        initialAccountHolder={mapDialogFile?.accountHolderName}
+        onSave={handleMapDialogSave}
+      />
     </div>
   );
 }

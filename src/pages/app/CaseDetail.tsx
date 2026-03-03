@@ -379,12 +379,12 @@ export default function CaseDetail() {
         {/* Files - Full Width with 2-Column Grid */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center justify-between">
+            <CardTitle className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
                 {t('caseDetail.files')} ({files.length})
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Download All Files */}
                 {files.length > 0 && (
                   <TooltipProvider>

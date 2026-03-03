@@ -242,7 +242,7 @@ export default function FundTrailViewer({
 
   // Toolbar component
   const toolbar = (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       {isSaving && (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Loader2 className="h-3 w-3 animate-spin" />
@@ -250,12 +250,12 @@ export default function FundTrailViewer({
         </span>
       )}
       <Button onClick={handleDownload} variant="outline" size="sm">
-        <Download className="h-4 w-4 mr-1.5" />
-        Download
+        <Download className="h-4 w-4 sm:mr-1.5" />
+        <span className="hidden sm:inline">Download</span>
       </Button>
       <Button onClick={onShare} variant="outline" size="sm">
-        <Share2 className="h-4 w-4 mr-1.5" />
-        Share
+        <Share2 className="h-4 w-4 sm:mr-1.5" />
+        <span className="hidden sm:inline">Share</span>
       </Button>
       <Button onClick={handleRefresh} variant="outline" size="sm" title="Refresh graph">
         <RotateCcw className="h-4 w-4" />
@@ -289,16 +289,6 @@ export default function FundTrailViewer({
         renderToolbar(toolbar)
       ) : (
         <div className="flex items-center justify-end gap-2 mb-2">{toolbar}</div>
-      )}
-
-      {/* Loading overlay while applying saved view */}
-      {isApplyingView && savedViewData && (
-        <div className="absolute inset-0 bg-background/90 flex items-center justify-center z-10 rounded-lg">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Loader2 className="h-5 w-5 animate-spin" />
-            <span>Loading saved view...</span>
-          </div>
-        </div>
       )}
 
       <iframe

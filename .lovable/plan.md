@@ -1,101 +1,52 @@
 
 
-# Plan: Fund Trail Save/Load Refactor, Admin Search Fix, Result ZIP Retention
+# Plan: Fix Mobile View Overflow Issues
 
-## 1. Fund Trail Save/Load — Switch to `getFundTrailViewData()` / `loadFundTrailView()`
-
-**Current approach:** Regex-based HTML injection for positions/filters before rendering, plus a `postMessage`-based save override. This is fragile and only handles `positions` and `filters`.
-
-**New approach:** The embedded HTML now exposes `getFundTrailViewData()` and `loadFundTrailView(data)` on the iframe's `contentWindow`. The save data is a single rich JSON blob (with groups, dissolvedGroups, memberMappings, nodeStates, modifiedLinks, etc.).
-
-### Database Migration
-Add a `view_data` jsonb column to `fund_trail_views`:
-```sql
-ALTER TABLE public.fund_trail_views ADD COLUMN view_data jsonb;
-```
-
-### File: `src/components/app/FundTrailViewer.tsx`
-
-**Save flow changes:**
-- Remove the injected `<script>` that overrides `saveView` with `postMessage`
-- Remove the `handleMessage` / `window.addEventListener("message", ...)` logic
-- Add a "Save View" button to the toolbar
-- On click: call `iframeRef.current.contentWindow.getFundTrailViewData()`, then upsert the returned JSON into `fund_trail_views.view_data`
-
-**Load flow changes:**
-- Remove all regex-based HTML modification (`modifiedHtml` useMemo that replaces `savedPositions`, `hasSavedView`, `selectedOwners`, `topN`)
-- Pass raw `htmlContent` directly to `srcDoc`
-- After iframe loads (`onLoad` event), call `iframeRef.current.contentWindow.loadFundTrailView(savedViewData)` if saved data exists
-- Query now selects `view_data` instead of `positions, filters`
-
-**Shared views:** Check `ShareFundTrailDialog` — shared views should also use `view_data` for read-only rendering via `loadFundTrailView`.
+Four specific mobile overflow problems identified from the screenshots and code.
 
 ---
 
-## 2. Admin Users Search — Client-Side Filtering
+## 1. CaseDetail.tsx — Files Header CTAs Overflowing (lines 382-435)
 
-**Current:** `searchQuery` is part of the react-query key. Every keystroke changes the key, triggering a new edge function invocation (slow network call per character).
+The `CardTitle` uses `flex items-center justify-between` with all buttons in a single row. On mobile, "Download All Files" + "Add or Remove Files" overflow.
 
-### File: `src/hooks/useAdminUsers.ts`
-- Remove `searchQuery` from the query key and function parameter
-- Query key becomes `['admin-users']` (load once)
-- Return all users; no client-side filtering in the hook
+**Fix**: Wrap the buttons container to stack on mobile.
+- Change the `div` at line 387 (`flex items-center gap-2`) to `flex flex-wrap items-center gap-2`
+- The `CardTitle` at line 382 needs to allow wrapping: change `flex items-center justify-between` to `flex flex-wrap items-center justify-between gap-2`
 
-### File: `src/pages/app/AdminUsers.tsx`
-- Call `useAdminUsers()` with no argument (loads full list once)
-- Apply `searchQuery` filter locally via `useMemo` on the returned `users` array
-- Search is instant with no network calls per keystroke
+## 2. CaseAnalysisResults.tsx — Transaction Flow Analysis Tabs + Toolbar Overflow (lines 1178-1198)
 
----
+The `div` at line 1178 uses `flex items-center justify-between mb-4` putting TabsList and toolbar slot side-by-side. On mobile, this overflows.
 
-## 3. Result ZIP Retention — Keep Only 2 Latest Per Case
+**Fix**: Change to `flex flex-wrap items-center justify-between gap-2 mb-4`.
 
-**Current:** Step 4 in `cleanup-storage` deletes ALL `is_current = false` result files. This means only 1 file (the current one) is ever kept.
+Also, the FundTrailViewer toolbar (line 244-267) renders all buttons in a row. On mobile, "Download" and "Share" text labels cause overflow.
 
-**Requirement:** Keep the 2 most recent result ZIPs per case, delete the rest.
+**Fix in FundTrailViewer.tsx**: Hide text labels on mobile for Download/Share buttons — use `<span className="hidden sm:inline">Download</span>` pattern. Also make toolbar flex-wrap.
 
-### File: `supabase/functions/cleanup-storage/index.ts`
+## 3. CaseAnalysisResults.tsx — File Analysis Summary Filename + View Summary Overflow (lines 1454-1546)
 
-**Replace Step 4** logic:
-- Query all `result_files` grouped by `case_id`, ordered by `created_at DESC`
-- For each case, keep the 2 newest records (regardless of `is_current` flag)
-- Delete storage files and DB records for all others
-- This handles cases that have been re-run many times
+The `h4` at line 1456 puts filename, eye icon, and "View Summary" button all in a single `flex items-center justify-between` row. Long filenames cause overflow.
 
-```text
-For each case_id:
-  files = SELECT * FROM result_files WHERE case_id = X ORDER BY created_at DESC
-  keep = files[0..1]  (2 newest)
-  delete = files[2..]  (everything else)
-  -> remove from storage bucket
-  -> delete from result_files table
-```
+**Fix**: 
+- Change the outer `div` at line 1455 (`flex items-center justify-between mb-3`) to `flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3`
+- Make the `h4` at line 1456 allow text wrapping with `min-w-0` and truncation
+- The download buttons row at line 1547 (`flex items-center gap-3 flex-wrap`) is already wrapping — no change needed.
 
-### Cron Job Setup
-Run a SQL insert (via Supabase SQL editor, not migration) to schedule the cleanup at midnight daily:
-```sql
-SELECT cron.schedule(
-  'nightly-storage-cleanup',
-  '0 0 * * *',
-  $$ SELECT net.http_post(
-    url:='https://rwzpffsaivgjuuthvkfa.supabase.co/functions/v1/cleanup-storage',
-    headers:='{"Content-Type":"application/json","Authorization":"Bearer <anon_key>"}'::jsonb,
-    body:='{}'::jsonb
-  ) AS request_id; $$
-);
-```
-Will provide the exact SQL with the anon key for the user to run.
+## 4. SummaryTableViewer.tsx — Table Not Readable on Mobile (line 390-391)
+
+The table already uses `overflow-auto` and `text-xs sm:text-sm` which should scroll. The issue is `table-fixed` forces equal column widths which may squish content.
+
+**Fix**: Change `table-fixed` to `table-auto` and add `min-w-[600px]` to the table element so it becomes horizontally scrollable with readable column widths on mobile.
 
 ---
 
-## Summary
+## Files Changed
 
 | File | Change |
 |------|--------|
-| Migration | Add `view_data` jsonb column to `fund_trail_views` |
-| `src/components/app/FundTrailViewer.tsx` | Replace regex injection + postMessage with `getFundTrailViewData()` / `loadFundTrailView()` API; add Save button |
-| `src/hooks/useAdminUsers.ts` | Remove search param from query; load all users once |
-| `src/pages/app/AdminUsers.tsx` | Filter users client-side with `useMemo` |
-| `supabase/functions/cleanup-storage/index.ts` | Step 4: keep 2 latest result ZIPs per case instead of only current |
-| Cron job SQL | Schedule cleanup at midnight daily |
+| `src/pages/app/CaseDetail.tsx` | Add flex-wrap to Files header buttons |
+| `src/pages/app/CaseAnalysisResults.tsx` | Flex-wrap on tabs toolbar row; flex-col on mobile for file summary header |
+| `src/components/app/FundTrailViewer.tsx` | Hide button text labels on mobile, flex-wrap toolbar |
+| `src/components/app/SummaryTableViewer.tsx` | Change table-fixed to table-auto with min-width for scrollability |
 

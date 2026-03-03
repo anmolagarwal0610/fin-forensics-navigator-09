@@ -2,7 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = "https://rwzpffsaivgjuuthvkfa.supabase.co";
+const SUPABASE_URL = "https://db.finnavigatorai.com";
 const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3enBmZnNhaXZnanV1dGh2a2ZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NTU5NzMsImV4cCI6MjA3MTQzMTk3M30.6N8Iz52V5CtFv7USeuMBmc_Ar4XCMFHTY8tlarHidsk";
 
 // Import the supabase client like this:

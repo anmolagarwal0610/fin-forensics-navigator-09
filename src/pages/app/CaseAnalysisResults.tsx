@@ -1111,10 +1111,42 @@ export default function CaseAnalysisResults() {
                 Apply Changes
               </Button>
             )}
-            <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
-              <Download className="h-4 w-4 mr-2" />
-              {t("analysisResults.downloadReport")}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="default" className="shadow-lg w-full sm:w-auto">
+                  <Download className="h-4 w-4 mr-2" />
+                  {t("analysisResults.downloadReport")}
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={downloadPdfReport}
+                  disabled={!isReportReady}
+                  className="flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    {isReportGenerating ? "Generating..." : "Download PDF Report"}
+                  </span>
+                  {isReportReady && reportPdfUrl && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReportPreviewOpen(true);
+                      }}
+                      className="p-1 rounded hover:bg-accent"
+                    >
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={downloadCompleteReport} className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Download All Case Files
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 

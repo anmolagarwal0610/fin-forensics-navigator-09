@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from "react";
 import type { ReportData } from "@/types/reportData";
-import { supabase } from "@/integrations/supabase/client";
 
 interface UseReportGenerationOptions {
   reportData: ReportData | null;
@@ -16,13 +15,10 @@ export function useReportGeneration({
   caseName,
   caseCreatedDate,
   totalFiles,
-  caseId,
-  userId,
 }: UseReportGenerationOptions) {
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [hasUploaded, setHasUploaded] = useState(false);
 
   // Generate PDF when reportData becomes available
   useEffect(() => {
@@ -41,6 +37,7 @@ export function useReportGeneration({
         setPdfBlob(blob);
         const url = URL.createObjectURL(blob);
         setPdfUrl(url);
+        console.log("[Report] ✓ PDF generated successfully");
       } catch (error) {
         console.error("[Report] PDF generation failed:", error);
       } finally {
@@ -55,51 +52,6 @@ export function useReportGeneration({
       setTimeout(generate, 100);
     }
   }, [reportData, caseName, caseCreatedDate, totalFiles, pdfBlob]);
-
-  // Upload PDF to backend in background
-  useEffect(() => {
-    if (!pdfBlob || !caseId || !userId || hasUploaded) return;
-
-    const upload = async () => {
-      try {
-        const file = new File([pdfBlob], `case_report_${caseName}.pdf`, {
-          type: "application/pdf",
-        });
-
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("case_id", caseId);
-        formData.append("user_id", userId);
-        formData.append("file_type", "case_report_pdf");
-
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) return;
-
-        const projectId = import.meta.env.VITE_SUPABASE_PROJECT_ID;
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/upload-result-file`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: formData,
-          },
-        );
-
-        if (response.ok) {
-          console.log("[Report] ✓ PDF uploaded to backend");
-          setHasUploaded(true);
-        } else {
-          console.warn("[Report] PDF upload failed:", response.status);
-        }
-      } catch (error) {
-        console.warn("[Report] PDF upload error:", error);
-      }
-    };
-
-    upload();
-  }, [pdfBlob, caseId, userId, caseName, hasUploaded]);
 
   const downloadPdf = useCallback(() => {
     if (!pdfBlob) return;

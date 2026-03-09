@@ -1,52 +1,74 @@
 
 
-# Plan: Fix Mobile View Overflow Issues
+# Fix: Cleanup Cron Job and Immediate Cleanup
 
-Four specific mobile overflow problems identified from the screenshots and code.
+## What Happened
 
----
+**Immediate cleanup: DONE.** I ran the cleanup function manually just now. Results:
+- 188 old result file duplicates deleted
+- 12 orphaned result storage files deleted  
+- 8 revoked/expired shared fund trails deleted
+- **Total: 208 files deleted, 1.82 GB freed**
+- Result files reduced from 473 (2.8 GB) to 285 (1.04 GB)
+- All cases now have at most 2 result files
 
-## 1. CaseDetail.tsx — Files Header CTAs Overflowing (lines 382-435)
+## Root Cause: Cron Jobs Failing
 
-The `CardTitle` uses `flex items-center justify-between` with all buttons in a single row. On mobile, "Download All Files" + "Add or Remove Files" overflow.
+Every nightly cron run has failed with: **`ERROR: schema "net" does not exist`**
 
-**Fix**: Wrap the buttons container to stack on mobile.
-- Change the `div` at line 387 (`flex items-center gap-2`) to `flex flex-wrap items-center gap-2`
-- The `CardTitle` at line 382 needs to allow wrapping: change `flex items-center justify-between` to `flex flex-wrap items-center justify-between gap-2`
+The `pg_net` extension is not enabled in your Supabase project. The cron jobs use `net.http_post()` to call the edge function, but that function doesn't exist without the extension.
 
-## 2. CaseAnalysisResults.tsx — Transaction Flow Analysis Tabs + Toolbar Overflow (lines 1178-1198)
+Additionally, there are **2 duplicate cron jobs** (jobid 2 at 2:00 AM UTC, jobid 3 at midnight UTC).
 
-The `div` at line 1178 uses `flex items-center justify-between mb-4` putting TabsList and toolbar slot side-by-side. On mobile, this overflows.
+## Fix Plan
 
-**Fix**: Change to `flex flex-wrap items-center justify-between gap-2 mb-4`.
+### Step 1: Enable `pg_net` extension
+You need to enable this in the Supabase Dashboard:
+**Dashboard > Database > Extensions > search "pg_net" > Enable**
 
-Also, the FundTrailViewer toolbar (line 244-267) renders all buttons in a row. On mobile, "Download" and "Share" text labels cause overflow.
+Alternatively, I can run this SQL migration:
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_net WITH SCHEMA extensions;
+```
 
-**Fix in FundTrailViewer.tsx**: Hide text labels on mobile for Download/Share buttons — use `<span className="hidden sm:inline">Download</span>` pattern. Also make toolbar flex-wrap.
+### Step 2: Remove duplicate cron job and update the remaining one
+Run via SQL Editor (since this contains project-specific secrets, not a migration):
+```sql
+-- Delete the duplicate job (jobid 2, 2 AM)
+SELECT cron.unschedule(2);
 
-## 3. CaseAnalysisResults.tsx — File Analysis Summary Filename + View Summary Overflow (lines 1454-1546)
+-- Update the remaining job (jobid 3) to use the custom domain
+SELECT cron.unschedule(3);
 
-The `h4` at line 1456 puts filename, eye icon, and "View Summary" button all in a single `flex items-center justify-between` row. Long filenames cause overflow.
+SELECT cron.schedule(
+  'nightly-storage-cleanup',
+  '0 0 * * *',
+  $$
+  SELECT net.http_post(
+    url:='https://db.finnavigatorai.com/functions/v1/cleanup-storage',
+    headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3enBmZnNhaXZnanV1dGh2a2ZhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU4NTU5NzMsImV4cCI6MjA3MTQzMTk3M30.6N8Iz52V5CtFv7USeuMBmc_Ar4XCMFHTY8tlarHidsk"}'::jsonb,
+    body:='{}'::jsonb
+  ) AS request_id;
+  $$
+);
+```
 
-**Fix**: 
-- Change the outer `div` at line 1455 (`flex items-center justify-between mb-3`) to `flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3`
-- Make the `h4` at line 1456 allow text wrapping with `min-w-0` and truncation
-- The download buttons row at line 1547 (`flex items-center gap-3 flex-wrap`) is already wrapping — no change needed.
+### Step 3: Clean up old cron run history
+```sql
+DELETE FROM cron.job_run_details WHERE status = 'failed';
+```
 
-## 4. SummaryTableViewer.tsx — Table Not Readable on Mobile (line 390-391)
+## Summary
 
-The table already uses `overflow-auto` and `text-xs sm:text-sm` which should scroll. The issue is `table-fixed` forces equal column widths which may squish content.
-
-**Fix**: Change `table-fixed` to `table-auto` and add `min-w-[600px]` to the table element so it becomes horizontally scrollable with readable column widths on mobile.
-
----
-
-## Files Changed
-
-| File | Change |
+| Item | Status |
 |------|--------|
-| `src/pages/app/CaseDetail.tsx` | Add flex-wrap to Files header buttons |
-| `src/pages/app/CaseAnalysisResults.tsx` | Flex-wrap on tabs toolbar row; flex-col on mobile for file summary header |
-| `src/components/app/FundTrailViewer.tsx` | Hide button text labels on mobile, flex-wrap toolbar |
-| `src/components/app/SummaryTableViewer.tsx` | Change table-fixed to table-auto with min-width for scrollability |
+| Manual cleanup | Done — 208 files, 1.82 GB freed |
+| Root cause identified | `pg_net` extension missing |
+| Duplicate cron jobs | 2 found, will consolidate to 1 |
+| URL update | Will use `db.finnavigatorai.com` |
+
+### What I Will Do (in implementation mode)
+1. Create a migration to enable `pg_net` extension
+2. Remove both old cron jobs and create a single corrected one (via SQL Editor — since it contains secrets)
+3. Verify the new cron job is active
 

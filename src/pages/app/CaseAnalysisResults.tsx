@@ -823,6 +823,22 @@ export default function CaseAnalysisResults() {
 
       // --- FIX END ---
 
+      // Parse report_data.json for PDF report generation
+      const reportDataFile = zipData.file("report_data.json");
+      if (reportDataFile) {
+        try {
+          const reportJsonContent = await reportDataFile.async("text");
+          parsedData.reportData = JSON.parse(reportJsonContent) as ReportData;
+          console.log("[Analysis] ✓ report_data.json extracted for PDF report");
+        } catch (error) {
+          console.warn("[Analysis] Failed to parse report_data.json:", error);
+          parsedData.reportData = null;
+        }
+      } else {
+        console.log("[Analysis] No report_data.json found in ZIP");
+        parsedData.reportData = null;
+      }
+
       parsedData.zipData = zip;
       return parsedData;
     } catch (error) {

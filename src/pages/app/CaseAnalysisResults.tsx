@@ -110,6 +110,7 @@ export default function CaseAnalysisResults() {
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
 
   // State for per-file sankey modal
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);

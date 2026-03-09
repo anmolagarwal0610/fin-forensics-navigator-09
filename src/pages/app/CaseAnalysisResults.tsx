@@ -8,11 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getCaseById, getCaseFiles, addEvent, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
+import { useReportGeneration } from "@/hooks/useReportGeneration";
+import type { ReportData } from "@/types/reportData";
 import {
   ArrowLeft,
   Download,

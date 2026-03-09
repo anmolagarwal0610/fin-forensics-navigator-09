@@ -310,7 +310,23 @@ export default function CaseAnalysisResults() {
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
 
-  // Re-analysis flow: apply grouping changes and submit new job
+  // PDF Report generation hook
+  const {
+    pdfUrl: reportPdfUrl,
+    isGenerating: isReportGenerating,
+    downloadPdf: downloadPdfReport,
+    isReady: isReportReady,
+  } = useReportGeneration({
+    reportData: analysisData?.reportData ?? null,
+    caseName: case_?.name || "",
+    caseCreatedDate: case_?.created_at
+      ? new Date(case_.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : "",
+    totalFiles: files.length,
+    caseId: id || "",
+    userId: user?.id,
+  });
+
   const handleApplyChanges = async () => {
     if (!analysisData?.zipData || !id || !user) return;
 

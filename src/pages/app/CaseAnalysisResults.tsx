@@ -1804,6 +1804,17 @@ export default function CaseAnalysisResults() {
         onApply={handleApplyChanges}
         isApplying={isApplyingChanges}
       />
+
+      {/* PDF Report Preview Modal */}
+      {reportPdfUrl && (
+        <FilePreviewModal
+          isOpen={reportPreviewOpen}
+          onClose={() => setReportPreviewOpen(false)}
+          fileName={`case_report_${case_?.name || "report"}.pdf`}
+          fileUrl={reportPdfUrl}
+          onDownload={downloadPdfReport}
+        />
+      )}
     </>
   );
 }

@@ -1,76 +1,91 @@
-# Plan: Case Analysis PDF Report Generation
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
-1. **`src/types/reportData.ts`** — TypeScript interfaces for `report_data.json` schema
-2. **`src/lib/reportGenerator.ts`** — jsPDF + jspdf-autotable PDF generation (4 pages: Overview, Trails, Beneficiaries, Sankey)
-3. **`src/hooks/useReportGeneration.ts`** — Hook managing PDF blob state, generation via `requestIdleCallback`
-4. **`src/pages/app/CaseAnalysisResults.tsx`** — Modified:
-   - Added `reportData` field to `ParsedAnalysisData` interface
-   - Parses `report_data.json` from result ZIP during `loadAnalysisFiles`
-   - Replaced single "Download Report" button with `DropdownMenu`:
-     - **Download PDF Report** (with Eye icon for preview)
-     - **Download All Case Files** (original ZIP download)
-   - Added `FilePreviewModal` for PDF preview
-   - Wired `useReportGeneration` hook
+# Plan: Blog System for Landing Pages
 
-### Dependencies added:
-- `jspdf`
-- `jspdf-autotable`
+## Architecture
 
-### Pending (backend):
-- Backend must include `report_data.json` in the result ZIP
-- Backend must add generated PDF to result ZIP (FE cannot upload directly — `upload-result-file` requires `BACKEND_API_KEY`)
+Static blog system using a centralized blog data file. Blogs are added by providing content, which gets added to the data file. No database needed for now — purely frontend.
 
-### PDF Aesthetic choices applied:
-- Alternating rows: White / light grey (#F8F9FA)
-- Currency formatting: "₹ 42.23 Cr"
-- Empty cells: "—" instead of blank
-- Section titles: 14pt bold with thin blue underline
-- Beneficiary classification: Colored dots — Green (Unique), Orange (Shared), Red (Hub)
+## Files to Create/Modify
 
----
+| File | Action | Purpose |
+|------|--------|---------|
+| `src/data/blogPosts.ts` | **Create** | Central blog data store — array of blog posts with metadata (title, slug, date, coverImage, readTime, tags, content as markdown/JSX) |
+| `src/pages/Blogs.tsx` | **Create** | "Our Blogs" listing page — heading, search bar, blog cards grid, pagination (9 per page), breadcrumbs, "Coming Soon" empty state |
+| `src/pages/BlogPost.tsx` | **Create** | Individual blog content page — breadcrumbs, cover image, title, date, read time, rendered content, footer |
+| `src/components/blog/BlogCard.tsx` | **Create** | Card component: cover image, title, read time, date |
+| `src/components/blog/BlogSearch.tsx` | **Create** | Search input that filters blog titles |
+| `src/App.tsx` | **Modify** | Add `/blogs` and `/blogs/:slug` routes |
+| `src/components/layout/Header.tsx` | **Modify** | Add "Blogs" nav link |
+| `src/components/layout/Footer.tsx` | **Modify** | Add "Blogs" link under Company section |
+| `src/components/MobileMenu.tsx` | **Modify** | Add "Blogs" nav link |
+| `src/i18n/locales/en.json` | **Modify** | Add `nav.blogs` translation |
+| `src/i18n/locales/hi.json` | **Modify** | Add `nav.blogs` translation |
 
-## Required `report_data.json` Schema (for backend team)
+## Blog Data Structure
 
-```json
-{
-  "case_summary": {
-    "total_statement_files": 75,
-    "total_inflow_cr": 42.23,
-    "total_outflow_cr": 52.33,
-    "total_beneficiaries": 2000,
-    "total_pois": 332,
-    "total_transactions": 4000
-  },
-  "transaction_types": [
-    { "type": "Cash", "total_credit_cr": 1.23, "total_debit_cr": 3.23, "transaction_count": 150 }
-  ],
-  "important_trails": {
-    "Cash": [
-      { "account": "Saili Traders", "beneficiaries": "Rahul, Aman", "total_credit_cr": 32, "total_debit_cr": 11, "total_txns": 72 }
-    ]
-  },
-  "top_beneficiaries": [
-    {
-      "investigation_score": 1,
-      "node": "Rahul",
-      "total_debit_cr": 23,
-      "total_credit_cr": 12,
-      "accounts_present": 19,
-      "suspicious_activity": "Multiple Transactions Same Day",
-      "unique_beneficiary": false,
-      "shared_beneficiary": false,
-      "hub_beneficiary": true
-    }
-  ],
-  "sankey_nodes": {
-    "start_trail": [
-      { "node": "Cash Deposit", "node_type": "Extra", "total_debit_cr": null, "total_credit_cr": null, "total_connections": 12 }
-    ],
-    "pass_through": [],
-    "end_trail": []
-  }
+```typescript
+interface BlogPost {
+  slug: string;           // URL-friendly identifier
+  title: string;          // H1 heading
+  description: string;    // Meta description / excerpt
+  coverImage: string;     // Path to cover image in public/
+  publishedAt: string;    // ISO date string
+  readTime: string;       // "3 mins read"
+  tags: string[];         // Internal labels/tags
+  content: React.ReactNode; // JSX content with proper H1-H6 tags
 }
 ```
+
+## SEO Per Blog Page
+
+Each blog page will automatically include via `DocumentHead`:
+- `<title>` — blog title
+- `<meta name="description">` — blog description
+- `<meta name="robots" content="noindex, nofollow">` — as requested
+- Open Graph tags (og:title, og:description, og:url, og:type=article, og:image)
+- Twitter card tags
+- Canonical URL (`/blogs/{slug}`)
+- JSON-LD structured data (`BlogPosting` schema with author, datePublished, headline, image)
+
+**Additional SEO items that will be added:**
+- `article:published_time` meta tag
+- `article:tag` meta tags for each blog tag
+- Proper semantic HTML: `<article>`, `<header>`, `<section>`, `<time datetime="...">`
+- H1 for title, H2-H6 used hierarchically in content
+
+## UI Design
+
+### "Our Blogs" Page (reference: screenshot 1)
+- Breadcrumbs: `Home > Our Blogs`
+- Large centered "Our Blogs" heading (matching theme font/colors)
+- Search bar below heading (rounded input with Search button, using theme accent color)
+- Blog cards in 3-column grid (responsive: 1 col mobile, 2 col tablet, 3 col desktop)
+- Each card: cover image, title, read time + date
+- Pagination when blogs exceed 9 (using existing pagination component)
+- Empty state: "Coming Soon!" message when no blogs exist
+
+### Blog Post Page (reference: screenshot 2)
+- Breadcrumbs: `Home > Our Blogs > {Title truncated}`
+- Full-width cover image
+- Title as large H1
+- Read time + date below title
+- Blog content with proper heading hierarchy
+- Footer with all existing links
+
+### Theme Compliance
+- All CTAs use existing button variants
+- Colors follow the FinNavigator design system (accent blue, foreground, muted-foreground)
+- Search button uses `variant="default"` or accent styling
+- Cards use existing `card` CSS variables
+
+## Flow for Adding New Blogs
+
+For now: provide blog content → I add a new entry to `src/data/blogPosts.ts` with proper slug, metadata, cover image (placed in `public/blog/`), and JSX content with semantic heading tags + noindex/nofollow via DocumentHead.
+
+## Pagination Logic
+
+- 9 blogs per page
+- Simple page number navigation at bottom
+- URL stays `/blogs` with state-managed page number
+

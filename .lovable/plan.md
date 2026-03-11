@@ -1,59 +1,76 @@
+# Plan: Case Analysis PDF Report Generation
 
+## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-# Plan: Source File Column, PDF Report Query, and Footer Socials
+### What's been implemented:
+1. **`src/types/reportData.ts`** — TypeScript interfaces for `report_data.json` schema
+2. **`src/lib/reportGenerator.ts`** — jsPDF + jspdf-autotable PDF generation (4 pages: Overview, Trails, Beneficiaries, Sankey)
+3. **`src/hooks/useReportGeneration.ts`** — Hook managing PDF blob state, generation via `requestIdleCallback`
+4. **`src/pages/app/CaseAnalysisResults.tsx`** — Modified:
+   - Added `reportData` field to `ParsedAnalysisData` interface
+   - Parses `report_data.json` from result ZIP during `loadAnalysisFiles`
+   - Replaced single "Download Report" button with `DropdownMenu`:
+     - **Download PDF Report** (with Eye icon for preview)
+     - **Download All Case Files** (original ZIP download)
+   - Added `FilePreviewModal` for PDF preview
+   - Wired `useReportGeneration` hook
 
-## Task 1: Add "Source File" column to non-POI Beneficiary Transactions Dialog
+### Dependencies added:
+- `jspdf`
+- `jspdf-autotable`
 
-The raw transaction Excel files already contain a `source_file` column. The issue is that:
-1. `TransactionRow` interface lacks `source_file`
-2. Neither ExcelViewer nor SummaryTableViewer populate it when building `TransactionRow[]`
-3. `BeneficiaryTransactionsDialog` doesn't render it
+### Pending (backend):
+- Backend must include `report_data.json` in the result ZIP
+- Backend must add generated PDF to result ZIP (FE cannot upload directly — `upload-result-file` requires `BACKEND_API_KEY`)
 
-### Changes
-
-**`src/components/app/BeneficiaryTransactionsDialog.tsx`**
-- Add `source_file: string` to `TransactionRow` interface
-- Add `Source File` column header at the end of the table (after Transaction Type)
-- Render `source_file` value in each row, styled as `text-muted-foreground` like in POI dialog
-- Add `Source File` to CSV download headers and rows
-- Increase `min-w` from `850px` to `1000px` to accommodate the new column
-- Adjust column widths proportionally
-
-**`src/components/app/ExcelViewer.tsx`** (lines 341-349)
-- Add `source_file: String(txRow[colMap['source_file']]?.value || '')` to the non-POI `TransactionRow` construction
-
-**`src/components/app/SummaryTableViewer.tsx`** (lines 337-345)
-- Add `source_file: String(row[columnMap['source_file']]?.value || '')` to the `TransactionRow` construction
-
----
-
-## Query 5: PDF Report "Download PDF Report" disabled + Eye icon
-
-**Why disabled**: The `Download PDF Report` item is `disabled={!isReportReady}`. `isReportReady` is `true` only when `pdfBlob` exists, which requires `reportData` (parsed from `report_data.json` in the ZIP). Since the backend hasn't added `report_data.json` to the result ZIP yet, `reportData` is `null`, so the button stays disabled. This is expected — it will auto-enable once the backend includes `report_data.json`.
-
-**Eye icon**: It IS implemented (lines 1132-1142). It only renders when `isReportReady && reportPdfUrl` — so it's hidden because the PDF hasn't been generated (same reason as above). Both will work automatically once `report_data.json` is present.
-
-No code changes needed for this query.
+### PDF Aesthetic choices applied:
+- Alternating rows: White / light grey (#F8F9FA)
+- Currency formatting: "₹ 42.23 Cr"
+- Empty cells: "—" instead of blank
+- Section titles: 14pt bold with thin blue underline
+- Beneficiary classification: Colored dots — Green (Unique), Orange (Shared), Red (Hub)
 
 ---
 
-## Task 2: Add social links to Footer
+## Required `report_data.json` Schema (for backend team)
 
-**`src/components/layout/Footer.tsx`**
-- Below the description paragraph, add a "Socials:" label with X (Twitter) and LinkedIn icons
-- Use lucide-react `Twitter` icon (or custom X icon via inline SVG) and `Linkedin` icon
-- Links: X → `https://x.com/finnavigatorai`, LinkedIn → `https://www.linkedin.com/company/finnavigatorai/`
-- Open in new tab with `target="_blank" rel="noopener noreferrer"`
-- Style: `text-muted-foreground hover:text-foreground` consistent with theme
-
----
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `src/components/app/BeneficiaryTransactionsDialog.tsx` | Add `source_file` to interface, table header, rows, CSV |
-| `src/components/app/ExcelViewer.tsx` | Add `source_file` to TransactionRow construction |
-| `src/components/app/SummaryTableViewer.tsx` | Add `source_file` to TransactionRow construction |
-| `src/components/layout/Footer.tsx` | Add social icons below company description |
-
+```json
+{
+  "case_summary": {
+    "total_statement_files": 75,
+    "total_inflow_cr": 42.23,
+    "total_outflow_cr": 52.33,
+    "total_beneficiaries": 2000,
+    "total_pois": 332,
+    "total_transactions": 4000
+  },
+  "transaction_types": [
+    { "type": "Cash", "total_credit_cr": 1.23, "total_debit_cr": 3.23, "transaction_count": 150 }
+  ],
+  "important_trails": {
+    "Cash": [
+      { "account": "Saili Traders", "beneficiaries": "Rahul, Aman", "total_credit_cr": 32, "total_debit_cr": 11, "total_txns": 72 }
+    ]
+  },
+  "top_beneficiaries": [
+    {
+      "investigation_score": 1,
+      "node": "Rahul",
+      "total_debit_cr": 23,
+      "total_credit_cr": 12,
+      "accounts_present": 19,
+      "suspicious_activity": "Multiple Transactions Same Day",
+      "unique_beneficiary": false,
+      "shared_beneficiary": false,
+      "hub_beneficiary": true
+    }
+  ],
+  "sankey_nodes": {
+    "start_trail": [
+      { "node": "Cash Deposit", "node_type": "Extra", "total_debit_cr": null, "total_credit_cr": null, "total_connections": 12 }
+    ],
+    "pass_through": [],
+    "end_trail": []
+  }
+}
+```

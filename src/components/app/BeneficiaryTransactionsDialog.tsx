@@ -21,6 +21,7 @@ export interface TransactionRow {
   beneficiary: string;
   date: string;
   transaction_type: string;
+  source_file?: string;
 }
 
 interface BeneficiaryTransactionsDialogProps {
@@ -137,7 +138,7 @@ export default function BeneficiaryTransactionsDialog({
     const dataToExport = filteredTransactions.length > 0 ? filteredTransactions : transactions;
     if (dataToExport.length === 0) return;
     
-    const headers = ['Description', 'Debit', 'Credit', 'Balance', 'Beneficiary', 'Date', 'Transaction Type'];
+    const headers = ['Description', 'Debit', 'Credit', 'Balance', 'Beneficiary', 'Date', 'Transaction Type', 'Source File'];
     const rows = dataToExport.map(tx => [
       tx.description || '',
       tx.debit || '',
@@ -145,7 +146,8 @@ export default function BeneficiaryTransactionsDialog({
       tx.balance || '',
       tx.beneficiary || '',
       tx.date || '',
-      tx.transaction_type || ''
+      tx.transaction_type || '',
+      tx.source_file || ''
     ]);
     
     const csvContent = [
@@ -380,16 +382,17 @@ export default function BeneficiaryTransactionsDialog({
           ) : (
             <ScrollArea className="h-[300px] sm:h-[400px] rounded-md border">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm table-auto min-w-[850px]">
+                <table className="w-full text-sm table-auto min-w-[1000px]">
                   <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
                   <tr className="border-b">
-                    <th className="px-3 py-3 text-left font-semibold w-[28%]">Description</th>
-                    <th className="px-3 py-3 text-right font-semibold w-[10%]">Debit</th>
-                    <th className="px-3 py-3 text-right font-semibold w-[10%]">Credit</th>
-                    <th className="px-3 py-3 text-right font-semibold w-[11%]">Balance</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[14%]">Beneficiary</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[11%]">Date</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[16%]">Transaction Type</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[24%]">Description</th>
+                    <th className="px-3 py-3 text-right font-semibold w-[9%]">Debit</th>
+                    <th className="px-3 py-3 text-right font-semibold w-[9%]">Credit</th>
+                    <th className="px-3 py-3 text-right font-semibold w-[10%]">Balance</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[12%]">Beneficiary</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[10%]">Date</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[13%]">Transaction Type</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[13%]">Source File</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -450,6 +453,9 @@ export default function BeneficiaryTransactionsDialog({
                         ) : (
                           <span className="text-muted-foreground">-</span>
                         )}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[150px]" title={tx.source_file || '-'}>
+                        {tx.source_file || "-"}
                       </td>
                     </tr>
                   ))}

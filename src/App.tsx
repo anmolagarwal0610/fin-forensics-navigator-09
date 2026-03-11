@@ -61,6 +61,8 @@ function App() {
               <Route path="/contact" element={<Layout><Contact /></Layout>} />
               <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
               <Route path="/terms" element={<Layout><Terms /></Layout>} />
+              <Route path="/blogs" element={<Layout><Blogs /></Layout>} />
+              <Route path="/blogs/:slug" element={<Layout><BlogPost /></Layout>} />
               
               {/* Auth routes */}
               <Route path="/signin" element={<Layout showHeaderFooter={false}><SignIn /></Layout>} />

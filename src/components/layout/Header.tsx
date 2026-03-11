@@ -59,6 +59,12 @@ const Header = () => {
             >
               {t('nav.contact')}
             </Link>
+            <Link 
+              to="/blogs" 
+              className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {t('nav.blogs')}
+            </Link>
           </nav>
           
           <div className="flex items-center space-x-1">

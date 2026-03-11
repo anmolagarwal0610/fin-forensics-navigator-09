@@ -59,6 +59,12 @@ const Footer = () => {
               >
                 Terms
               </Link>
+              <Link 
+                to="/blogs" 
+                className="block text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                Blogs
+              </Link>
             </div>
           </div>
         </div>

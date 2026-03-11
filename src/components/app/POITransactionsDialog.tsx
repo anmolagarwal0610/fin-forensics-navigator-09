@@ -1,10 +1,14 @@
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, X, Download, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertTriangle, X, Download, Users, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import TraceTransactionModal from "./TraceTransactionModal";
+import type { SelectedTransaction, TraceTreeResponse } from "@/types/traceTransaction";
 
 export interface POITransactionRow {
   description: string;
@@ -35,6 +39,29 @@ export default function POITransactionsDialog({
   onEditGroupedNames,
 }: POITransactionsDialogProps) {
   
+  // Trace transaction state
+  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [showTraceModal, setShowTraceModal] = useState(false);
+  const [traceData] = useState<TraceTreeResponse | null>(null);
+  const [traceLoading] = useState(false);
+  const [traceError] = useState<string | null>(null);
+
+  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
+    if (selectedTxIndex === null || !transactions[selectedTxIndex]) return null;
+    const tx = transactions[selectedTxIndex];
+    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+    return {
+      beneficiary: tx.beneficiary || beneficiaryName,
+      amount: debitNum || creditNum || 0,
+      date: tx.date || '',
+      source_file: tx.source_file || '',
+      description: tx.description,
+      debit: tx.debit,
+      credit: tx.credit,
+    };
+  }, [selectedTxIndex, transactions, beneficiaryName]);
+
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";
     const num = typeof value === "string" ? parseFloat(value.replace(/[₹$€£,\s]/g, "")) : value;
@@ -118,6 +145,17 @@ export default function POITransactionsDialog({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {selectedTxIndex !== null && (
+                <Button
+                  size="sm"
+                  variant="accent"
+                  className="h-8 gap-1.5 text-xs shrink-0"
+                  onClick={() => setShowTraceModal(true)}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Trace Transaction
+                </Button>
+              )}
               {onEditGroupedNames && (
                 <Button
                   variant="outline"
@@ -151,17 +189,18 @@ export default function POITransactionsDialog({
           ) : (
             <ScrollArea className="h-[300px] sm:h-[450px] rounded-md border">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm table-auto min-w-[900px]">
+                <table className="w-full text-sm table-auto min-w-[1000px]">
                   <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
                     <tr className="border-b">
-                      <th className="px-3 py-3 text-left font-semibold w-[20%]">Description</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[18%]">Suspicious Reason</th>
-                      <th className="px-3 py-3 text-right font-semibold w-[10%]">Debit</th>
-                      <th className="px-3 py-3 text-right font-semibold w-[10%]">Credit</th>
-                      <th className="px-3 py-3 text-right font-semibold w-[10%]">Balance</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[8%]">Date</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[12%]">Beneficiary</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[12%]">Source File</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[18%]">Description</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[16%]">Suspicious Reason</th>
+                      <th className="px-3 py-3 text-right font-semibold w-[9%]">Debit</th>
+                      <th className="px-3 py-3 text-right font-semibold w-[9%]">Credit</th>
+                      <th className="px-3 py-3 text-right font-semibold w-[9%]">Balance</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[7%]">Date</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[10%]">Beneficiary</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[11%]">Source File</th>
+                      <th className="px-3 py-3 text-center font-semibold w-[11%]">Select</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -213,6 +252,15 @@ export default function POITransactionsDialog({
                         <td className="px-3 py-2.5 text-xs text-muted-foreground">
                           <span className="whitespace-normal break-words">{tx.source_file || "-"}</span>
                         </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <Checkbox
+                            checked={selectedTxIndex === idx}
+                            onCheckedChange={(checked) => {
+                              setSelectedTxIndex(checked ? idx : null);
+                            }}
+                            className="mx-auto"
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -240,6 +288,16 @@ export default function POITransactionsDialog({
             Close
           </Button>
         </DialogFooter>
+
+        {/* Trace Transaction Modal */}
+        <TraceTransactionModal
+          open={showTraceModal}
+          onClose={() => setShowTraceModal(false)}
+          selectedTransaction={selectedTransaction}
+          traceData={traceData}
+          isLoading={traceLoading}
+          error={traceError}
+        />
       </DialogContent>
     </Dialog>
   );

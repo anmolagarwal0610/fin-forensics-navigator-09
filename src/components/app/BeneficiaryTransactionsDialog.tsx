@@ -7,11 +7,13 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Label } from "@/components/ui/label";
-import { CreditCard, X, Download, Filter, CalendarIcon, Users } from "lucide-react";
+import { CreditCard, X, Download, Filter, CalendarIcon, Users, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import { format, parse, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
+import TraceTransactionModal from "./TraceTransactionModal";
+import type { SelectedTransaction, TraceTreeResponse } from "@/types/traceTransaction";
 
 export interface TransactionRow {
   description: string;
@@ -45,6 +47,16 @@ export default function BeneficiaryTransactionsDialog({
   // Filter state
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+  
+  // Trace transaction state
+  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [showTraceModal, setShowTraceModal] = useState(false);
+
+  // Mock trace data - will be replaced with API call
+  const [traceData] = useState<TraceTreeResponse | null>(null);
+  const [traceLoading] = useState(false);
+  const [traceError] = useState<string | null>(null);
+
   
   // Parse transaction date
   const parseTransactionDate = (dateStr: string): Date | null => {
@@ -111,6 +123,23 @@ export default function BeneficiaryTransactionsDialog({
   }, [transactions, selectedTypes, dateRange]);
 
   const hasActiveFilters = selectedTypes.length > 0 || dateRange?.from || dateRange?.to;
+
+  // Build selected transaction for trace
+  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
+    if (selectedTxIndex === null || !filteredTransactions[selectedTxIndex]) return null;
+    const tx = filteredTransactions[selectedTxIndex];
+    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+    return {
+      beneficiary: tx.beneficiary || beneficiaryName,
+      amount: debitNum || creditNum || 0,
+      date: tx.date || '',
+      source_file: tx.source_file || '',
+      description: tx.description,
+      debit: tx.debit,
+      credit: tx.credit,
+    };
+  }, [selectedTxIndex, filteredTransactions, beneficiaryName]);
   
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";
@@ -204,11 +233,24 @@ export default function BeneficiaryTransactionsDialog({
                 </p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 shrink-0">
-              {hasActiveFilters 
-                ? `${filteredTransactions.length} of ${transactions.length}` 
-                : transactions.length} {transactions.length === 1 ? "tx" : "txs"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {selectedTxIndex !== null && (
+                <Button
+                  size="sm"
+                  variant="accent"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => setShowTraceModal(true)}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Trace Transaction
+                </Button>
+              )}
+              <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 shrink-0">
+                {hasActiveFilters 
+                  ? `${filteredTransactions.length} of ${transactions.length}` 
+                  : transactions.length} {transactions.length === 1 ? "tx" : "txs"}
+              </Badge>
+            </div>
           </div>
 
           {/* Filters Row */}
@@ -382,17 +424,18 @@ export default function BeneficiaryTransactionsDialog({
           ) : (
             <ScrollArea className="h-[300px] sm:h-[400px] rounded-md border">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm table-auto min-w-[1000px]">
+                <table className="w-full text-sm table-auto min-w-[1100px]">
                   <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
                   <tr className="border-b">
-                    <th className="px-3 py-3 text-left font-semibold w-[24%]">Description</th>
-                    <th className="px-3 py-3 text-right font-semibold w-[9%]">Debit</th>
-                    <th className="px-3 py-3 text-right font-semibold w-[9%]">Credit</th>
-                    <th className="px-3 py-3 text-right font-semibold w-[10%]">Balance</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[12%]">Beneficiary</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[10%]">Date</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[13%]">Transaction Type</th>
-                    <th className="px-3 py-3 text-left font-semibold w-[13%]">Source File</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[22%]">Description</th>
+                    <th className="px-3 py-3 text-right font-semibold w-[8%]">Debit</th>
+                    <th className="px-3 py-3 text-right font-semibold w-[8%]">Credit</th>
+                    <th className="px-3 py-3 text-right font-semibold w-[9%]">Balance</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[11%]">Beneficiary</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[9%]">Date</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[11%]">Transaction Type</th>
+                    <th className="px-3 py-3 text-left font-semibold w-[12%]">Source File</th>
+                    <th className="px-3 py-3 text-center font-semibold w-[10%]">Select Transaction</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -457,6 +500,15 @@ export default function BeneficiaryTransactionsDialog({
                       <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[150px]" title={tx.source_file || '-'}>
                         {tx.source_file || "-"}
                       </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <Checkbox
+                          checked={selectedTxIndex === idx}
+                          onCheckedChange={(checked) => {
+                            setSelectedTxIndex(checked ? idx : null);
+                          }}
+                          className="mx-auto"
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -484,6 +536,16 @@ export default function BeneficiaryTransactionsDialog({
             Close
           </Button>
         </DialogFooter>
+
+        {/* Trace Transaction Modal */}
+        <TraceTransactionModal
+          open={showTraceModal}
+          onClose={() => setShowTraceModal(false)}
+          selectedTransaction={selectedTransaction}
+          traceData={traceData}
+          isLoading={traceLoading}
+          error={traceError}
+        />
       </DialogContent>
     </Dialog>
   );

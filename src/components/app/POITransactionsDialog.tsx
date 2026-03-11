@@ -252,6 +252,15 @@ export default function POITransactionsDialog({
                         <td className="px-3 py-2.5 text-xs text-muted-foreground">
                           <span className="whitespace-normal break-words">{tx.source_file || "-"}</span>
                         </td>
+                        <td className="px-3 py-2.5 text-center">
+                          <Checkbox
+                            checked={selectedTxIndex === idx}
+                            onCheckedChange={(checked) => {
+                              setSelectedTxIndex(checked ? idx : null);
+                            }}
+                            className="mx-auto"
+                          />
+                        </td>
                       </tr>
                     ))}
                   </tbody>

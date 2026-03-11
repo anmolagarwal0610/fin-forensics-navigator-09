@@ -48,6 +48,32 @@ export default function BeneficiaryTransactionsDialog({
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   
+  // Trace transaction state
+  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [showTraceModal, setShowTraceModal] = useState(false);
+
+  // Mock trace data - will be replaced with API call
+  const [traceData] = useState<TraceTreeResponse | null>(null);
+  const [traceLoading] = useState(false);
+  const [traceError] = useState<string | null>(null);
+
+  const selectedTransaction: SelectedTransaction | null = selectedTxIndex !== null && filteredTransactions?.[selectedTxIndex]
+    ? (() => {
+        const tx = filteredTransactions[selectedTxIndex];
+        const amount = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+        const creditAmount = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+        return {
+          beneficiary: tx.beneficiary || beneficiaryName,
+          amount: amount || creditAmount || 0,
+          date: tx.date || '',
+          source_file: tx.source_file || '',
+          description: tx.description,
+          debit: tx.debit,
+          credit: tx.credit,
+        };
+      })()
+    : null;
+  
   // Parse transaction date
   const parseTransactionDate = (dateStr: string): Date | null => {
     if (!dateStr) return null;

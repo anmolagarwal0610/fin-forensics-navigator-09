@@ -21,6 +21,7 @@ export interface TransactionRow {
   beneficiary: string;
   date: string;
   transaction_type: string;
+  source_file?: string;
 }
 
 interface BeneficiaryTransactionsDialogProps {

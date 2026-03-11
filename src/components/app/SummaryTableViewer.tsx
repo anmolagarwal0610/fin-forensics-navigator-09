@@ -342,6 +342,7 @@ export default function SummaryTableViewer({
             beneficiary: String(row[rawBeneficiaryIdx]?.value || ""),
             date: String(row[columnMap["date"]]?.value || ""),
             transaction_type: String(row[columnMap["transaction_type"]]?.value || ""),
+            source_file: String(row[columnMap["source_file"]]?.value || ""),
           };
           matchingRows.push(transaction);
         }

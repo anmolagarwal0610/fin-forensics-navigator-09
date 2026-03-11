@@ -454,6 +454,9 @@ export default function BeneficiaryTransactionsDialog({
                           <span className="text-muted-foreground">-</span>
                         )}
                       </td>
+                      <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[150px]" title={tx.source_file || '-'}>
+                        {tx.source_file || "-"}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

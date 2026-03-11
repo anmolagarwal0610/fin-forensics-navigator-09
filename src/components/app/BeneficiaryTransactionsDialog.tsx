@@ -138,7 +138,7 @@ export default function BeneficiaryTransactionsDialog({
     const dataToExport = filteredTransactions.length > 0 ? filteredTransactions : transactions;
     if (dataToExport.length === 0) return;
     
-    const headers = ['Description', 'Debit', 'Credit', 'Balance', 'Beneficiary', 'Date', 'Transaction Type'];
+    const headers = ['Description', 'Debit', 'Credit', 'Balance', 'Beneficiary', 'Date', 'Transaction Type', 'Source File'];
     const rows = dataToExport.map(tx => [
       tx.description || '',
       tx.debit || '',
@@ -146,7 +146,8 @@ export default function BeneficiaryTransactionsDialog({
       tx.balance || '',
       tx.beneficiary || '',
       tx.date || '',
-      tx.transaction_type || ''
+      tx.transaction_type || '',
+      tx.source_file || ''
     ]);
     
     const csvContent = [

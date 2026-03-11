@@ -500,6 +500,15 @@ export default function BeneficiaryTransactionsDialog({
                       <td className="px-3 py-2.5 text-xs text-muted-foreground truncate max-w-[150px]" title={tx.source_file || '-'}>
                         {tx.source_file || "-"}
                       </td>
+                      <td className="px-3 py-2.5 text-center">
+                        <Checkbox
+                          checked={selectedTxIndex === idx}
+                          onCheckedChange={(checked) => {
+                            setSelectedTxIndex(checked ? idx : null);
+                          }}
+                          className="mx-auto"
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

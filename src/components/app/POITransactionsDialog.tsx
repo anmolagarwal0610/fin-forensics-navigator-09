@@ -288,6 +288,16 @@ export default function POITransactionsDialog({
             Close
           </Button>
         </DialogFooter>
+
+        {/* Trace Transaction Modal */}
+        <TraceTransactionModal
+          open={showTraceModal}
+          onClose={() => setShowTraceModal(false)}
+          selectedTransaction={selectedTransaction}
+          traceData={traceData}
+          isLoading={traceLoading}
+          error={traceError}
+        />
       </DialogContent>
     </Dialog>
   );

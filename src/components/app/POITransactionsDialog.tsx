@@ -1,10 +1,14 @@
+import { useState, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, X, Download, Users } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { AlertTriangle, X, Download, Users, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
+import TraceTransactionModal from "./TraceTransactionModal";
+import type { SelectedTransaction, TraceTreeResponse } from "@/types/traceTransaction";
 
 export interface POITransactionRow {
   description: string;

@@ -55,7 +55,7 @@ export default function AppLayout({
               <SidebarTrigger className="p-2 hover:bg-muted rounded-md transition-colors" />
               <div className="flex items-center gap-3">
                 <div className="text-base md:text-xl font-bold tracking-tight">{getOrganizationName()}</div>
-                <div className="hidden sm:block text-xs md:text-sm text-muted-foreground font-medium">{t('nav.dashboard')}</div>
+                <div className="hidden sm:block text-xs md:text-sm text-muted-foreground font-medium">{getPageName()}</div>
               </div>
             </div>
             <div className="flex items-center gap-1">

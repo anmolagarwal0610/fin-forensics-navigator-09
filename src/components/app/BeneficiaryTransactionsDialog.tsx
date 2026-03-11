@@ -536,6 +536,16 @@ export default function BeneficiaryTransactionsDialog({
             Close
           </Button>
         </DialogFooter>
+
+        {/* Trace Transaction Modal */}
+        <TraceTransactionModal
+          open={showTraceModal}
+          onClose={() => setShowTraceModal(false)}
+          selectedTransaction={selectedTransaction}
+          traceData={traceData}
+          isLoading={traceLoading}
+          error={traceError}
+        />
       </DialogContent>
     </Dialog>
   );

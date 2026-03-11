@@ -1,76 +1,114 @@
-# Plan: Case Analysis PDF Report Generation
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
-1. **`src/types/reportData.ts`** — TypeScript interfaces for `report_data.json` schema
-2. **`src/lib/reportGenerator.ts`** — jsPDF + jspdf-autotable PDF generation (4 pages: Overview, Trails, Beneficiaries, Sankey)
-3. **`src/hooks/useReportGeneration.ts`** — Hook managing PDF blob state, generation via `requestIdleCallback`
-4. **`src/pages/app/CaseAnalysisResults.tsx`** — Modified:
-   - Added `reportData` field to `ParsedAnalysisData` interface
-   - Parses `report_data.json` from result ZIP during `loadAnalysisFiles`
-   - Replaced single "Download Report" button with `DropdownMenu`:
-     - **Download PDF Report** (with Eye icon for preview)
-     - **Download All Case Files** (original ZIP download)
-   - Added `FilePreviewModal` for PDF preview
-   - Wired `useReportGeneration` hook
+# Plan Update: Trace Transaction — Minimal Backend JSON
 
-### Dependencies added:
-- `jspdf`
-- `jspdf-autotable`
+## Field Availability Analysis
 
-### Pending (backend):
-- Backend must include `report_data.json` in the result ZIP
-- Backend must add generated PDF to result ZIP (FE cannot upload directly — `upload-result-file` requires `BACKEND_API_KEY`)
+The frontend already has access to raw transaction files (via ZIP) which contain per-transaction rows with these columns:
 
-### PDF Aesthetic choices applied:
-- Alternating rows: White / light grey (#F8F9FA)
-- Currency formatting: "₹ 42.23 Cr"
-- Empty cells: "—" instead of blank
-- Section titles: 14pt bold with thin blue underline
-- Beneficiary classification: Colored dots — Green (Unique), Orange (Shared), Red (Hub)
+| Field Needed for Trace Tree | Available on FE? | Source |
+|---|---|---|
+| `beneficiary_name` | Yes | Raw transaction files (`beneficiary` column) |
+| `amount` (debit/credit) | Yes | Raw transaction files (`debit`, `credit` columns) |
+| `date` | Yes | Raw transaction files (`date` column) |
+| `source_file` | Yes | Raw transaction files (`source_file` column) |
+| `description` | Yes | Raw transaction files (`description` column) |
+| `transaction_type` | Yes | Raw transaction files (`transaction_type` column) |
+| `balance` | Yes | Raw transaction files (`balance` column) |
+| `is_poi` | Yes | Can be derived — POI files exist per source file in ZIP (`poi_*.xlsx`) |
+| `priority_score` | No | Not in raw files, only in POI summary output |
+| `statement_count` / `accounts_present` | Yes | Available in beneficiary summary table (`files present` column) |
+| `total_inflow` / `total_outflow` | Yes | Can be computed by summing credit/debit from raw transactions |
+| `suspicious_reason` (for POI) | Yes | Available in POI transaction files (`suspicious_reason` column) |
+| **Which beneficiary has a linked statement in the case** | **No** | FE doesn't know which beneficiaries match uploaded statement files across the case. This is cross-file graph linkage — only the backend (NetworkX) knows this. |
+| **Matched outgoing transactions within 5-day window across statements** | **No** | FE has individual raw files but doesn't have the cross-statement matching logic. The backend must identify which outflows from Statement A land in Statement B. This is the core tracing logic. |
+| **Cycle detection** | **No** | Requires graph traversal across all statements — backend only. |
 
----
+## Conclusion
 
-## Required `report_data.json` Schema (for backend team)
+The FE can display all node details (amounts, dates, names, etc.) from data it already has. What the FE **cannot do** is:
+
+1. **Cross-statement linkage** — determining which beneficiary in one statement maps to another uploaded statement
+2. **5-day window trace matching** — finding outflows that sum to the root amount across linked statements
+3. **Cycle detection** — identifying return flows in the money graph
+
+These three things are graph operations that only the backend can perform.
+
+## Revised Minimal Backend JSON Structure
+
+The backend only needs to send the **tree structure** (which nodes connect to which) with minimal identifying info. All display details (amounts, dates, descriptions) can be looked up by the FE from the raw transaction files it already has in the ZIP.
 
 ```json
 {
-  "case_summary": {
-    "total_statement_files": 75,
-    "total_inflow_cr": 42.23,
-    "total_outflow_cr": 52.33,
-    "total_beneficiaries": 2000,
-    "total_pois": 332,
-    "total_transactions": 4000
-  },
-  "transaction_types": [
-    { "type": "Cash", "total_credit_cr": 1.23, "total_debit_cr": 3.23, "transaction_count": 150 }
-  ],
-  "important_trails": {
-    "Cash": [
-      { "account": "Saili Traders", "beneficiaries": "Rahul, Aman", "total_credit_cr": 32, "total_debit_cr": 11, "total_txns": 72 }
+  "trace_tree": {
+    "root_transaction": {
+      "source_file": "HDFC_Statement_Jan.xlsx",
+      "row_index": 42
+    },
+    "children": [
+      {
+        "source_file": "HDFC_Statement_Jan.xlsx",
+        "row_index": 55,
+        "has_linked_statement": true,
+        "linked_statement_file": "SBI_Statement_Feb.xlsx",
+        "children": [
+          {
+            "source_file": "SBI_Statement_Feb.xlsx",
+            "row_index": 12,
+            "has_linked_statement": false,
+            "children": []
+          }
+        ]
+      },
+      {
+        "source_file": "HDFC_Statement_Jan.xlsx",
+        "row_index": 58,
+        "has_linked_statement": false,
+        "children": []
+      }
+    ],
+    "untraced_amount": 20000,
+    "cycle_nodes": [
+      {
+        "source_file": "SBI_Statement_Feb.xlsx",
+        "row_index": 30,
+        "returns_to_file": "HDFC_Statement_Jan.xlsx"
+      }
     ]
   },
-  "top_beneficiaries": [
-    {
-      "investigation_score": 1,
-      "node": "Rahul",
-      "total_debit_cr": 23,
-      "total_credit_cr": 12,
-      "accounts_present": 19,
-      "suspicious_activity": "Multiple Transactions Same Day",
-      "unique_beneficiary": false,
-      "shared_beneficiary": false,
-      "hub_beneficiary": true
-    }
-  ],
-  "sankey_nodes": {
-    "start_trail": [
-      { "node": "Cash Deposit", "node_type": "Extra", "total_debit_cr": null, "total_credit_cr": null, "total_connections": 12 }
-    ],
-    "pass_through": [],
-    "end_trail": []
+  "metadata": {
+    "trace_window_days": 5,
+    "total_nodes": 8,
+    "max_depth": 3
   }
 }
 ```
+
+**Alternative** — if row indices are fragile (rows may shift), the backend can send transaction identifiers instead:
+
+```json
+{
+  "source_file": "HDFC_Statement_Jan.xlsx",
+  "beneficiary": "Sandeep Keshava Hegde",
+  "amount": 200000,
+  "date": "2026-01-15",
+  "has_linked_statement": true,
+  "linked_statement_file": "SBI_Statement_Feb.xlsx",
+  "children": [...]
+}
+```
+
+This adds 3 fields per node (~50 bytes each) but makes matching robust. The FE uses `(source_file + beneficiary + amount + date)` as a composite key to look up the full transaction row from the raw data it already has.
+
+**Recommendation**: Use the second approach (with `beneficiary`, `amount`, `date`, `source_file` per node). It's slightly more data but far more reliable than row indices, and it's still minimal — no duplicated display data like `description`, `balance`, `transaction_type`, `total_inflow`, etc.
+
+## What Changes from Previous Plan
+
+- **No change** to the frontend component architecture (TraceTransactionModal, TraceTreeNode, etc.)
+- **No change** to the UI/UX flow (checkbox → Trace button → modal)
+- **Backend JSON is ~70% smaller** — only sends tree linkage + minimal identifiers
+- **FE does a lookup step** in `useTraceLayout.ts`: for each node in the tree, find the matching row in the already-loaded raw transaction data to populate display fields
+- All other details (tech stack, edge cases, acceptance criteria) remain the same as previous plan
+
+Shall I proceed with implementation using this revised minimal JSON structure?
+

@@ -9,7 +9,8 @@
     "security": "Security",
     "about": "About",
     "contact": "Contact",
-    "signIn": "Sign In"
+    "signIn": "Sign In",
+    "blogs": "Blogs"
   },
   "auth": {
     "signIn": "Sign In",

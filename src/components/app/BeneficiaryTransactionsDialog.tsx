@@ -233,11 +233,24 @@ export default function BeneficiaryTransactionsDialog({
                 </p>
               </div>
             </div>
-            <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 shrink-0">
-              {hasActiveFilters 
-                ? `${filteredTransactions.length} of ${transactions.length}` 
-                : transactions.length} {transactions.length === 1 ? "tx" : "txs"}
-            </Badge>
+            <div className="flex items-center gap-2">
+              {selectedTxIndex !== null && (
+                <Button
+                  size="sm"
+                  variant="accent"
+                  className="h-8 gap-1.5 text-xs"
+                  onClick={() => setShowTraceModal(true)}
+                >
+                  <GitBranch className="h-3.5 w-3.5" />
+                  Trace Transaction
+                </Button>
+              )}
+              <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 shrink-0">
+                {hasActiveFilters 
+                  ? `${filteredTransactions.length} of ${transactions.length}` 
+                  : transactions.length} {transactions.length === 1 ? "tx" : "txs"}
+              </Badge>
+            </div>
           </div>
 
           {/* Filters Row */}

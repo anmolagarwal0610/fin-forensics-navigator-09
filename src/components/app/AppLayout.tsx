@@ -13,6 +13,23 @@ export default function AppLayout({
 }: PropsWithChildren) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const location = useLocation();
+
+  const getPageName = () => {
+    const path = location.pathname;
+    if (path === '/app/dashboard') return 'Dashboard';
+    if (path === '/app/cases' || path === '/app/cases/') return 'Cases';
+    if (path === '/app/cases/new') return 'New Case';
+    if (/^\/app\/cases\/[^/]+\/results/.test(path)) return 'Analysis Results';
+    if (/^\/app\/cases\/[^/]+\/upload/.test(path)) return 'Upload Files';
+    if (/^\/app\/cases\/[^/]+\/review/.test(path)) return 'Review Data';
+    if (/^\/app\/cases\/[^/]+$/.test(path)) return 'Case Preview';
+    if (path === '/app/account') return 'Account';
+    if (path === '/app/admin/cases') return 'Admin Cases';
+    if (path === '/app/admin/users') return 'Admin Users';
+    if (path === '/app/support/raise-ticket') return 'Raise Ticket';
+    return 'Dashboard';
+  };
 
   // Extract organization name from user metadata or email domain
   const getOrganizationName = () => {

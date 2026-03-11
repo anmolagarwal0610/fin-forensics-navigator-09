@@ -39,6 +39,29 @@ export default function POITransactionsDialog({
   onEditGroupedNames,
 }: POITransactionsDialogProps) {
   
+  // Trace transaction state
+  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [showTraceModal, setShowTraceModal] = useState(false);
+  const [traceData] = useState<TraceTreeResponse | null>(null);
+  const [traceLoading] = useState(false);
+  const [traceError] = useState<string | null>(null);
+
+  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
+    if (selectedTxIndex === null || !transactions[selectedTxIndex]) return null;
+    const tx = transactions[selectedTxIndex];
+    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+    return {
+      beneficiary: tx.beneficiary || beneficiaryName,
+      amount: debitNum || creditNum || 0,
+      date: tx.date || '',
+      source_file: tx.source_file || '',
+      description: tx.description,
+      debit: tx.debit,
+      credit: tx.credit,
+    };
+  }, [selectedTxIndex, transactions, beneficiaryName]);
+
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";
     const num = typeof value === "string" ? parseFloat(value.replace(/[₹$€£,\s]/g, "")) : value;

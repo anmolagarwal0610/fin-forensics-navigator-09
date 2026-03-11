@@ -121,19 +121,19 @@ function TraceTreeNode({ data }: NodeProps) {
         {nodeData.total_inflow != null && (
           <>
             <span className="text-muted-foreground">Total Inflow:</span>
-            <span className="font-mono text-green-600 dark:text-green-400">{formatAmount(nodeData.total_inflow)}</span>
+            <span className="font-mono text-success">{formatAmount(nodeData.total_inflow as number)}</span>
           </>
         )}
         {nodeData.total_outflow != null && (
           <>
             <span className="text-muted-foreground">Total Outflow:</span>
-            <span className="font-mono text-red-600 dark:text-red-400">{formatAmount(nodeData.total_outflow)}</span>
+            <span className="font-mono text-error">{formatAmount(nodeData.total_outflow as number)}</span>
           </>
         )}
         {nodeData.is_poi && (
           <>
             <span className="text-muted-foreground">POI:</span>
-            <span className="text-amber-600 dark:text-amber-400 font-medium">Yes</span>
+            <span className="text-warning font-medium">Yes</span>
           </>
         )}
         {nodeData.statement_count != null && (

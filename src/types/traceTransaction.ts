@@ -45,6 +45,7 @@ export type TraceNodeType =
 
 /** Display data enriched by FE from raw transaction files */
 export interface TraceNodeDisplayData {
+  [key: string]: unknown;
   id: string;
   type: TraceNodeType;
   beneficiary: string;

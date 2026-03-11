@@ -189,17 +189,18 @@ export default function POITransactionsDialog({
           ) : (
             <ScrollArea className="h-[300px] sm:h-[450px] rounded-md border">
               <div className="overflow-x-auto">
-                <table className="w-full text-sm table-auto min-w-[900px]">
+                <table className="w-full text-sm table-auto min-w-[1000px]">
                   <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
                     <tr className="border-b">
-                      <th className="px-3 py-3 text-left font-semibold w-[20%]">Description</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[18%]">Suspicious Reason</th>
-                      <th className="px-3 py-3 text-right font-semibold w-[10%]">Debit</th>
-                      <th className="px-3 py-3 text-right font-semibold w-[10%]">Credit</th>
-                      <th className="px-3 py-3 text-right font-semibold w-[10%]">Balance</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[8%]">Date</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[12%]">Beneficiary</th>
-                      <th className="px-3 py-3 text-left font-semibold w-[12%]">Source File</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[18%]">Description</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[16%]">Suspicious Reason</th>
+                      <th className="px-3 py-3 text-right font-semibold w-[9%]">Debit</th>
+                      <th className="px-3 py-3 text-right font-semibold w-[9%]">Credit</th>
+                      <th className="px-3 py-3 text-right font-semibold w-[9%]">Balance</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[7%]">Date</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[10%]">Beneficiary</th>
+                      <th className="px-3 py-3 text-left font-semibold w-[11%]">Source File</th>
+                      <th className="px-3 py-3 text-center font-semibold w-[11%]">Select</th>
                     </tr>
                   </thead>
                   <tbody>

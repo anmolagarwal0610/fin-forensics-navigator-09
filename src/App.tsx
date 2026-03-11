@@ -19,6 +19,8 @@ import SignUp from "@/pages/SignUp";
 import Reset from "@/pages/Reset";
 import ResetConfirm from "@/pages/ResetConfirm";
 import NotFound from "@/pages/NotFound";
+import Blogs from "@/pages/Blogs";
+import BlogPost from "@/pages/BlogPost";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Dashboard from "@/pages/app/Dashboard";
 import Cases from "@/pages/app/Cases";

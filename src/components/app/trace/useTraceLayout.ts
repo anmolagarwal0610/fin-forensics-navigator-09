@@ -135,7 +135,8 @@ function formatAmountShort(amount: number): string {
   return `₹${amount.toLocaleString("en-IN")}`;
 }
 
-function applyDagreLayout(nodes: Node<TraceNodeDisplayData>[], edges: Edge[]): void {
+async function applyDagreLayout(nodes: Node<TraceNodeDisplayData>[], edges: Edge[]): Promise<void> {
+  const dagre = (await import("dagre")).default;
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 100, marginx: 40, marginy: 40 });

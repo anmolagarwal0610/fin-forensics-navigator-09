@@ -288,6 +288,88 @@ export default function AdminCases() {
     setShowMaintenanceDialog(false);
   };
 
+  const handleRetryCase = useCallback(async (caseItem: typeof cases extends (infer T)[] | undefined ? T : never) => {
+    if (!caseItem) return;
+    setRetryingCaseId(caseItem.id);
+    setShowRetryDialog(null);
+
+    try {
+      // 1. Validate input_zip_url exists
+      if (!caseItem.input_zip_url) {
+        toast({ title: "No input files", description: "This case has no stored input files to retry.", variant: "destructive" });
+        return;
+      }
+
+      // 2. Extract storage path from input_zip_url
+      let pathToSign = caseItem.input_zip_url;
+      if (pathToSign.startsWith('http://') || pathToSign.startsWith('https://')) {
+        const patterns = [
+          /\/case-files\/([^?]+)/,
+          /\/object\/(?:sign|public)\/case-files\/([^?]+)/,
+          /case-files\/(.+?)(?:\?|$)/,
+        ];
+        let extracted = null;
+        for (const pattern of patterns) {
+          const match = pathToSign.match(pattern);
+          if (match?.[1]) {
+            extracted = decodeURIComponent(match[1]);
+            break;
+          }
+        }
+        if (extracted) {
+          pathToSign = extracted;
+        } else {
+          toast({ title: "Invalid file path", description: "Could not extract storage path from input URL.", variant: "destructive" });
+          return;
+        }
+      }
+
+      // 3. Generate fresh signed URL (8 hours)
+      const { data: signedData, error: signError } = await supabase.storage
+        .from('case-files')
+        .createSignedUrl(pathToSign, 8 * 60 * 60);
+
+      if (signError || !signedData) {
+        toast({ title: "File not found", description: `Could not access input files: ${signError?.message || 'Unknown error'}`, variant: "destructive" });
+        return;
+      }
+
+      // 4. Determine task from analysis_mode + hitl_stage
+      let task: JobTask = 'initial-parse';
+      if (caseItem.hitl_stage === 'final_analysis') {
+        task = 'final-analysis';
+      } else if (caseItem.analysis_mode === 'direct') {
+        task = 'parse-statements';
+      }
+
+      // 5. Start the job
+      const { job_id } = await startJob(task, signedData.signedUrl, caseItem.id, caseItem.creator_id);
+
+      toast({ title: "Retry started", description: `Job ${job_id.slice(0, 8)}... created for "${caseItem.name}"` });
+
+      // 6. Subscribe to job updates for toast notifications
+      const unsubscribe = subscribeJob(job_id, (row) => {
+        if (row.status === 'SUCCEEDED') {
+          unsubscribe();
+          setRetryingCaseId(null);
+          refetch();
+          toast({ title: "Case completed", description: `"${caseItem.name}" has been processed successfully.` });
+        } else if (row.status === 'FAILED') {
+          unsubscribe();
+          setRetryingCaseId(null);
+          refetch();
+          toast({ title: "Retry failed", description: row.error || "Job failed again.", variant: "destructive" });
+        }
+      });
+    } catch (err: any) {
+      toast({ title: "Retry failed", description: err?.message || "An error occurred", variant: "destructive" });
+    } finally {
+      if (retryingCaseId === caseItem.id) {
+        // Only clear if no subscription took over
+      }
+    }
+  }, [refetch, retryingCaseId]);
+
   return (
     <AdminPasswordGate>
       <div className="container mx-auto p-6 space-y-6">

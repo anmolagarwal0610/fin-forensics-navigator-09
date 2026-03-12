@@ -26,7 +26,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
   const RIGHT_LABEL_GAP_PX = 12; // space between arrow tip and labels
 
   // Distinct entry/exit angles (keep multiple touch points on the circle)
-  const leftAngles = useMemo(() => [-0.5, -0.2, 0.05, 0.32, 0.85], []);
+  const leftAngles = useMemo(() => [-0.5, -0.2, 0.05, 0.32, 0.6], []);
   const rightAngles = useMemo(() => ({ top: -0.12, bottom: 0.18 }), []);
 
   const ptOnCircle = (a: number) => ({

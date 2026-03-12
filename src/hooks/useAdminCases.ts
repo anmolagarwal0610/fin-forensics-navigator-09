@@ -14,6 +14,9 @@ export interface AdminCase {
   tags: string[] | null;
   result_zip_url: string | null;
   input_zip_url: string | null;
+  creator_id: string;
+  analysis_mode: string | null;
+  hitl_stage: string | null;
 }
 
 export function useAdminCases() {

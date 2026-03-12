@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import AdminPasswordGate from "@/components/auth/AdminPasswordGate";
@@ -7,8 +7,35 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive, Eye } from "lucide-react";
+import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive, Eye, RotateCcw, Loader2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { StorageDashboard } from "@/components/app/StorageDashboard";
+import { supabase } from "@/integrations/supabase/client";
+import { useAdminCases } from "@/hooks/useAdminCases";
+import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
+import { useUpdateMaintenanceMode } from "@/hooks/useUpdateMaintenanceMode";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import AdminUsers from "./AdminUsers";
+import { Skeleton } from "@/components/ui/skeleton";
+import UpdateResultUrlDialog from "@/components/app/UpdateResultUrlDialog";
+import { startJob } from "@/lib/startJob";
+import { subscribeJob } from "@/lib/subscribeJob";
+import type { JobTask } from "@/types/job";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { StorageDashboard } from "@/components/app/StorageDashboard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAdminCases } from "@/hooks/useAdminCases";

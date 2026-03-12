@@ -430,6 +430,7 @@ export default function AdminCases() {
                           <TableHead>Input Files</TableHead>
                           <TableHead>Result URL</TableHead>
                           <TableHead>Results</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>

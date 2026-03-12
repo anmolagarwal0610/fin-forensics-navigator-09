@@ -35,7 +35,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-
+} from "@/components/ui/alert-dialog";
 
 interface CustomTier {
   id: string;

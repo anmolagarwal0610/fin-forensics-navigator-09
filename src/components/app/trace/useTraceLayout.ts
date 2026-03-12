@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import dagre from "dagre";
 import type { Node, Edge } from "@xyflow/react";
 import type { TraceTreeResponse, TraceTreeNodeData, TraceNodeDisplayData, TraceNodeType } from "@/types/traceTransaction";
 
@@ -136,8 +135,14 @@ function formatAmountShort(amount: number): string {
   return `₹${amount.toLocaleString("en-IN")}`;
 }
 
+let _dagre: typeof import("dagre") | null = null;
+
 function applyDagreLayout(nodes: Node<TraceNodeDisplayData>[], edges: Edge[]): void {
-  const g = new dagre.graphlib.Graph();
+  if (!_dagre) {
+    console.warn("dagre not loaded yet, skipping layout");
+    return;
+  }
+  const g = new _dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
   g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 100, marginx: 40, marginy: 40 });
 
@@ -148,7 +153,7 @@ function applyDagreLayout(nodes: Node<TraceNodeDisplayData>[], edges: Edge[]): v
     g.setEdge(edge.source, edge.target);
   }
 
-  dagre.layout(g);
+  _dagre.layout(g);
 
   for (const node of nodes) {
     const pos = g.node(node.id);
@@ -158,6 +163,11 @@ function applyDagreLayout(nodes: Node<TraceNodeDisplayData>[], edges: Edge[]): v
     };
   }
 }
+
+// Eagerly load dagre when this module is first imported
+import("dagre").then((mod) => { _dagre = mod.default as any; }).catch(() => {
+  console.warn("dagre module not available");
+});
 
 export function useTraceLayout(traceData: TraceTreeResponse | null) {
   return useMemo(() => {

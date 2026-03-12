@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import dagre from "dagre";
 import type { Node, Edge } from "@xyflow/react";
 import type { TraceTreeResponse, TraceTreeNodeData, TraceNodeDisplayData, TraceNodeType } from "@/types/traceTransaction";
 

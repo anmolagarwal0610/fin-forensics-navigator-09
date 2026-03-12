@@ -1,65 +1,41 @@
-# Plan: Trace Transaction — Interactive Money Trail Tree
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
+## Root Cause
 
-1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
-2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
-3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
-4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
-5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
-6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
+The code for the Actions column and Retry button is already correct in `AdminCases.tsx` (lines 431 and 492-518). The reason it's not showing in the preview is that **the build is failing** due to the unresolved `dagre` import in `src/components/app/trace/useTraceLayout.ts`. This means the preview is still running an older version of the code from before both the retry feature and trace feature were added.
 
-### Dependencies added:
-- `@xyflow/react` (React Flow v12)
-- `dagre` + `@types/dagre`
-- `html-to-image` (PNG export)
+The build error:
+```
+Rollup failed to resolve import "dagre" from "src/components/app/trace/useTraceLayout.ts"
+```
 
-### Pending (backend):
-- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
-- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
-- FE enriches display data from cached raw transaction files
-- Inter-statement file for cross-statement expansion
+Even though `dagre` is listed in `package.json`, the lock file may not have been properly synced, so the module isn't actually installed.
 
-### Minimal Backend JSON Structure:
-```json
-{
-  "trace_tree": {
-    "root_transaction": {
-      "source_file": "HDFC_Statement_Jan.xlsx",
-      "beneficiary": "Sandeep Keshava Hegde",
-      "amount": 200000,
-      "date": "2026-01-15",
-      "has_linked_statement": true,
-      "linked_statement_file": "SBI_Statement_Feb.xlsx",
-      "children": [
-        {
-          "source_file": "HDFC_Statement_Jan.xlsx",
-          "beneficiary": "Abhinav Ranga",
-          "amount": 150000,
-          "date": "2026-01-16",
-          "has_linked_statement": false,
-          "children": []
-        }
-      ]
-    },
-    "untraced_amount": 50000,
-    "cycle_nodes": []
-  },
-  "metadata": {
-    "trace_window_days": 5,
-    "total_nodes": 3,
-    "max_depth": 2
+## Fix
+
+**One change needed** — Force the `dagre` dependency to resolve by regenerating the lock file. This can be done by making a trivial edit to `package.json` (e.g., bumping a comment or re-saving) which triggers a fresh `npm install` / `bun install` in the build pipeline.
+
+Alternatively, if the lock file issue persists, we can **lazy-import dagre** in `useTraceLayout.ts` so the build doesn't fail even if dagre isn't installed (since the trace feature isn't used yet):
+
+```typescript
+// Instead of: import dagre from 'dagre';
+// Use dynamic import that won't break the build
+let dagre: any = null;
+async function getDagre() {
+  if (!dagre) {
+    dagre = (await import('dagre')).default;
   }
+  return dagre;
 }
 ```
 
-### Edge Cases Handled:
-- No date → error message, button disabled
-- Dead end (no outflows) → red dashed "Dead End" node
-- Partial trace → grey "Untraced ₹X" node
-- Cycle detected → amber "Return Flow" ghost node with animated edge
-- >15 children → auto-collapse into "+N more" group node
-- API timeout → loading skeleton + retry button
-- Deep tree → zoom/pan/fit-view controls + minimap
+This ensures the admin retry feature (and all other code changes) deploy successfully regardless of whether dagre resolves.
+
+## Files to modify
+
+| File | Change |
+|------|--------|
+| `src/components/app/trace/useTraceLayout.ts` | Change static `import dagre` to a dynamic `import()` so the build doesn't fail if the module isn't available |
+
+No changes needed to `AdminCases.tsx` or `useAdminCases.ts` — the retry button code is already correct.
+

@@ -1,60 +1,65 @@
+# Plan: Trace Transaction — Interactive Money Trail Tree
 
+## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-# Plan: Admin Retry Failed Cases
+### What's been implemented:
 
-## Overview
+1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
+2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
+3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
+4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
+5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
+6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
 
-Add a "Retry" button in the Admin Cases table for cases with status `Failed` or `Timeout`. The button re-uses the already-stored `input_zip_url` (storage path) to generate a fresh signed URL and starts a new job — no re-upload needed.
+### Dependencies added:
+- `@xyflow/react` (React Flow v12)
+- `dagre` + `@types/dagre`
+- `html-to-image` (PNG export)
 
-## Why No Re-upload Is Needed
+### Pending (backend):
+- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
+- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
+- FE enriches display data from cached raw transaction files
+- Inter-statement file for cross-statement expansion
 
-The `input_zip_url` column already stores the **storage path** (e.g., `userId/zips/case_xxx_timestamp.zip`) for every case that was submitted. The original files are in that ZIP. We just need to:
-1. Generate a fresh signed URL from the stored path
-2. Call `startJob()` with that URL and the case's `creator_id`
+### Minimal Backend JSON Structure:
+```json
+{
+  "trace_tree": {
+    "root_transaction": {
+      "source_file": "HDFC_Statement_Jan.xlsx",
+      "beneficiary": "Sandeep Keshava Hegde",
+      "amount": 200000,
+      "date": "2026-01-15",
+      "has_linked_statement": true,
+      "linked_statement_file": "SBI_Statement_Feb.xlsx",
+      "children": [
+        {
+          "source_file": "HDFC_Statement_Jan.xlsx",
+          "beneficiary": "Abhinav Ranga",
+          "amount": 150000,
+          "date": "2026-01-16",
+          "has_linked_statement": false,
+          "children": []
+        }
+      ]
+    },
+    "untraced_amount": 50000,
+    "cycle_nodes": []
+  },
+  "metadata": {
+    "trace_window_days": 5,
+    "total_nodes": 3,
+    "max_depth": 2
+  }
+}
+```
 
-## Data Changes
-
-**`admin-get-all-cases` edge function** — currently returns `*` from cases but the `AdminCase` interface doesn't include `creator_id`, `analysis_mode`, or `hitl_stage`. Need to add these to the interface so the frontend knows:
-- `creator_id` — the user who owns the case (passed as `userId` to `startJob`)
-- `analysis_mode` — determines task type (`hitl` → `initial-parse`, `direct` → `parse-statements`)
-- `hitl_stage` — if the case failed during `final_analysis`, retry with that task instead
-
-**`useAdminCases.ts`** — Add `creator_id`, `analysis_mode`, `hitl_stage` to the `AdminCase` interface.
-
-## Frontend Changes
-
-**`src/pages/app/AdminCases.tsx`**:
-- Add a new "Actions" column after "Results"
-- For cases where `status === 'Failed' || status === 'Timeout'`:
-  - Show a "Retry" button with a `RotateCcw` icon
-  - On click: show confirmation dialog, then execute retry flow
-  - While running: show spinner, disable button
-- For other statuses: show disabled/hidden button or nothing
-
-**Retry flow** (in AdminCases.tsx):
-1. Validate `input_zip_url` exists — if not, show error toast "No input files available for retry"
-2. Generate fresh signed URL: `supabase.storage.from('case-files').createSignedUrl(input_zip_url, 8 * 60 * 60)`
-3. Determine task from `analysis_mode` + `hitl_stage`:
-   - `hitl_stage === 'final_analysis'` → task = `'final-analysis'`
-   - `analysis_mode === 'hitl'` or default → task = `'initial-parse'`
-   - `analysis_mode === 'direct'` → task = `'parse-statements'`
-4. Call `startJob(task, signedUrl, caseId, creatorId)` — reuses existing function
-5. Subscribe to job updates via `subscribeJob()` — update case status in real-time
-6. On success/failure: refetch admin cases list, show toast
-
-## Edge Cases
-
-- **No `input_zip_url`**: Button disabled with tooltip "No input files stored"
-- **Active job already exists**: `startJob` pre-flight check will throw — caught and shown as toast
-- **Signed URL generation fails** (file deleted from storage): Show error toast
-- **Admin is not the case owner**: Fine — `startJob` inserts job with `creator_id` as `user_id`, and admin RLS policies allow this
-
-## Files Modified
-
-| File | Change |
-|------|--------|
-| `src/hooks/useAdminCases.ts` | Add `creator_id`, `analysis_mode`, `hitl_stage` to `AdminCase` interface |
-| `src/pages/app/AdminCases.tsx` | Add "Actions" column with Retry button + confirmation dialog + retry logic |
-
-No edge function changes needed — `admin-get-all-cases` already returns `SELECT *` which includes all columns.
-
+### Edge Cases Handled:
+- No date → error message, button disabled
+- Dead end (no outflows) → red dashed "Dead End" node
+- Partial trace → grey "Untraced ₹X" node
+- Cycle detected → amber "Return Flow" ghost node with animated edge
+- >15 children → auto-collapse into "+N more" group node
+- API timeout → loading skeleton + retry button
+- Deep tree → zoom/pan/fit-view controls + minimap

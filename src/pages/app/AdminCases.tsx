@@ -364,11 +364,9 @@ export default function AdminCases() {
     } catch (err: any) {
       toast({ title: "Retry failed", description: err?.message || "An error occurred", variant: "destructive" });
     } finally {
-      if (retryingCaseId === caseItem.id) {
-        // Only clear if no subscription took over
-      }
+      // Subscription handles clearing retryingCaseId on completion
     }
-  }, [refetch, retryingCaseId]);
+  }, [refetch, cases]);
 
   return (
     <AdminPasswordGate>

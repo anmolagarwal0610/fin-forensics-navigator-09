@@ -491,6 +491,34 @@ export default function AdminCases() {
                                 View
                               </Button>
                             </TableCell>
+                            <TableCell>
+                              {(c.status === 'Failed' || c.status === 'Timeout') ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={!c.input_zip_url || retryingCaseId === c.id}
+                                        onClick={() => setShowRetryDialog({ caseId: c.id, caseName: c.name })}
+                                      >
+                                        {retryingCaseId === c.id ? (
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <RotateCcw className="mr-2 h-4 w-4" />
+                                        )}
+                                        {retryingCaseId === c.id ? 'Retrying…' : 'Retry'}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    {!c.input_zip_url && (
+                                      <TooltipContent>No input files stored for this case</TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

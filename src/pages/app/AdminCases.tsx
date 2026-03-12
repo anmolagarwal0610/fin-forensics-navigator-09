@@ -52,6 +52,8 @@ export default function AdminCases() {
   const { isMaintenanceMode, loading: maintenanceLoading } = useMaintenanceMode();
   const { updateMaintenanceMode, isUpdating } = useUpdateMaintenanceMode();
   const [showMaintenanceDialog, setShowMaintenanceDialog] = useState(false);
+  const [retryingCaseId, setRetryingCaseId] = useState<string | null>(null);
+  const [showRetryDialog, setShowRetryDialog] = useState<{ caseId: string; caseName: string } | null>(null);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     caseId: string;

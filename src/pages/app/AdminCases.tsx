@@ -746,6 +746,26 @@ WHERE user_id = 'USER_UUID_HERE';`}
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <AlertDialog open={!!showRetryDialog} onOpenChange={(open) => !open && setShowRetryDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Retry Failed Case?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will re-run the analysis for <strong>"{showRetryDialog?.caseName}"</strong> using the original uploaded files. The case status will change to Processing.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                const caseItem = cases?.find(c => c.id === showRetryDialog?.caseId);
+                if (caseItem) handleRetryCase(caseItem);
+              }}>
+                Retry Analysis
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </AdminPasswordGate>
   );

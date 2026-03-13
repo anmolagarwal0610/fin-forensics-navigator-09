@@ -116,8 +116,9 @@ export default function CaseAnalysisResults() {
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
 
-  // State for viewing previous results
-  const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
+  // State for viewing previous results - auto-set from query param for failed cases
+  const searchParams = new URLSearchParams(window.location.search);
+  const [viewingPreviousResults, setViewingPreviousResults] = useState(searchParams.get('previous') === 'true');
 
   // State for Fund Trail share dialog
   const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);

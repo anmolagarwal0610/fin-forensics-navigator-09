@@ -742,8 +742,24 @@ export default function CaseUpload() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>{isAddFilesMode ? t("caseUpload.titleAddFiles") : t("caseUpload.title")}</CardTitle>
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-[260px]">
+                  <p>HITL adds a manual review step to verify and refine extracted data before analysis.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Label htmlFor="hitl-mode" className="text-sm text-muted-foreground cursor-pointer">
+              HITL
+            </Label>
+            <Switch id="hitl-mode" checked={useHitl} onCheckedChange={setUseHitl} disabled={submitting} className="scale-90" />
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* File naming guidance */}
@@ -753,22 +769,6 @@ export default function CaseUpload() {
               <span className="font-medium text-foreground">{t("caseUpload.tip")}:</span> {t("caseUpload.tipMessage", { example: "Ankush_Kumar.pdf" })}
             </AlertDescription>
           </Alert>
-          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div className="space-y-1">
-                <Label htmlFor="hitl-mode" className="text-base font-medium cursor-pointer">
-                  {t("caseUpload.hitlTitle")}
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  {useHitl
-                    ? t("caseUpload.hitlEnabled")
-                    : t("caseUpload.hitlDisabled")}
-                </p>
-              </div>
-            </div>
-            <Switch id="hitl-mode" checked={useHitl} onCheckedChange={setUseHitl} disabled={submitting} />
-          </div>
 
           {loadingPreExisting ? (
             <div className="text-center py-8 text-muted-foreground">

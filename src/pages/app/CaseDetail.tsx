@@ -558,7 +558,7 @@ export default function CaseDetail() {
                   {hasResults ? t('caseDetail.viewResults') : t('caseDetail.viewResultsComingSoon')}
                 </Button>
               </div> : case_.status === 'Failed' || case_.status === 'Timeout' ? <div className="text-center py-8 text-muted-foreground">
-                {case_.previous_result_zip_url ? (
+                {(case_.previous_result_zip_url || hasSecureResultFile) ? (
                   <>
                     <p className="mb-4">{t('caseDetail.analysisIssueWithPrevious')}</p>
                     <Button onClick={() => navigate(`/app/cases/${case_.id}/results?previous=true`)}>

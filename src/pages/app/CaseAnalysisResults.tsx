@@ -303,7 +303,7 @@ export default function CaseAnalysisResults() {
       console.log("[Analysis] ✓ Loaded", (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), "MB");
       return loadAnalysisFiles(arrayBuffer, files);
     },
-    enabled: !!id && (case_?.status === "Ready" || ((case_?.status === "Failed" || case_?.status === "Timeout") && !!(case_ as any)?.previous_result_zip_url)) && !resultStatusLoading && hasAnyResults,
+    enabled: !!id && (case_?.status === "Ready" || ((case_?.status === "Failed" || case_?.status === "Timeout") && (!!case_?.previous_result_zip_url || hasSecureResultFile))) && !resultStatusLoading && hasAnyResults,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 1, // Only retry once to avoid long waits
@@ -984,7 +984,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -1008,7 +1008,7 @@ export default function CaseAnalysisResults() {
     );
   }
 
-  if (!case_ || case_.status !== "Ready") {
+  if (!case_ || (case_.status !== "Ready" && case_.status !== "Failed" && case_.status !== "Timeout")) {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4">
@@ -1037,7 +1037,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -1068,7 +1068,7 @@ export default function CaseAnalysisResults() {
       <div className="p-4 md:p-6 space-y-6 md:space-y-8">
         {/* Back to Case Button */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t("analysisResults.backToCase")}
           </Button>

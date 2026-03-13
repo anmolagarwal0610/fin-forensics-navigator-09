@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Badge } from "@/components/ui/badge";
 import FileUploader from "@/components/app/FileUploader";
 import MapColumnsDialog from "@/components/app/MapColumnsDialog";
@@ -679,7 +680,7 @@ export default function CaseUpload() {
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           {t("actions.back")}
         </Button>
@@ -742,8 +743,24 @@ export default function CaseUpload() {
       )}
 
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>{isAddFilesMode ? t("caseUpload.titleAddFiles") : t("caseUpload.title")}</CardTitle>
+          <div className="flex items-center gap-2">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                </TooltipTrigger>
+                <TooltipContent side="left" className="max-w-[260px]">
+                  <p>HITL adds a manual review step to verify and refine extracted data before analysis.</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <Label htmlFor="hitl-mode" className="text-sm text-muted-foreground cursor-pointer">
+              HITL
+            </Label>
+            <Switch id="hitl-mode" checked={useHitl} onCheckedChange={setUseHitl} disabled={submitting} className="scale-90" />
+          </div>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* File naming guidance */}
@@ -753,22 +770,6 @@ export default function CaseUpload() {
               <span className="font-medium text-foreground">{t("caseUpload.tip")}:</span> {t("caseUpload.tipMessage", { example: "Ankush_Kumar.pdf" })}
             </AlertDescription>
           </Alert>
-          <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg">
-            <div className="flex items-start gap-3">
-              <Info className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div className="space-y-1">
-                <Label htmlFor="hitl-mode" className="text-base font-medium cursor-pointer">
-                  {t("caseUpload.hitlTitle")}
-                </Label>
-                <p className="text-sm text-muted-foreground">
-                  {useHitl
-                    ? t("caseUpload.hitlEnabled")
-                    : t("caseUpload.hitlDisabled")}
-                </p>
-              </div>
-            </div>
-            <Switch id="hitl-mode" checked={useHitl} onCheckedChange={setUseHitl} disabled={submitting} />
-          </div>
 
           {loadingPreExisting ? (
             <div className="text-center py-8 text-muted-foreground">

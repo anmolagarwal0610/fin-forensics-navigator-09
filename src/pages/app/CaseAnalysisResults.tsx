@@ -1068,7 +1068,7 @@ export default function CaseAnalysisResults() {
       <div className="p-4 md:p-6 space-y-6 md:space-y-8">
         {/* Back to Case Button */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <Button variant="outline" size="sm" onClick(() => navigate('/app/dashboard')}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t("analysisResults.backToCase")}
           </Button>

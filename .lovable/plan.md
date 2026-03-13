@@ -1,65 +1,41 @@
-# Plan: Trace Transaction — Interactive Money Trail Tree
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
+# Plan: Show Previous Results When Re-run Fails
 
-1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
-2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
-3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
-4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
-5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
-6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
+## What Changes
 
-### Dependencies added:
-- `@xyflow/react` (React Flow v12)
-- `dagre` + `@types/dagre`
-- `html-to-image` (PNG export)
+**Single file: `src/pages/app/CaseDetail.tsx`** (lines 560-561)
 
-### Pending (backend):
-- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
-- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
-- FE enriches display data from cached raw transaction files
-- Inter-statement file for cross-statement expansion
+Currently, when a case has status `Failed` or `Timeout`, the Analysis Results card shows:
+> "Analysis encountered an issue. See the message above for details."
 
-### Minimal Backend JSON Structure:
-```json
-{
-  "trace_tree": {
-    "root_transaction": {
-      "source_file": "HDFC_Statement_Jan.xlsx",
-      "beneficiary": "Sandeep Keshava Hegde",
-      "amount": 200000,
-      "date": "2026-01-15",
-      "has_linked_statement": true,
-      "linked_statement_file": "SBI_Statement_Feb.xlsx",
-      "children": [
-        {
-          "source_file": "HDFC_Statement_Jan.xlsx",
-          "beneficiary": "Abhinav Ranga",
-          "amount": 150000,
-          "date": "2026-01-16",
-          "has_linked_statement": false,
-          "children": []
-        }
-      ]
-    },
-    "untraced_amount": 50000,
-    "cycle_nodes": []
-  },
-  "metadata": {
-    "trace_window_days": 5,
-    "total_nodes": 3,
-    "max_depth": 2
-  }
-}
-```
+**New behavior**: When the case has `previous_result_zip_url` (meaning a prior successful run exists), replace that text with:
+> "Analysis encountered an issue. You can still see the last result."
+> **[View Last Results]** button → navigates to `/app/cases/${id}/results`
 
-### Edge Cases Handled:
-- No date → error message, button disabled
-- Dead end (no outflows) → red dashed "Dead End" node
-- Partial trace → grey "Untraced ₹X" node
-- Cycle detected → amber "Return Flow" ghost node with animated edge
-- >15 children → auto-collapse into "+N more" group node
-- API timeout → loading skeleton + retry button
-- Deep tree → zoom/pan/fit-view controls + minimap
+When no `previous_result_zip_url` exists (first-time failure), keep the current text as-is.
+
+## How It Works
+
+The `CaseAnalysisResults` page already supports viewing previous results — it reads `previous_result_zip_url` from the case record and has a `viewingPreviousResults` toggle. When a `Failed` case has `previous_result_zip_url`, navigating to the results page will show the last successful results because:
+- The query is enabled only when `case_.status === "Ready"` — this needs a small tweak to also allow `Failed`/`Timeout` cases that have a previous result URL
+- Alternatively, the simpler approach: the "View Last Results" button navigates with a query param `?previous=true`, and `CaseAnalysisResults` reads it to auto-set `viewingPreviousResults = true`
+
+After reviewing `CaseAnalysisResults` more carefully: the analysis query is gated on `case_.status === "Ready"` (line 305). So we need to also enable it for `Failed`/`Timeout` when `previous_result_zip_url` exists, and auto-set `viewingPreviousResults = true` in that scenario.
+
+## Changes
+
+### `src/pages/app/CaseDetail.tsx`
+- Lines 560-561: For `Failed`/`Timeout` cases with `previous_result_zip_url`, show updated message + "View Last Results" button
+- No other changes needed
+
+### `src/pages/app/CaseAnalysisResults.tsx`
+- Line 305: Expand the `enabled` condition to also allow `Failed`/`Timeout` cases when `previous_result_zip_url` exists
+- Auto-set `viewingPreviousResults = true` when the case status is `Failed`/`Timeout` (so it defaults to showing the last good result)
+
+## Edge Cases
+- **First-time failure** (no `previous_result_zip_url`): Current behavior preserved — shows plain issue text
+- **Ready status**: Unchanged — "View Results" button as normal
+- **Processing/Draft**: Unchanged — "Results will appear here"
+- **Previous result URL expired**: `CaseAnalysisResults` already handles fetch errors gracefully
+

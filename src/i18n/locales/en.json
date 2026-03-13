@@ -354,6 +354,8 @@
     "viewResultsComingSoon": "View Results (Coming Soon)",
     "resultsAppearHere": "Results will appear here once analysis is complete.",
     "analysisIssue": "Analysis encountered an issue. See the message above for details.",
+    "analysisIssueWithPrevious": "Analysis encountered an issue. You can still see the last result.",
+    "viewLastResults": "View Last Results",
     "analysisResultsHeading": "Analysis Results",
     "loadingCase": "Loading case..."
   },

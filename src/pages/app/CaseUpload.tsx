@@ -492,6 +492,14 @@ export default function CaseUpload() {
         }
       }
 
+      // ── STEP B2: Preserve current result for rollback on failure ──
+      if (isAddFilesMode && case_.result_zip_url) {
+        await supabase
+          .from('cases')
+          .update({ previous_result_zip_url: case_.result_zip_url })
+          .eq('id', case_.id);
+      }
+
       // ── STEP C: Start job flow AFTER file operations complete ──
       const { job_id } = await startJobFlow(
         uploadFiles,

@@ -303,7 +303,7 @@ export default function CaseAnalysisResults() {
       console.log("[Analysis] ✓ Loaded", (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), "MB");
       return loadAnalysisFiles(arrayBuffer, files);
     },
-    enabled: !!id && case_?.status === "Ready" && !resultStatusLoading && hasAnyResults,
+    enabled: !!id && (case_?.status === "Ready" || ((case_?.status === "Failed" || case_?.status === "Timeout") && !!(case_ as any)?.previous_result_zip_url)) && !resultStatusLoading && hasAnyResults,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 1, // Only retry once to avoid long waits

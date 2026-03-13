@@ -679,7 +679,7 @@ export default function CaseUpload() {
   return (
     <div className="space-y-6">
       <div className="space-y-4">
-        <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+        <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           {t("actions.back")}
         </Button>

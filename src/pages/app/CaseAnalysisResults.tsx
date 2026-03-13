@@ -1008,7 +1008,7 @@ export default function CaseAnalysisResults() {
     );
   }
 
-  if (!case_ || case_.status !== "Ready") {
+  if (!case_ || (case_.status !== "Ready" && case_.status !== "Failed" && case_.status !== "Timeout")) {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4">

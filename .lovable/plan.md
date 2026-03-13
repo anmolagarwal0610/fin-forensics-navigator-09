@@ -1,65 +1,34 @@
-# Plan: Trace Transaction — Interactive Money Trail Tree
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
+# Fix: Save previous result URL before re-run starts
 
-1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
-2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
-3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
-4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
-5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
-6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
+## Problem
 
-### Dependencies added:
-- `@xyflow/react` (React Flow v12)
-- `dagre` + `@types/dagre`
-- `html-to-image` (PNG export)
+When re-running a case via "Add or Remove Files" (`CaseUpload.tsx`), the current `result_zip_url` is never saved to `previous_result_zip_url` **before** the new job starts. The webhook only copies it on **success** (in `job-webhook/index.ts` line 348). So when the job **fails**, `previous_result_zip_url` remains `null`, and the "View Last Results" button never appears.
 
-### Pending (backend):
-- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
-- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
-- FE enriches display data from cached raw transaction files
-- Inter-statement file for cross-statement expansion
+The "Apply Changes" flow in `CaseAnalysisResults.tsx` (line 412) correctly saves it before submitting. `CaseUpload.tsx` does not.
 
-### Minimal Backend JSON Structure:
-```json
-{
-  "trace_tree": {
-    "root_transaction": {
-      "source_file": "HDFC_Statement_Jan.xlsx",
-      "beneficiary": "Sandeep Keshava Hegde",
-      "amount": 200000,
-      "date": "2026-01-15",
-      "has_linked_statement": true,
-      "linked_statement_file": "SBI_Statement_Feb.xlsx",
-      "children": [
-        {
-          "source_file": "HDFC_Statement_Jan.xlsx",
-          "beneficiary": "Abhinav Ranga",
-          "amount": 150000,
-          "date": "2026-01-16",
-          "has_linked_statement": false,
-          "children": []
-        }
-      ]
-    },
-    "untraced_amount": 50000,
-    "cycle_nodes": []
-  },
-  "metadata": {
-    "trace_window_days": 5,
-    "total_nodes": 3,
-    "max_depth": 2
-  }
+## Fix
+
+**One change in `src/pages/app/CaseUpload.tsx`** — Before starting the job (around line 495, before STEP C), add:
+
+```typescript
+// ── STEP B2: Preserve current result for rollback on failure ──
+if (isAddFilesMode && case_.result_zip_url) {
+  await supabase
+    .from('cases')
+    .update({ previous_result_zip_url: case_.result_zip_url })
+    .eq('id', case_.id);
 }
 ```
 
-### Edge Cases Handled:
-- No date → error message, button disabled
-- Dead end (no outflows) → red dashed "Dead End" node
-- Partial trace → grey "Untraced ₹X" node
-- Cycle detected → amber "Return Flow" ghost node with animated edge
-- >15 children → auto-collapse into "+N more" group node
-- API timeout → loading skeleton + retry button
-- Deep tree → zoom/pan/fit-view controls + minimap
+This ensures that if the re-run fails, `previous_result_zip_url` is already set, and the "View Last Results" CTA will appear.
+
+No other files need changes. The webhook's success path already handles moving `result_zip_url` → `previous_result_zip_url` when setting the new result.
+
+## Files
+
+| File | Change |
+|------|--------|
+| `src/pages/app/CaseUpload.tsx` | Add `previous_result_zip_url` save before job submission in Add Files mode |
+

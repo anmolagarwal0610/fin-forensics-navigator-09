@@ -984,7 +984,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>

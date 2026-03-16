@@ -984,7 +984,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -1037,7 +1037,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
+           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -1068,7 +1068,7 @@ export default function CaseAnalysisResults() {
       <div className="p-4 md:p-6 space-y-6 md:space-y-8">
         {/* Back to Case Button */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t("analysisResults.backToCase")}
           </Button>

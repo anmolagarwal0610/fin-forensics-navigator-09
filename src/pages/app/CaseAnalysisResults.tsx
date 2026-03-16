@@ -8,11 +8,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { getCaseById, getCaseFiles, addEvent, type CaseRecord, type CaseFileRecord } from "@/api/cases";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
+import { useReportGeneration } from "@/hooks/useReportGeneration";
+import type { ReportData } from "@/types/reportData";
 import {
   ArrowLeft,
   Download,
@@ -91,6 +94,7 @@ interface ParsedAnalysisData {
   summaryDataMap: Map<string, CellData[][]>;
   rawDataMap: Map<string, CellData[][]>; // Cache for raw transaction data (lazy loaded)
   poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
+  reportData?: ReportData | null; // report_data.json from backend
 }
 
 export default function CaseAnalysisResults() {
@@ -106,13 +110,15 @@ export default function CaseAnalysisResults() {
   const [currentPOIIndex, setCurrentPOIIndex] = useState(0);
   const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false);
 
   // State for per-file sankey modal
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
 
-  // State for viewing previous results
-  const [viewingPreviousResults, setViewingPreviousResults] = useState(false);
+  // State for viewing previous results - auto-set from query param for failed cases
+  const searchParams = new URLSearchParams(window.location.search);
+  const [viewingPreviousResults, setViewingPreviousResults] = useState(searchParams.get('previous') === 'true');
 
   // State for Fund Trail share dialog
   const [shareFundTrailOpen, setShareFundTrailOpen] = useState(false);
@@ -297,7 +303,7 @@ export default function CaseAnalysisResults() {
       console.log("[Analysis] ✓ Loaded", (arrayBuffer.byteLength / 1024 / 1024).toFixed(2), "MB");
       return loadAnalysisFiles(arrayBuffer, files);
     },
-    enabled: !!id && case_?.status === "Ready" && !resultStatusLoading && hasAnyResults,
+    enabled: !!id && (case_?.status === "Ready" || ((case_?.status === "Failed" || case_?.status === "Timeout") && (!!case_?.previous_result_zip_url || hasSecureResultFile))) && !resultStatusLoading && hasAnyResults,
     staleTime: 30 * 60 * 1000, // 30 minutes - cache parsed results
     gcTime: 60 * 60 * 1000, // 1 hour
     retry: 1, // Only retry once to avoid long waits
@@ -305,7 +311,23 @@ export default function CaseAnalysisResults() {
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
 
-  // Re-analysis flow: apply grouping changes and submit new job
+  // PDF Report generation hook
+  const {
+    pdfUrl: reportPdfUrl,
+    isGenerating: isReportGenerating,
+    downloadPdf: downloadPdfReport,
+    isReady: isReportReady,
+  } = useReportGeneration({
+    reportData: analysisData?.reportData ?? null,
+    caseName: case_?.name || "",
+    caseCreatedDate: case_?.created_at
+      ? new Date(case_.created_at).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+      : "",
+    totalFiles: files.length,
+    caseId: id || "",
+    userId: user?.id,
+  });
+
   const handleApplyChanges = async () => {
     if (!analysisData?.zipData || !id || !user) return;
 
@@ -819,6 +841,22 @@ export default function CaseAnalysisResults() {
 
       // --- FIX END ---
 
+      // Parse report_data.json for PDF report generation
+      const reportDataFile = zipData.file("report_data.json");
+      if (reportDataFile) {
+        try {
+          const reportJsonContent = await reportDataFile.async("text");
+          parsedData.reportData = JSON.parse(reportJsonContent) as ReportData;
+          console.log("[Analysis] ✓ report_data.json extracted for PDF report");
+        } catch (error) {
+          console.warn("[Analysis] Failed to parse report_data.json:", error);
+          parsedData.reportData = null;
+        }
+      } else {
+        console.log("[Analysis] No report_data.json found in ZIP");
+        parsedData.reportData = null;
+      }
+
       parsedData.zipData = zip;
       return parsedData;
     } catch (error) {
@@ -946,7 +984,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -970,7 +1008,7 @@ export default function CaseAnalysisResults() {
     );
   }
 
-  if (!case_ || case_.status !== "Ready") {
+  if (!case_ || (case_.status !== "Ready" && case_.status !== "Failed" && case_.status !== "Timeout")) {
     return (
       <div className="container mx-auto p-6 space-y-6">
         <div className="flex items-center gap-4">
@@ -999,7 +1037,7 @@ export default function CaseAnalysisResults() {
     return (
       <div className="p-4 md:p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
+           <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Case
           </Button>
@@ -1030,7 +1068,7 @@ export default function CaseAnalysisResults() {
       <div className="p-4 md:p-6 space-y-6 md:space-y-8">
         {/* Back to Case Button */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${case_.id}`)}>
+          <Button variant="outline" size="sm" onClick={() => navigate(`/app/cases/${id}`)}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t("analysisResults.backToCase")}
           </Button>
@@ -1074,10 +1112,42 @@ export default function CaseAnalysisResults() {
                 Apply Changes
               </Button>
             )}
-            <Button onClick={downloadCompleteReport} size="default" className="shadow-lg w-full sm:w-auto">
-              <Download className="h-4 w-4 mr-2" />
-              {t("analysisResults.downloadReport")}
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button size="default" className="shadow-lg w-full sm:w-auto">
+                  <Download className="h-4 w-4 mr-2" />
+                  {t("analysisResults.downloadReport")}
+                  <ChevronDown className="h-4 w-4 ml-1" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem
+                  onClick={downloadPdfReport}
+                  disabled={!isReportReady}
+                  className="flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <FileText className="h-4 w-4" />
+                    {isReportGenerating ? "Generating..." : "Download PDF Report"}
+                  </span>
+                  {isReportReady && reportPdfUrl && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setReportPreviewOpen(true);
+                      }}
+                      className="p-1 rounded hover:bg-accent"
+                    >
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    </button>
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={downloadCompleteReport} className="flex items-center gap-2">
+                  <Download className="h-4 w-4" />
+                  Download All Case Files
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -1735,6 +1805,17 @@ export default function CaseAnalysisResults() {
         onApply={handleApplyChanges}
         isApplying={isApplyingChanges}
       />
+
+      {/* PDF Report Preview Modal */}
+      {reportPdfUrl && (
+        <FilePreviewModal
+          isOpen={reportPreviewOpen}
+          onClose={() => setReportPreviewOpen(false)}
+          fileName={`case_report_${case_?.name || "report"}.pdf`}
+          fileUrl={reportPdfUrl}
+          onDownload={downloadPdfReport}
+        />
+      )}
     </>
   );
 }

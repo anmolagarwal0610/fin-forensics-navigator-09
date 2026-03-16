@@ -55,6 +55,13 @@ const MobileMenu = () => {
           >
             {t('nav.contact')}
           </Link>
+          <Link 
+            to="/blogs" 
+            className="text-lg font-medium text-foreground hover:text-accent transition-colors py-2"
+            onClick={handleLinkClick}
+          >
+            {t('nav.blogs')}
+          </Link>
           <div className="pt-4 border-t border-border">
             <Link to="/signin" onClick={handleLinkClick}>
               <Button variant="default" className="w-full">

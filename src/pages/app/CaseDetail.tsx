@@ -329,7 +329,7 @@ export default function CaseDetail() {
       <DocumentHead title={`${case_.name} - FinNavigator`} />
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
+          <Button variant="outline" size="sm" onClick={() => navigate('/app/dashboard')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
             {t('caseDetail.back')}
           </Button>
@@ -558,7 +558,16 @@ export default function CaseDetail() {
                   {hasResults ? t('caseDetail.viewResults') : t('caseDetail.viewResultsComingSoon')}
                 </Button>
               </div> : case_.status === 'Failed' || case_.status === 'Timeout' ? <div className="text-center py-8 text-muted-foreground">
-                <p>{t('caseDetail.analysisIssue')}</p>
+                {(case_.previous_result_zip_url || hasSecureResultFile) ? (
+                  <>
+                    <p className="mb-4">{t('caseDetail.analysisIssueWithPrevious')}</p>
+                    <Button onClick={() => navigate(`/app/cases/${case_.id}/results?previous=true`)}>
+                      {t('caseDetail.viewLastResults')}
+                    </Button>
+                  </>
+                ) : (
+                  <p>{t('caseDetail.analysisIssue')}</p>
+                )}
               </div> : <div className="text-center py-8 text-muted-foreground">
                 <Clock className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>{t('caseDetail.resultsAppearHere')}</p>

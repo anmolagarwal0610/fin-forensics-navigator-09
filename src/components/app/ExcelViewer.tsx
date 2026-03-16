@@ -346,6 +346,7 @@ export default function ExcelViewer({
                 beneficiary: String(txRow[beneficiaryColIdx]?.value || ''),
                 date: String(txRow[colMap['date']]?.value || ''),
                 transaction_type: String(txRow[colMap['transaction_type']]?.value || ''),
+                source_file: String(txRow[colMap['source_file']]?.value || ''),
               });
             }
           }

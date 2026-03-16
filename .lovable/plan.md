@@ -1,52 +1,65 @@
+# Plan: Trace Transaction — Interactive Money Trail Tree
 
+## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-# Plan: Fix Mobile View Overflow Issues
+### What's been implemented:
 
-Four specific mobile overflow problems identified from the screenshots and code.
+1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
+2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
+3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
+4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
+5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
+6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
 
----
+### Dependencies added:
+- `@xyflow/react` (React Flow v12)
+- `dagre` + `@types/dagre`
+- `html-to-image` (PNG export)
 
-## 1. CaseDetail.tsx — Files Header CTAs Overflowing (lines 382-435)
+### Pending (backend):
+- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
+- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
+- FE enriches display data from cached raw transaction files
+- Inter-statement file for cross-statement expansion
 
-The `CardTitle` uses `flex items-center justify-between` with all buttons in a single row. On mobile, "Download All Files" + "Add or Remove Files" overflow.
+### Minimal Backend JSON Structure:
+```json
+{
+  "trace_tree": {
+    "root_transaction": {
+      "source_file": "HDFC_Statement_Jan.xlsx",
+      "beneficiary": "Sandeep Keshava Hegde",
+      "amount": 200000,
+      "date": "2026-01-15",
+      "has_linked_statement": true,
+      "linked_statement_file": "SBI_Statement_Feb.xlsx",
+      "children": [
+        {
+          "source_file": "HDFC_Statement_Jan.xlsx",
+          "beneficiary": "Abhinav Ranga",
+          "amount": 150000,
+          "date": "2026-01-16",
+          "has_linked_statement": false,
+          "children": []
+        }
+      ]
+    },
+    "untraced_amount": 50000,
+    "cycle_nodes": []
+  },
+  "metadata": {
+    "trace_window_days": 5,
+    "total_nodes": 3,
+    "max_depth": 2
+  }
+}
+```
 
-**Fix**: Wrap the buttons container to stack on mobile.
-- Change the `div` at line 387 (`flex items-center gap-2`) to `flex flex-wrap items-center gap-2`
-- The `CardTitle` at line 382 needs to allow wrapping: change `flex items-center justify-between` to `flex flex-wrap items-center justify-between gap-2`
-
-## 2. CaseAnalysisResults.tsx — Transaction Flow Analysis Tabs + Toolbar Overflow (lines 1178-1198)
-
-The `div` at line 1178 uses `flex items-center justify-between mb-4` putting TabsList and toolbar slot side-by-side. On mobile, this overflows.
-
-**Fix**: Change to `flex flex-wrap items-center justify-between gap-2 mb-4`.
-
-Also, the FundTrailViewer toolbar (line 244-267) renders all buttons in a row. On mobile, "Download" and "Share" text labels cause overflow.
-
-**Fix in FundTrailViewer.tsx**: Hide text labels on mobile for Download/Share buttons — use `<span className="hidden sm:inline">Download</span>` pattern. Also make toolbar flex-wrap.
-
-## 3. CaseAnalysisResults.tsx — File Analysis Summary Filename + View Summary Overflow (lines 1454-1546)
-
-The `h4` at line 1456 puts filename, eye icon, and "View Summary" button all in a single `flex items-center justify-between` row. Long filenames cause overflow.
-
-**Fix**: 
-- Change the outer `div` at line 1455 (`flex items-center justify-between mb-3`) to `flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3`
-- Make the `h4` at line 1456 allow text wrapping with `min-w-0` and truncation
-- The download buttons row at line 1547 (`flex items-center gap-3 flex-wrap`) is already wrapping — no change needed.
-
-## 4. SummaryTableViewer.tsx — Table Not Readable on Mobile (line 390-391)
-
-The table already uses `overflow-auto` and `text-xs sm:text-sm` which should scroll. The issue is `table-fixed` forces equal column widths which may squish content.
-
-**Fix**: Change `table-fixed` to `table-auto` and add `min-w-[600px]` to the table element so it becomes horizontally scrollable with readable column widths on mobile.
-
----
-
-## Files Changed
-
-| File | Change |
-|------|--------|
-| `src/pages/app/CaseDetail.tsx` | Add flex-wrap to Files header buttons |
-| `src/pages/app/CaseAnalysisResults.tsx` | Flex-wrap on tabs toolbar row; flex-col on mobile for file summary header |
-| `src/components/app/FundTrailViewer.tsx` | Hide button text labels on mobile, flex-wrap toolbar |
-| `src/components/app/SummaryTableViewer.tsx` | Change table-fixed to table-auto with min-width for scrollability |
-
+### Edge Cases Handled:
+- No date → error message, button disabled
+- Dead end (no outflows) → red dashed "Dead End" node
+- Partial trace → grey "Untraced ₹X" node
+- Cycle detected → amber "Return Flow" ghost node with animated edge
+- >15 children → auto-collapse into "+N more" group node
+- API timeout → loading skeleton + retry button
+- Deep tree → zoom/pan/fit-view controls + minimap

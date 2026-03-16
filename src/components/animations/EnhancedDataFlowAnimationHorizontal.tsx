@@ -1,15 +1,7 @@
 /* src/components/animations/EnhancedDataFlowAnimationHorizontal.tsx */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  FileText,
-  Database,
-  Receipt,
-  Brain,
-  TrendingUp,
-  BarChart3,
-  Zap,
-} from "lucide-react";
+import { FileText, Database, Receipt, Brain, TrendingUp, BarChart3, Zap } from "lucide-react";
 
 const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
   const prefersReducedMotion = useReducedMotion();
@@ -63,9 +55,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
     return leftAngles.map((ang, i) => {
       const end = ptOnCircle(ang);
       const ys = leftListY[i];
-      const d = `M ${LEFT_X} ${ys} Q ${L_CTRL_X} ${
-        ys + (end.y - ys) * 0.25
-      } ${end.x} ${end.y}`;
+      const d = `M ${LEFT_X} ${ys} Q ${L_CTRL_X} ${ys + (end.y - ys) * 0.25} ${end.x} ${end.y}`;
       return { id: `lp-${i}`, d };
     });
   }, [leftAngles, leftListY]);
@@ -77,15 +67,11 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
     return [
       {
         id: "rp-top",
-        d: `M ${top.x} ${top.y} Q ${R_CTRL_X} ${top.y - 25} ${RIGHT_X} ${
-          top.y - 20
-        }`,
+        d: `M ${top.x} ${top.y} Q ${R_CTRL_X} ${top.y - 25} ${RIGHT_X} ${top.y - 20}`,
       },
       {
         id: "rp-bottom",
-        d: `M ${bot.x} ${bot.y} Q ${R_CTRL_X} ${bot.y + 25} ${RIGHT_X} ${
-          bot.y + 20
-        }`,
+        d: `M ${bot.x} ${bot.y} Q ${R_CTRL_X} ${bot.y + 25} ${RIGHT_X} ${bot.y + 20}`,
       },
     ];
   }, [rightAngles]);
@@ -110,12 +96,10 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
 
   // Scalable sizes via clamp()
   const cls = {
-    container:
-      "relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-muted/20 to-accent/5",
+    container: "relative w-full overflow-hidden rounded-2xl bg-gradient-to-br from-muted/20 to-accent/5",
     height: "h-[clamp(18rem,40vw,26rem)]",
     leftItemText: "text-[clamp(0.8rem,0.95vw,0.95rem)] font-medium",
-    rightItemText:
-      "text-[clamp(0.8rem,0.95vw,0.95rem)] font-semibold leading-tight",
+    rightItemText: "text-[clamp(0.8rem,0.95vw,0.95rem)] font-semibold leading-tight",
     iconBox: "flex items-center justify-center rounded-lg bg-card border border-accent/40",
     iconBoxSize: "w-[clamp(2.25rem,2.8vw,2.6rem)] h-[clamp(2.25rem,2.8vw,2.6rem)]",
     iconSize: "w-[clamp(1.0rem,1.4vw,1.2rem)] h-[clamp(1.0rem,1.4vw,1.2rem)]",
@@ -227,7 +211,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
               const b1 = `${(0.8 + i * 0.15).toFixed(2)}s`;
               const b2 = `${(1.6 + i * 0.2).toFixed(2)}s`;
               const d1 = (leftDur[i] ?? 2.8).toFixed(2);
-              const d2 = (((leftDur[i] ?? 3.3) * 1.15)).toFixed(2);
+              const d2 = ((leftDur[i] ?? 3.3) * 1.15).toFixed(2);
 
               return (
                 <g key={`ldots-${i}`}>
@@ -258,7 +242,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
             <circle r="4" fill="hsl(var(--success))" opacity="0.6" visibility="hidden">
               <animate attributeName="visibility" to="visible" begin="2.8s" dur="0.001s" fill="freeze" />
               <animateMotion
-                dur={`${(((rightDur["rp-top"] ?? 2.4) * 1.25)).toFixed(2)}s`}
+                dur={`${((rightDur["rp-top"] ?? 2.4) * 1.25).toFixed(2)}s`}
                 repeatCount="indefinite"
                 begin="2.8s"
               >
@@ -269,14 +253,18 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
             {/* rp-bottom pair */}
             <circle r="4" fill="hsl(var(--accent))" opacity="0.85" visibility="hidden">
               <animate attributeName="visibility" to="visible" begin="2.2s" dur="0.001s" fill="freeze" />
-              <animateMotion dur={`${(rightDur["rp-bottom"] ?? 2.6).toFixed(2)}s`} repeatCount="indefinite" begin="2.2s">
+              <animateMotion
+                dur={`${(rightDur["rp-bottom"] ?? 2.6).toFixed(2)}s`}
+                repeatCount="indefinite"
+                begin="2.2s"
+              >
                 <mpath href="#rp-bottom" />
               </animateMotion>
             </circle>
             <circle r="4" fill="hsl(var(--accent))" opacity="0.6" visibility="hidden">
               <animate attributeName="visibility" to="visible" begin="3s" dur="0.001s" fill="freeze" />
               <animateMotion
-                dur={`${(((rightDur["rp-bottom"] ?? 2.6) * 1.23)).toFixed(2)}s`}
+                dur={`${((rightDur["rp-bottom"] ?? 2.6) * 1.23).toFixed(2)}s`}
                 repeatCount="indefinite"
                 begin="3s"
               >
@@ -326,7 +314,11 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
         <div className="flex items-center gap-2">
           <BarChart3 className="w-[clamp(1.1rem,1.6vw,1.4rem)] h-[clamp(1.1rem,1.6vw,1.4rem)] text-success" />
           {/* Force two lines for better fit */}
-          <span className={`${cls.rightItemText}`}>Actionable<br />Insights</span>
+          <span className={`${cls.rightItemText}`}>
+            Actionable
+            <br />
+            Insights
+          </span>
         </div>
 
         <div className="flex items-center gap-2 ml-[clamp(0.1rem,0.5vw,0.4rem)]">
@@ -336,10 +328,7 @@ const EnhancedDataFlowAnimationHorizontal: React.FC = () => {
       </div>
 
       {/* Lightning */}
-      <div
-        className="absolute left-1/2 -translate-x-1/2"
-        style={{ top: "calc(50% + min(9.5rem,18vw) * 0.70)" }}
-      >
+      <div className="absolute left-1/2 -translate-x-1/2" style={{ top: "calc(50% + min(9.5rem,18vw) * 0.70)" }}>
         <Zap className="w-4 h-4 text-foreground" />
       </div>
     </div>

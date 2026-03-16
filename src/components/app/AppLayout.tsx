@@ -1,5 +1,6 @@
 import { PropsWithChildren } from "react";
 import { useTranslation } from "react-i18next";
+import { useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import AppSidebar from "./AppSidebar";
 import AvatarMenu from "./AvatarMenu";
@@ -12,6 +13,23 @@ export default function AppLayout({
 }: PropsWithChildren) {
   const { t } = useTranslation();
   const { user } = useAuth();
+  const location = useLocation();
+
+  const getPageName = () => {
+    const path = location.pathname;
+    if (path === '/app/dashboard') return 'Dashboard';
+    if (path === '/app/cases' || path === '/app/cases/') return 'Cases';
+    if (path === '/app/cases/new') return 'New Case';
+    if (/^\/app\/cases\/[^/]+\/results/.test(path)) return 'Analysis Results';
+    if (/^\/app\/cases\/[^/]+\/upload/.test(path)) return 'Upload Files';
+    if (/^\/app\/cases\/[^/]+\/review/.test(path)) return 'Review Data';
+    if (/^\/app\/cases\/[^/]+$/.test(path)) return 'Case Preview';
+    if (path === '/app/account') return 'Account';
+    if (path === '/app/admin/cases') return 'Admin Cases';
+    if (path === '/app/admin/users') return 'Admin Users';
+    if (path === '/app/support/raise-ticket') return 'Raise Ticket';
+    return 'Dashboard';
+  };
 
   // Extract organization name from user metadata or email domain
   const getOrganizationName = () => {
@@ -37,7 +55,7 @@ export default function AppLayout({
               <SidebarTrigger className="p-2 hover:bg-muted rounded-md transition-colors" />
               <div className="flex items-center gap-3">
                 <div className="text-base md:text-xl font-bold tracking-tight">{getOrganizationName()}</div>
-                <div className="hidden sm:block text-xs md:text-sm text-muted-foreground font-medium">{t('nav.dashboard')}</div>
+                <div className="hidden sm:block text-xs md:text-sm text-muted-foreground font-medium">{getPageName()}</div>
               </div>
             </div>
             <div className="flex items-center gap-1">

@@ -9,7 +9,8 @@
     "security": "सुरक्षा",
     "about": "हमारे बारे में",
     "contact": "संपर्क करें",
-    "signIn": "साइन इन करें"
+    "signIn": "साइन इन करें",
+    "blogs": "ब्लॉग"
   },
   "auth": {
     "signIn": "साइन इन करें",
@@ -353,6 +354,8 @@
     "viewResultsComingSoon": "परिणाम देखें (जल्द आ रहा है)",
     "resultsAppearHere": "विश्लेषण पूर्ण होने पर परिणाम यहां दिखाई देंगे।",
     "analysisIssue": "विश्लेषण में समस्या आई। विवरण के लिए ऊपर का संदेश देखें।",
+    "analysisIssueWithPrevious": "विश्लेषण में समस्या आई। आप अभी भी पिछला परिणाम देख सकते हैं।",
+    "viewLastResults": "पिछले परिणाम देखें",
     "analysisResultsHeading": "विश्लेषण परिणाम",
     "loadingCase": "केस लोड हो रहा है..."
   },

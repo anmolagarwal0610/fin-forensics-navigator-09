@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import AdminPasswordGate from "@/components/auth/AdminPasswordGate";
@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import StatusBadge from "@/components/app/StatusBadge";
-import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive, Eye } from "lucide-react";
+import { Download, Link as LinkIcon, Users, Settings, Plus, Trash2, HardDrive, Eye, RotateCcw, Loader2 } from "lucide-react";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { StorageDashboard } from "@/components/app/StorageDashboard";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,6 +22,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import AdminUsers from "./AdminUsers";
 import { Skeleton } from "@/components/ui/skeleton";
 import UpdateResultUrlDialog from "@/components/app/UpdateResultUrlDialog";
+import { startJob } from "@/lib/startJob";
+import { subscribeJob } from "@/lib/subscribeJob";
+import type { JobTask } from "@/types/job";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +52,8 @@ export default function AdminCases() {
   const { isMaintenanceMode, loading: maintenanceLoading } = useMaintenanceMode();
   const { updateMaintenanceMode, isUpdating } = useUpdateMaintenanceMode();
   const [showMaintenanceDialog, setShowMaintenanceDialog] = useState(false);
+  const [retryingCaseId, setRetryingCaseId] = useState<string | null>(null);
+  const [showRetryDialog, setShowRetryDialog] = useState<{ caseId: string; caseName: string } | null>(null);
   const [dialogState, setDialogState] = useState<{
     isOpen: boolean;
     caseId: string;
@@ -282,6 +288,86 @@ export default function AdminCases() {
     setShowMaintenanceDialog(false);
   };
 
+  const handleRetryCase = useCallback(async (caseItem: typeof cases extends (infer T)[] | undefined ? T : never) => {
+    if (!caseItem) return;
+    setRetryingCaseId(caseItem.id);
+    setShowRetryDialog(null);
+
+    try {
+      // 1. Validate input_zip_url exists
+      if (!caseItem.input_zip_url) {
+        toast({ title: "No input files", description: "This case has no stored input files to retry.", variant: "destructive" });
+        return;
+      }
+
+      // 2. Extract storage path from input_zip_url
+      let pathToSign = caseItem.input_zip_url;
+      if (pathToSign.startsWith('http://') || pathToSign.startsWith('https://')) {
+        const patterns = [
+          /\/case-files\/([^?]+)/,
+          /\/object\/(?:sign|public)\/case-files\/([^?]+)/,
+          /case-files\/(.+?)(?:\?|$)/,
+        ];
+        let extracted = null;
+        for (const pattern of patterns) {
+          const match = pathToSign.match(pattern);
+          if (match?.[1]) {
+            extracted = decodeURIComponent(match[1]);
+            break;
+          }
+        }
+        if (extracted) {
+          pathToSign = extracted;
+        } else {
+          toast({ title: "Invalid file path", description: "Could not extract storage path from input URL.", variant: "destructive" });
+          return;
+        }
+      }
+
+      // 3. Generate fresh signed URL (8 hours)
+      const { data: signedData, error: signError } = await supabase.storage
+        .from('case-files')
+        .createSignedUrl(pathToSign, 8 * 60 * 60);
+
+      if (signError || !signedData) {
+        toast({ title: "File not found", description: `Could not access input files: ${signError?.message || 'Unknown error'}`, variant: "destructive" });
+        return;
+      }
+
+      // 4. Determine task from analysis_mode + hitl_stage
+      let task: JobTask = 'initial-parse';
+      if (caseItem.hitl_stage === 'final_analysis') {
+        task = 'final-analysis';
+      } else if (caseItem.analysis_mode === 'direct') {
+        task = 'parse-statements';
+      }
+
+      // 5. Start the job
+      const { job_id } = await startJob(task, signedData.signedUrl, caseItem.id, caseItem.creator_id);
+
+      toast({ title: "Retry started", description: `Job ${job_id.slice(0, 8)}... created for "${caseItem.name}"` });
+
+      // 6. Subscribe to job updates for toast notifications
+      const unsubscribe = subscribeJob(job_id, (row) => {
+        if (row.status === 'SUCCEEDED') {
+          unsubscribe();
+          setRetryingCaseId(null);
+          refetch();
+          toast({ title: "Case completed", description: `"${caseItem.name}" has been processed successfully.` });
+        } else if (row.status === 'FAILED') {
+          unsubscribe();
+          setRetryingCaseId(null);
+          refetch();
+          toast({ title: "Retry failed", description: row.error || "Job failed again.", variant: "destructive" });
+        }
+      });
+    } catch (err: any) {
+      toast({ title: "Retry failed", description: err?.message || "An error occurred", variant: "destructive" });
+    } finally {
+      // Subscription handles clearing retryingCaseId on completion
+    }
+  }, [refetch, cases]);
+
   return (
     <AdminPasswordGate>
       <div className="container mx-auto p-6 space-y-6">
@@ -342,6 +428,7 @@ export default function AdminCases() {
                           <TableHead>Input Files</TableHead>
                           <TableHead>Result URL</TableHead>
                           <TableHead>Results</TableHead>
+                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -401,6 +488,34 @@ export default function AdminCases() {
                                 <Eye className="mr-2 h-4 w-4" />
                                 View
                               </Button>
+                            </TableCell>
+                            <TableCell>
+                              {(c.status === 'Failed' || c.status === 'Timeout') ? (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        disabled={!c.input_zip_url || retryingCaseId === c.id}
+                                        onClick={() => setShowRetryDialog({ caseId: c.id, caseName: c.name })}
+                                      >
+                                        {retryingCaseId === c.id ? (
+                                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        ) : (
+                                          <RotateCcw className="mr-2 h-4 w-4" />
+                                        )}
+                                        {retryingCaseId === c.id ? 'Retrying…' : 'Retry'}
+                                      </Button>
+                                    </TooltipTrigger>
+                                    {!c.input_zip_url && (
+                                      <TooltipContent>No input files stored for this case</TooltipContent>
+                                    )}
+                                  </Tooltip>
+                                </TooltipProvider>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">—</span>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
@@ -625,6 +740,26 @@ WHERE user_id = 'USER_UUID_HERE';`}
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmEnableMaintenance}>
                 Enable Maintenance Mode
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog open={!!showRetryDialog} onOpenChange={(open) => !open && setShowRetryDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Retry Failed Case?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will re-run the analysis for <strong>"{showRetryDialog?.caseName}"</strong> using the original uploaded files. The case status will change to Processing.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={() => {
+                const caseItem = cases?.find(c => c.id === showRetryDialog?.caseId);
+                if (caseItem) handleRetryCase(caseItem);
+              }}>
+                Retry Analysis
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

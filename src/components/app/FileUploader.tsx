@@ -90,7 +90,7 @@ export default function FileUploader({
     // Immediately add files with "counting" status using functional update
     onFilesChange(prevFiles => {
       const combinedFiles = [...prevFiles, ...newFiles];
-      return combinedFiles.length > 200 ? combinedFiles.slice(0, 200) : combinedFiles;
+      return combinedFiles.length > 225 ? combinedFiles.slice(0, 225) : combinedFiles;
     });
     
     // Count pages for each file individually using functional state updates

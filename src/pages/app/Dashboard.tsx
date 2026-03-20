@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { UpgradeBanner } from "@/components/app/UpgradeBanner";
 import DocumentHead from "@/components/common/DocumentHead";
 
@@ -27,6 +28,23 @@ export default function Dashboard() {
       });
     }).finally(() => setLoading(false));
   }, [t]);
+
+  // Real-time case status updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-case-updates')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'cases' },
+        (payload) => {
+          const updatedCase = payload.new as CaseRecord;
+          setCases(prev => prev.map(c => c.id === updatedCase.id ? updatedCase : c));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
 
   if (loading) {
     return (

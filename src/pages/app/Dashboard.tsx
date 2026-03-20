@@ -29,6 +29,23 @@ export default function Dashboard() {
     }).finally(() => setLoading(false));
   }, [t]);
 
+  // Real-time case status updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('dashboard-case-updates')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'cases' },
+        (payload) => {
+          const updatedCase = payload.new as CaseRecord;
+          setCases(prev => prev.map(c => c.id === updatedCase.id ? updatedCase : c));
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
   if (loading) {
     return (
       <div className="w-full max-w-7xl mx-auto">

@@ -450,6 +450,82 @@ export default function CaseAnalysisResults() {
     }
   }, [caseError, navigate]);
 
+  // Silent mismatch detection - runs once after 7s delay when analysis data is ready
+  const mismatchCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!analysisData?.zipData || !case_ || !user?.email || mismatchCheckedRef.current) return;
+    mismatchCheckedRef.current = true;
+
+    const timer = setTimeout(async () => {
+      try {
+        const rawFiles = Object.keys(analysisData.zipData!.files).filter(
+          (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx")
+        );
+
+        for (const rawFileName of rawFiles) {
+          try {
+            const file = analysisData.zipData!.file(rawFileName);
+            if (!file) continue;
+
+            const content = await file.async("arraybuffer");
+            const parsed = await parseExcelFile(content);
+            if (!parsed || parsed.length < 2) continue;
+
+            // Find transaction_flag column in header row
+            const headerRow = parsed[0];
+            let flagColIndex = -1;
+            for (let i = 0; i < headerRow.length; i++) {
+              const val = String(headerRow[i]?.value || "").toLowerCase().trim();
+              if (val === "transaction_flag") {
+                flagColIndex = i;
+                break;
+              }
+            }
+            if (flagColIndex === -1) continue;
+
+            // Check data rows for "mismatch"
+            let hasMismatch = false;
+            for (let r = 1; r < parsed.length; r++) {
+              const cellVal = String(parsed[r]?.[flagColIndex]?.value || "").toLowerCase().trim();
+              if (cellVal === "mismatch") {
+                hasMismatch = true;
+                break;
+              }
+            }
+            if (!hasMismatch) continue;
+
+            // Send alert silently
+            const base64 = await file.async("base64");
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData?.session?.access_token;
+            if (!accessToken) continue;
+
+            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-mismatch-alert`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "application/json",
+                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+              },
+              body: JSON.stringify({
+                case_name: case_.name,
+                user_email: user.email,
+                file_name: rawFileName,
+                file_base64: base64,
+              }),
+            }).catch(() => {});
+          } catch {
+            // Silent - no logging
+          }
+        }
+      } catch {
+        // Silent - no logging
+      }
+    }, 7000);
+
+    return () => clearTimeout(timer);
+  }, [analysisData, case_, user]);
+
   const loadAnalysisFiles = async (
     arrayBuffer: ArrayBuffer,
     originalFiles: CaseFileRecord[],

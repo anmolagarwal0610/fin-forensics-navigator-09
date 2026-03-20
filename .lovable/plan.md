@@ -1,65 +1,45 @@
-# Plan: Trace Transaction — Interactive Money Trail Tree
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
+# Plan: Silent Mismatch Detection & Email Alert
 
-1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
-2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
-3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
-4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
-5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
-6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
+## Overview
+After analysis results load, silently scan raw transaction files for "mismatch" in the `transaction_flag` column. If found, send the raw file + metadata to `help@finnavigatorai.com` via a new Edge Function. Zero user-visible feedback.
 
-### Dependencies added:
-- `@xyflow/react` (React Flow v12)
-- `dagre` + `@types/dagre`
-- `html-to-image` (PNG export)
+## Frontend Change
 
-### Pending (backend):
-- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
-- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
-- FE enriches display data from cached raw transaction files
-- Inter-statement file for cross-statement expansion
+**`src/pages/app/CaseAnalysisResults.tsx`** — Add a `useEffect` after `analysisData` is available:
 
-### Minimal Backend JSON Structure:
-```json
-{
-  "trace_tree": {
-    "root_transaction": {
-      "source_file": "HDFC_Statement_Jan.xlsx",
-      "beneficiary": "Sandeep Keshava Hegde",
-      "amount": 200000,
-      "date": "2026-01-15",
-      "has_linked_statement": true,
-      "linked_statement_file": "SBI_Statement_Feb.xlsx",
-      "children": [
-        {
-          "source_file": "HDFC_Statement_Jan.xlsx",
-          "beneficiary": "Abhinav Ranga",
-          "amount": 150000,
-          "date": "2026-01-16",
-          "has_linked_statement": false,
-          "children": []
-        }
-      ]
-    },
-    "untraced_amount": 50000,
-    "cycle_nodes": []
-  },
-  "metadata": {
-    "trace_window_days": 5,
-    "total_nodes": 3,
-    "max_depth": 2
-  }
-}
-```
+- Use a `useRef` flag to ensure it runs only once per result load
+- `setTimeout` with 7-second delay to avoid impacting initial render
+- Iterate all `raw_transactions_*.xlsx` files from `analysisData.zipData`
+- For each file: parse with `parseExcelFile`, find column index where header row contains `transaction_flag` (case-insensitive)
+- If any row in that column contains `mismatch` (case-insensitive), extract the file as base64 and POST to the edge function
+- All operations wrapped in try/catch with **no** console.log, no toast, no user feedback
+- Sends: `case_name`, `user_email`, `file_name`, `file_base64` (raw xlsx as base64)
 
-### Edge Cases Handled:
-- No date → error message, button disabled
-- Dead end (no outflows) → red dashed "Dead End" node
-- Partial trace → grey "Untraced ₹X" node
-- Cycle detected → amber "Return Flow" ghost node with animated edge
-- >15 children → auto-collapse into "+N more" group node
-- API timeout → loading skeleton + retry button
-- Deep tree → zoom/pan/fit-view controls + minimap
+## Edge Function
+
+**Create `supabase/functions/send-mismatch-alert/index.ts`**:
+
+- CORS headers (standard pattern)
+- Validates JWT from authorization header using Supabase client
+- Accepts POST with `{ case_name, user_email, file_name, file_base64 }`
+- Sends email via Resend API (same pattern as `send-contact-email`)
+  - From: `help@finnavigatorai.com`
+  - To: `help@finnavigatorai.com`
+  - Subject: `Mismatch Alert: {case_name}`
+  - Body: user email, case name, file name
+  - Attachment: the raw xlsx file (base64 via Resend's `attachments` field)
+- Uses existing `RESEND_API_KEY` secret
+
+**Update `supabase/config.toml`**:
+- Add `[functions.send-mismatch-alert]` with `verify_jwt = true`
+
+## Files
+
+| File | Change |
+|------|--------|
+| `src/pages/app/CaseAnalysisResults.tsx` | Add silent mismatch scan `useEffect` with 7s delay |
+| `supabase/functions/send-mismatch-alert/index.ts` | New edge function to email mismatch alert with attachment |
+| `supabase/config.toml` | Add function config entry |
+

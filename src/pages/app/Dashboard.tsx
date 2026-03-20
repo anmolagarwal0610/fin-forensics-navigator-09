@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { getCases, type CaseRecord } from "@/api/cases";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import { UpgradeBanner } from "@/components/app/UpgradeBanner";
 import DocumentHead from "@/components/common/DocumentHead";
 

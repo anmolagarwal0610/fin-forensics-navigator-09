@@ -1,65 +1,40 @@
-# Plan: Trace Transaction — Interactive Money Trail Tree
 
-## Status: ✅ Phase 1 Complete (Frontend Implementation)
 
-### What's been implemented:
+# Real-time Dashboard Status Updates
 
-1. **`src/types/traceTransaction.ts`** — TypeScript interfaces for trace tree JSON, node types, selected transaction
-2. **`src/components/app/trace/useTraceLayout.ts`** — Hook converting backend JSON → React Flow nodes/edges via dagre auto-layout. Handles dead ends, untraced amounts, cycles, collapsed groups (>15 children)
-3. **`src/components/app/trace/TraceTreeNode.tsx`** — Custom React Flow node with color-coded cards (root=primary, child=accent, untraced=muted, dead_end=error, cycle=warning). Hover tooltips with full details
-4. **`src/components/app/TraceTransactionModal.tsx`** — Fullscreen modal with React Flow canvas, breadcrumb trail, Export PNG, Fit View, loading skeleton, error/retry states
-5. **`src/components/app/BeneficiaryTransactionsDialog.tsx`** — Added "Select Transaction" checkbox column + "Trace Transaction" button in header
-6. **`src/components/app/POITransactionsDialog.tsx`** — Same checkbox + trace button addition
+## What's happening now
+- `Dashboard.tsx` fetches cases once on mount, never updates
+- `Cases.tsx` already has a Supabase Realtime subscription that updates state + shows toasts
+- When a user is on Dashboard and a case finishes, the toast may appear but the KPI cards/activity list stay stale
 
-### Dependencies added:
-- `@xyflow/react` (React Flow v12)
-- `dagre` + `@types/dagre`
-- `html-to-image` (PNG export)
+## Fix
+**One change in `src/pages/app/Dashboard.tsx`** — Add a `useEffect` with a Supabase Realtime subscription (identical pattern to Cases.tsx lines 44-95):
 
-### Pending (backend):
-- Backend must implement `POST /trace-transaction` endpoint returning `TraceTreeResponse` JSON
-- Backend sends minimal JSON: `{ source_file, beneficiary, amount, date, has_linked_statement, linked_statement_file, children[] }`
-- FE enriches display data from cached raw transaction files
-- Inter-statement file for cross-statement expansion
+```typescript
+import { supabase } from "@/integrations/supabase/client";
 
-### Minimal Backend JSON Structure:
-```json
-{
-  "trace_tree": {
-    "root_transaction": {
-      "source_file": "HDFC_Statement_Jan.xlsx",
-      "beneficiary": "Sandeep Keshava Hegde",
-      "amount": 200000,
-      "date": "2026-01-15",
-      "has_linked_statement": true,
-      "linked_statement_file": "SBI_Statement_Feb.xlsx",
-      "children": [
-        {
-          "source_file": "HDFC_Statement_Jan.xlsx",
-          "beneficiary": "Abhinav Ranga",
-          "amount": 150000,
-          "date": "2026-01-16",
-          "has_linked_statement": false,
-          "children": []
-        }
-      ]
-    },
-    "untraced_amount": 50000,
-    "cycle_nodes": []
-  },
-  "metadata": {
-    "trace_window_days": 5,
-    "total_nodes": 3,
-    "max_depth": 2
-  }
-}
+// Inside the component, after the loading useEffect:
+useEffect(() => {
+  const channel = supabase
+    .channel('dashboard-case-updates')
+    .on('postgres_changes', 
+      { event: 'UPDATE', schema: 'public', table: 'cases' },
+      (payload) => {
+        const updatedCase = payload.new as CaseRecord;
+        setCases(prev => prev.map(c => c.id === updatedCase.id ? updatedCase : c));
+      }
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, []);
 ```
 
-### Edge Cases Handled:
-- No date → error message, button disabled
-- Dead end (no outflows) → red dashed "Dead End" node
-- Partial trace → grey "Untraced ₹X" node
-- Cycle detected → amber "Return Flow" ghost node with animated edge
-- >15 children → auto-collapse into "+N more" group node
-- API timeout → loading skeleton + retry button
-- Deep tree → zoom/pan/fit-view controls + minimap
+No toasts needed here (Cases.tsx already handles notifications). This just keeps the Dashboard data fresh.
+
+## Files
+
+| File | Change |
+|------|--------|
+| `src/pages/app/Dashboard.tsx` | Add Realtime subscription for case UPDATE events, import supabase client |
+

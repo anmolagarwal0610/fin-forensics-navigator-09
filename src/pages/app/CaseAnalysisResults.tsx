@@ -456,10 +456,10 @@ export default function CaseAnalysisResults() {
 
     const storageKey = `mismatch_checked_${id}_${case_.updated_at}`;
     if (localStorage.getItem(storageKey)) return;
+    localStorage.setItem(storageKey, "1");
 
     const timer = setTimeout(async () => {
       try {
-        localStorage.setItem(storageKey, "1");
 
         const rawFiles = Object.keys(analysisData.zipData!.files).filter(
           (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx")
@@ -514,9 +514,11 @@ export default function CaseAnalysisResults() {
             );
             if (matchingFile?.file_url) {
               try {
-                const pdfResp = await fetch(matchingFile.file_url);
-                if (pdfResp.ok) {
-                  const pdfBuf = await pdfResp.arrayBuffer();
+                const { data: pdfBlob } = await supabase.storage
+                  .from('case-files')
+                  .download(matchingFile.file_url);
+                if (pdfBlob) {
+                  const pdfBuf = await pdfBlob.arrayBuffer();
                   pdfFileBase64 = btoa(
                     new Uint8Array(pdfBuf).reduce((s, b) => s + String.fromCharCode(b), "")
                   );

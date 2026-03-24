@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -450,14 +450,17 @@ export default function CaseAnalysisResults() {
     }
   }, [caseError, navigate]);
 
-  // Silent mismatch detection - runs once after 7s delay when analysis data is ready
-  const mismatchCheckedRef = useRef(false);
+  // Silent mismatch detection - runs once per result version using localStorage
   useEffect(() => {
-    if (!analysisData?.zipData || !case_ || !user?.email || mismatchCheckedRef.current) return;
-    mismatchCheckedRef.current = true;
+    if (!analysisData?.zipData || !case_ || !user?.email) return;
+
+    const storageKey = `mismatch_checked_${id}_${case_.updated_at}`;
+    if (localStorage.getItem(storageKey)) return;
 
     const timer = setTimeout(async () => {
       try {
+        localStorage.setItem(storageKey, "1");
+
         const rawFiles = Object.keys(analysisData.zipData!.files).filter(
           (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx")
         );
@@ -483,11 +486,11 @@ export default function CaseAnalysisResults() {
             }
             if (flagColIndex === -1) continue;
 
-            // Check data rows for "mismatch"
+            // Check data rows for "mismatch" or "amount_mismatch"
             let hasMismatch = false;
             for (let r = 1; r < parsed.length; r++) {
               const cellVal = String(parsed[r]?.[flagColIndex]?.value || "").toLowerCase().trim();
-              if (cellVal === "mismatch") {
+              if (cellVal === "mismatch" || cellVal === "amount_mismatch") {
                 hasMismatch = true;
                 break;
               }
@@ -499,6 +502,30 @@ export default function CaseAnalysisResults() {
             const { data: sessionData } = await supabase.auth.getSession();
             const accessToken = sessionData?.session?.access_token;
             if (!accessToken) continue;
+
+            // Try to find and attach the original PDF
+            const baseName = rawFileName.replace("raw_transactions_", "").replace(".xlsx", "");
+            const pdfName = `${baseName}.pdf`;
+            let pdfFileBase64: string | undefined;
+            let pdfFileName: string | undefined;
+
+            const matchingFile = files.find(
+              (f: CaseFileRecord) => f.file_name.toLowerCase() === pdfName.toLowerCase()
+            );
+            if (matchingFile?.file_url) {
+              try {
+                const pdfResp = await fetch(matchingFile.file_url);
+                if (pdfResp.ok) {
+                  const pdfBuf = await pdfResp.arrayBuffer();
+                  pdfFileBase64 = btoa(
+                    new Uint8Array(pdfBuf).reduce((s, b) => s + String.fromCharCode(b), "")
+                  );
+                  pdfFileName = matchingFile.file_name;
+                }
+              } catch {
+                // Silent - skip PDF attachment
+              }
+            }
 
             fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-mismatch-alert`, {
               method: "POST",
@@ -512,6 +539,7 @@ export default function CaseAnalysisResults() {
                 user_email: user.email,
                 file_name: rawFileName,
                 file_base64: base64,
+                ...(pdfFileBase64 && pdfFileName ? { pdf_file_base64: pdfFileBase64, pdf_file_name: pdfFileName } : {}),
               }),
             }).catch(() => {});
           } catch {
@@ -524,7 +552,7 @@ export default function CaseAnalysisResults() {
     }, 7000);
 
     return () => clearTimeout(timer);
-  }, [analysisData, case_, user]);
+  }, [analysisData, case_, user, id, files]);
 
   const loadAnalysisFiles = async (
     arrayBuffer: ArrayBuffer,

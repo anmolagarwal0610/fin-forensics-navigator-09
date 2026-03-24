@@ -1,45 +1,37 @@
 
 
-# Plan: Silent Mismatch Detection & Email Alert
+# Plan: Mismatch Alert Improvements (3 Changes)
 
-## Overview
-After analysis results load, silently scan raw transaction files for "mismatch" in the `transaction_flag` column. If found, send the raw file + metadata to `help@finnavigatorai.com` via a new Edge Function. Zero user-visible feedback.
+## Change 1: Detect AMOUNT_MISMATCH alongside MISMATCH
 
-## Frontend Change
+**`src/pages/app/CaseAnalysisResults.tsx`** (line 490):
+- Change the check from `cellVal === "mismatch"` to `cellVal === "mismatch" || cellVal === "amount_mismatch"`
 
-**`src/pages/app/CaseAnalysisResults.tsx`** — Add a `useEffect` after `analysisData` is available:
+## Change 2: Attach PDF file alongside raw xlsx
 
-- Use a `useRef` flag to ensure it runs only once per result load
-- `setTimeout` with 7-second delay to avoid impacting initial render
-- Iterate all `raw_transactions_*.xlsx` files from `analysisData.zipData`
-- For each file: parse with `parseExcelFile`, find column index where header row contains `transaction_flag` (case-insensitive)
-- If any row in that column contains `mismatch` (case-insensitive), extract the file as base64 and POST to the edge function
-- All operations wrapped in try/catch with **no** console.log, no toast, no user feedback
-- Sends: `case_name`, `user_email`, `file_name`, `file_base64` (raw xlsx as base64)
+**`src/pages/app/CaseAnalysisResults.tsx`** (mismatch useEffect, ~line 465-516):
+- After detecting a mismatch in `raw_transactions_{base}.xlsx`, derive the original PDF name (`{base}.pdf`)
+- Look up the matching `CaseFileRecord` from the `files` array (already available in scope)
+- If the original file has a `file_url`, download it as base64 and include as `pdf_file_base64` + `pdf_file_name` in the POST body
+- If no PDF found (e.g. the input was xlsx/csv), skip the PDF attachment gracefully
 
-## Edge Function
+**`supabase/functions/send-mismatch-alert/index.ts`**:
+- Accept optional `pdf_file_base64` and `pdf_file_name` fields
+- If present, add a second entry to the `attachments` array in the Resend API call
 
-**Create `supabase/functions/send-mismatch-alert/index.ts`**:
+## Change 3: Send alert only once per result (not on every View Results click)
 
-- CORS headers (standard pattern)
-- Validates JWT from authorization header using Supabase client
-- Accepts POST with `{ case_name, user_email, file_name, file_base64 }`
-- Sends email via Resend API (same pattern as `send-contact-email`)
-  - From: `help@finnavigatorai.com`
-  - To: `help@finnavigatorai.com`
-  - Subject: `Mismatch Alert: {case_name}`
-  - Body: user email, case name, file name
-  - Attachment: the raw xlsx file (base64 via Resend's `attachments` field)
-- Uses existing `RESEND_API_KEY` secret
-
-**Update `supabase/config.toml`**:
-- Add `[functions.send-mismatch-alert]` with `verify_jwt = true`
+**`src/pages/app/CaseAnalysisResults.tsx`**:
+- Replace the `useRef` approach (which resets on remount) with `localStorage`
+- Key: `mismatch_checked_${caseId}_${case_.updated_at}` — this naturally invalidates when new results arrive
+- Before running the scan, check localStorage. If key exists, skip entirely
+- After scan completes (whether mismatch found or not), set the key in localStorage
+- This ensures the scan runs exactly once per result version, regardless of how many times the user opens the results page
 
 ## Files
 
 | File | Change |
 |------|--------|
-| `src/pages/app/CaseAnalysisResults.tsx` | Add silent mismatch scan `useEffect` with 7s delay |
-| `supabase/functions/send-mismatch-alert/index.ts` | New edge function to email mismatch alert with attachment |
-| `supabase/config.toml` | Add function config entry |
+| `src/pages/app/CaseAnalysisResults.tsx` | Add AMOUNT_MISMATCH detection, attach PDF, use localStorage for one-time check |
+| `supabase/functions/send-mismatch-alert/index.ts` | Accept optional PDF attachment fields |
 

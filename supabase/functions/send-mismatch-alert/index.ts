@@ -29,7 +29,7 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: corsHeaders });
     }
 
-    const { case_name, user_email, file_name, file_base64 } = await req.json();
+    const { case_name, user_email, file_name, file_base64, pdf_file_base64, pdf_file_name } = await req.json();
 
     if (!case_name || !user_email || !file_name || !file_base64) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers: corsHeaders });
@@ -54,6 +54,14 @@ serve(async (req: Request) => {
       </div>
     `;
 
+    const attachments: Array<{ filename: string; content: string }> = [
+      { filename: file_name, content: file_base64 },
+    ];
+
+    if (pdf_file_base64 && pdf_file_name) {
+      attachments.push({ filename: pdf_file_name, content: pdf_file_base64 });
+    }
+
     const emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -65,12 +73,7 @@ serve(async (req: Request) => {
         to: "help@finnavigatorai.com",
         subject: `Mismatch Alert: ${case_name}`,
         html: emailHtml,
-        attachments: [
-          {
-            filename: file_name,
-            content: file_base64,
-          },
-        ],
+        attachments,
       }),
     });
 

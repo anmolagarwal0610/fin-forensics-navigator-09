@@ -456,10 +456,10 @@ export default function CaseAnalysisResults() {
 
     const storageKey = `mismatch_checked_${id}_${case_.updated_at}`;
     if (localStorage.getItem(storageKey)) return;
+    localStorage.setItem(storageKey, "1");
 
     const timer = setTimeout(async () => {
       try {
-        localStorage.setItem(storageKey, "1");
 
         const rawFiles = Object.keys(analysisData.zipData!.files).filter(
           (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx")

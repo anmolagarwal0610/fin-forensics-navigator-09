@@ -19,7 +19,8 @@ export async function uploadInput(
   userId: string,
   caseId: string,
   skipFileInsertion: boolean = false,
-  passwords?: PasswordEntry[]
+  passwords?: PasswordEntry[],
+  configFiles?: File[]
 ): Promise<{ zipPath: string; signedUrl: string }> {
   const bucket = 'case-files';
   

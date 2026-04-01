@@ -122,6 +122,15 @@ export async function uploadInput(
         console.log(`✓ Added ${name} to ZIP`);
       }
       
+      // Add config files to ZIP only (not uploaded individually or inserted into DB)
+      if (configFiles && configFiles.length > 0) {
+        for (const cf of configFiles) {
+          const cfBuffer = await cf.arrayBuffer();
+          zip.file(cf.name, cfBuffer);
+          console.log(`✓ Added config file ${cf.name} to ZIP`);
+        }
+      }
+      
       // Add password.txt if there are protected files
       if (passwords && passwords.length > 0) {
         const passwordData = {

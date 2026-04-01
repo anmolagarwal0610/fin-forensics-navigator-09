@@ -320,6 +320,15 @@ export default function MapColumnsDialog({
         {step === 1 ? (
           /* ───── STEP 1: Select Header Row ───── */
           <div className="flex-1 min-h-0 flex flex-col px-6 pb-6 gap-4">
+            {/* Hint tooltip above the table */}
+            {showHint && selectedRow === null && (
+              <div className="relative">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-muted border border-border shadow-md text-xs text-foreground animate-in fade-in slide-in-from-top-1 duration-300">
+                  Please select the header row.
+                  <span className="absolute -bottom-1.5 left-4 w-3 h-3 bg-muted border-b border-r border-border rotate-45" />
+                </div>
+              </div>
+            )}
             <div className="flex-1 min-h-0 overflow-auto border rounded-lg max-h-[55vh]">
               <table className="text-xs border-collapse">
                 <thead className="sticky top-0 z-10 bg-muted">

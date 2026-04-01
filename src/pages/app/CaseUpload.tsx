@@ -542,6 +542,7 @@ export default function CaseUpload() {
           }
         },
         skipFileInsertion,
+        configFiles,
       );
 
       // Track page usage ONLY AFTER job successfully started (prevents double-charging on retries)

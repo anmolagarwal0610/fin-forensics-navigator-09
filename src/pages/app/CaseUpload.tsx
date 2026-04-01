@@ -52,6 +52,7 @@ interface FileItem {
   columnMapping?: Record<string, string>;
   headerRowIndex?: number;
   accountHolderName?: string;
+  dummyColumns?: { balance?: { header: string; defaultValue: string }; date?: { header: string; defaultValue: string } };
 }
 
 export default function CaseUpload() {

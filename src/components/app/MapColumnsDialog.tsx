@@ -451,7 +451,27 @@ export default function MapColumnsDialog({
             <div ref={step2TableRef} className="flex-1 min-h-0 overflow-auto border rounded-lg max-h-[55vh]">
               <table className="text-xs border-collapse">
                 <thead className="sticky top-0 z-10">
-                  {/* Row 1: Mapping dropdowns row */}
+                  {/* Row 1: Column labels (# A B C ...) */}
+                  <tr className="bg-muted">
+                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground">
+                      #
+                    </th>
+                    {Array.from({ length: maxCols }, (_, i) => {
+                      const isDummy = dummyColIndices.date === i || dummyColIndices.balance === i;
+                      return (
+                        <th
+                          key={i}
+                          className={cn(
+                            "px-3 py-1.5 border border-border text-center font-medium text-muted-foreground whitespace-nowrap min-w-[120px]",
+                            isDummy && "bg-primary/5"
+                          )}
+                        >
+                          {colLabel(i)}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  {/* Row 2: Mapping dropdowns row (below # A B, above selected header) */}
                   <tr className="bg-background border-b-2 border-primary/20">
                     <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground bg-background">
                       Map
@@ -461,7 +481,9 @@ export default function MapColumnsDialog({
                       const cellValue = headerRow?.[colIdx] ?? "";
                       const currentMapping = combinedMapping[colIdx];
                       const isAutoMatched = partialMatch?.matched[currentMapping as RequiredHeader]?.colIndex === colIdx && !manualMapping[colIdx];
-                      const isDummy = Object.values(dummyColIndices).includes(colIdx);
+                      const isDummyDate = dummyColIndices.date === colIdx;
+                      const isDummyBalance = dummyColIndices.balance === colIdx;
+                      const isDummy = isDummyDate || isDummyBalance;
 
                       // Empty cell — no dropdown
                       if (!cellValue.trim() && !isDummy) {
@@ -503,7 +525,6 @@ export default function MapColumnsDialog({
                                     {HEADER_LABELS[h]}
                                   </SelectItem>
                                 ))}
-                                {/* Show current mapping if it's not in available list */}
                                 {currentMapping && !availableHeaders.includes(currentMapping) && (
                                   <SelectItem key={currentMapping} value={currentMapping} className="text-xs">
                                     {HEADER_LABELS[currentMapping]}
@@ -511,35 +532,10 @@ export default function MapColumnsDialog({
                                 )}
                               </SelectContent>
                             </Select>
-                          </div>
-                        </th>
-                      );
-                    })}
-                  </tr>
-                  {/* Row 2: Column labels */}
-                  <tr className="bg-muted">
-                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground">
-                      #
-                    </th>
-                    {Array.from({ length: maxCols }, (_, i) => {
-                      const isDummyDate = dummyColIndices.date === i;
-                      const isDummyBalance = dummyColIndices.balance === i;
-                      const isDummy = isDummyDate || isDummyBalance;
-
-                      return (
-                        <th
-                          key={i}
-                          className={cn(
-                            "px-3 py-1.5 border border-border text-center font-medium text-muted-foreground whitespace-nowrap min-w-[120px]",
-                            isDummy && "bg-primary/5"
-                          )}
-                        >
-                          <div className="flex items-center justify-center gap-1">
-                            <span>{colLabel(i)}</span>
                             {isDummyDate && (
                               <button
                                 onClick={() => removeDummyColumn('date')}
-                                className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                className="rounded-full p-0.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
                               >
                                 <X className="h-3 w-3" />
                               </button>
@@ -547,7 +543,7 @@ export default function MapColumnsDialog({
                             {isDummyBalance && (
                               <button
                                 onClick={() => removeDummyColumn('balance')}
-                                className="ml-1 rounded-full p-0.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                                className="rounded-full p-0.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors shrink-0"
                               >
                                 <X className="h-3 w-3" />
                               </button>

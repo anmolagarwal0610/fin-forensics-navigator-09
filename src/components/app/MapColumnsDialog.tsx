@@ -88,17 +88,20 @@ export default function MapColumnsDialog({
   const [showHint, setShowHint] = useState(true);
   const step2TableRef = useRef<HTMLDivElement>(null);
 
-  // Build working rows with dummy columns appended
+  // Build working rows with dummy columns appended (only for rows with data)
   const workingRows = useMemo(() => {
     if (!dummyCols.balance && !dummyCols.date) return rows;
     const today = getTodayFormatted();
     return rows.map((row, idx) => {
+      const hasData = row.some(cell => cell && cell.trim() !== "");
+      const isHeader = idx === selectedRow;
+      if (!hasData && !isHeader) return [...row]; // don't append to empty rows
       const newRow = [...row];
       if (dummyCols.date) {
-        newRow.push(idx === selectedRow ? "Transaction Date" : today);
+        newRow.push(isHeader ? "Transaction Date" : today);
       }
       if (dummyCols.balance) {
-        newRow.push(idx === selectedRow ? "Balance" : "0");
+        newRow.push(isHeader ? "Balance" : "0");
       }
       return newRow;
     });

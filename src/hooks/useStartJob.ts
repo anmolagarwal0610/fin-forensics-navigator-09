@@ -14,10 +14,11 @@ export async function startJobFlow(
   passwords: PasswordEntry[],
   setJob: (j: Partial<JobRow>) => void,
   onDone?: (row: JobRow) => void,
-  skipFileInsertion: boolean = false
+  skipFileInsertion: boolean = false,
+  configFiles?: File[]
 ) {
   // 1. Upload files, create ZIP, and get signed ZIP URL (with passwords if any)
-  const { signedUrl: zipUrl } = await uploadInput(files, userId, sessionId, skipFileInsertion, passwords);
+  const { signedUrl: zipUrl } = await uploadInput(files, userId, sessionId, skipFileInsertion, passwords, configFiles);
   
   // 2. Start job via FastAPI with ZIP URL
   const { job_id, status } = await startJob(task, zipUrl, sessionId, userId);

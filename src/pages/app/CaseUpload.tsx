@@ -407,12 +407,15 @@ export default function CaseUpload() {
         return new File([f.file], cleanName, { type: f.file.type });
       });
 
-      // Include existing grouping_logic.json for add-files mode (invisible to user)
+      // Build config files array (ZIP-only, not uploaded individually or inserted into DB)
+      const configFiles: File[] = [];
+
+      // Include existing grouping_logic.json for add-files mode
       if (isAddFilesMode && existingGroupingLogic) {
         const logicBlob = new Blob([existingGroupingLogic], { type: 'application/json' });
         const logicFile = new File([logicBlob], 'grouping_logic.json', { type: 'application/json' });
-        uploadFiles.push(logicFile);
-        console.log('📋 Including grouping_logic.json in upload ZIP');
+        configFiles.push(logicFile);
+        console.log('📋 Including grouping_logic.json in config files');
       }
 
       // Include header_mapping.json for files with manual mappings
@@ -430,7 +433,7 @@ export default function CaseUpload() {
         };
         const mappingBlob = new Blob([JSON.stringify(headerMappingJson, null, 2)], { type: 'application/json' });
         const mappingFile = new File([mappingBlob], 'header_mapping.json', { type: 'application/json' });
-        uploadFiles.push(mappingFile);
+        configFiles.push(mappingFile);
         console.log(`📋 Including header_mapping.json with ${mappedFiles.length} file(s)`);
       }
 
@@ -539,6 +542,7 @@ export default function CaseUpload() {
           }
         },
         skipFileInsertion,
+        configFiles,
       );
 
       // Track page usage ONLY AFTER job successfully started (prevents double-charging on retries)

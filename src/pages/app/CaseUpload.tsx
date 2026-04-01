@@ -152,6 +152,7 @@ export default function CaseUpload() {
     headerRowIndex: number;
     columnMapping: Record<RequiredHeader, string>;
     accountHolderName: string;
+    dummyColumns?: { balance?: { header: string; defaultValue: string }; date?: { header: string; defaultValue: string } };
   }) => {
     if (!mapDialogFile) return;
     setFiles(prev => prev.map(f =>
@@ -162,6 +163,7 @@ export default function CaseUpload() {
             headerRowIndex: data.headerRowIndex,
             columnMapping: data.columnMapping,
             accountHolderName: data.accountHolderName,
+            dummyColumns: data.dummyColumns,
           }
         : f
     ));

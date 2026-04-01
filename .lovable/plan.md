@@ -1,88 +1,46 @@
-# Plan: Map Columns Dialog Enhancements (3 Changes)
-
-## Change 1: Dummy Column Addition (Balance & Date)
-
-`**src/components/app/MapColumnsDialog.tsx**`:
-
-### State & Logic
-
-- Add state: `dummyColumns: { balance: boolean; date: boolean }` — tracks which dummy columns are added
-- When a dummy column is added, append it to the working rows data (a new local copy of `rows` with the extra column at the end)
-- **Balance**: Appends column header "Balance" with all data rows set to `0`
-- **Date**: Appends column header "Transaction Date" with all data rows set to today's date (formatted as `DD-MM-YYYY`)
-- When a dummy column is added, auto-scroll the table container to the far right using `scrollLeft = scrollWidth`
-- Each dummy column automatically gets marked as auto-matched (since the header name will match the keywords)
-- Dummy columns can be removed via an ✕ button in the column header — removing resets the state and re-enables the CTA
-
-### CTAs
-
-- Placed below the warning alert section in Step 2
-- Two buttons: "Add Balance Column" and "Add Date Column"
-- Only shown when the respective header (`balance`/`date`) is in the `unmatched` list
-- Disabled when the corresponding dummy column is already added
-- Styled as `variant="outline"` with a `Plus` icon
-
-### JSON Update
-
-- The `onSave` callback already builds `columnMapping` from the header row — since dummy columns are appended to the rows, they'll naturally appear in the mapping
-- Add a new field `dummyColumns` to the save data so `CaseUpload.tsx` can include it in `header_mapping.json`:
-  ```json
-  {
-    "files_config": [{
-      "fileName": "...",
-      "hasManualMapping": true,
-      "headerRowIndex": 2,
-      "columnMapping": { "date": "Transaction Date", "balance": "Balance", ... },
-      "dummyColumns": {
-        "balance": { "header": "Balance", "defaultValue": "0" },
-        "date": { "header": "Transaction Date", "defaultValue": "01-04-2026" }
-      }
-    }]
-  }
-  ```
-
-### Files
-
-- `src/components/app/MapColumnsDialog.tsx` — Add dummy column logic, CTAs, remove buttons
-- `src/pages/app/CaseUpload.tsx` — Pass `dummyColumns` through to `header_mapping.json`
-
----
-
-## Change 2: Redesigned Mapping Row (Step 2 Table Layout)
-
-**Current**: The selected header row itself contains dropdowns and green ticks inline.
-
-**New layout**:
-
-- **Row 1 (new "Mapping" row)**: A new sticky row at the top of `<thead>`, above the column labels row. Contains:
-  - For **all** columns: A `<Select>` dropdown with default placeholder "Select Header"
-  - For auto-matched columns: The dropdown is pre-populated with the matched header and shows a green `CheckCircle2` icon next to it (user can still override)
-  - For manually mapped columns: Shows the selected mapping
-  - For unmatched empty columns: Dropdown with "Select Header" placeholder
-- **Row 2**: Column labels (A, B, C...) — unchanged
-- **Header row (in tbody)**: The original selected header row is rendered with a light grey background (`bg-muted/30`) to visually distinguish it, but **no** dropdowns or highlights — just plain text
-
-This gives all columns dropdowns (per user's preference) while keeping auto-detected ones pre-filled.
-
----
-
-## Change 3: Hover Tooltip on Step 1 Checkbox Column
-
-`**src/components/app/MapColumnsDialog.tsx**` — Step 1 table:
-
-- On the `✓` column header (`<th>`), add a tooltip/popover that:
-  - Appears automatically when Step 1 renders (using a `useEffect` + state `showHint: true`)
-  - Shows text: "Please select the header row."
-  - Has a slightly grey background matching the theme (`bg-muted`)
-  - Auto-dismisses after 25 seconds OR when the user selects any header row (whichever comes first)
-  - Implemented as an absolutely-positioned div (not a radix tooltip, since those need hover) styled as a floating hint near the `✓` header
-
----
-
-## Files to Modify
 
 
-| File                                      | Change                                                                 |
-| ----------------------------------------- | ---------------------------------------------------------------------- |
-| `src/components/app/MapColumnsDialog.tsx` | All 3 changes: dummy columns, redesigned mapping row, Step 1 hint      |
-| `src/pages/app/CaseUpload.tsx`            | Include `dummyColumns` in `header_mapping.json` output (~line 418-431) |
+# RCA: `header_mapping.json` appearing in Analysis Results
+
+## Root Cause
+
+In `CaseUpload.tsx` (line 433), `header_mapping.json` is pushed into the `uploadFiles` array alongside the actual user files. This array is then passed to `uploadInput()`, which:
+
+1. **Uploads every file individually to Supabase Storage** (line 51-66) — so `header_mapping.json` gets its own storage object
+2. **Inserts a record into `case_files` table for every file** (line 72-81) — so `header_mapping.json` appears as a case file
+3. **Adds every file to the ZIP** (line 113-116) — this is the only place where the JSON *should* be
+
+The same issue applies to `grouping_logic.json` (line 411-415).
+
+These JSON config files are meant only for the backend (inside the ZIP). They should NOT be uploaded individually to storage or inserted into `case_files`.
+
+## Fix
+
+**`src/pages/app/CaseUpload.tsx`**: Separate the config files from user files. Keep two arrays:
+- `uploadFiles` — only actual user data files (go through full upload + DB insertion + ZIP)
+- `configFiles` — JSON config files (`header_mapping.json`, `grouping_logic.json`) that only go into the ZIP
+
+**`src/lib/uploadInput.ts`**: Accept an optional `configFiles` parameter. These files get added to the ZIP but are excluded from individual storage uploads and `case_files` insertion.
+
+### Changes in `uploadInput.ts`
+- Add `configFiles?: File[]` parameter
+- In Step 2 (individual uploads): only upload `files`, not `configFiles`
+- In Step 3 (DB insertion): only insert records for `files`, not `configFiles`
+- In Step 5 (ZIP creation): add both `files` and `configFiles` buffers to the ZIP
+
+### Changes in `CaseUpload.tsx`
+- Remove `header_mapping.json` and `grouping_logic.json` from `uploadFiles`
+- Create a separate `configFiles: File[]` array for these
+- Pass `configFiles` to `uploadInput()` / `startJobFlow()`
+
+### Changes in `useStartJob.ts`
+- Pass through `configFiles` parameter to `uploadInput()`
+
+## Files to modify
+
+| File | Change |
+|------|--------|
+| `src/lib/uploadInput.ts` | Add `configFiles` param; include in ZIP only, exclude from storage upload and DB insertion |
+| `src/pages/app/CaseUpload.tsx` | Separate config files into their own array, pass as `configFiles` |
+| `src/hooks/useStartJob.ts` | Pass through `configFiles` to `uploadInput()` |
+

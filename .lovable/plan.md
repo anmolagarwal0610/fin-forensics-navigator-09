@@ -1,74 +1,88 @@
-# Fix: Mismatch Alert — PDF Not Attaching + Duplicate Emails
+# Plan: Map Columns Dialog Enhancements (3 Changes)
 
-## Issue 1: PDF file not attached
+## Change 1: Dummy Column Addition (Balance & Date)
 
-**Root Cause**: `file_url` in the `case_files` table stores a **relative storage path** like `15589412-.../b43053a0-.../MAHFOOZ.pdf`, not a full URL. The current code does `fetch(matchingFile.file_url)` which makes a relative HTTP request against the preview domain, returning a 404 (visible in network logs: `GET 15589412-.../MAHFOOZ.pdf → 404`).
+`**src/components/app/MapColumnsDialog.tsx**`:
 
-**Fix**: Instead of `fetch(matchingFile.file_url)`, use `supabase.storage.from('case-files').download(matchingFile.file_url)` to download the file through the Supabase SDK, which correctly resolves the storage path.
+### State & Logic
 
-In `CaseAnalysisResults.tsx` (~lines 515-524), replace:
+- Add state: `dummyColumns: { balance: boolean; date: boolean }` — tracks which dummy columns are added
+- When a dummy column is added, append it to the working rows data (a new local copy of `rows` with the extra column at the end)
+- **Balance**: Appends column header "Balance" with all data rows set to `0`
+- **Date**: Appends column header "Transaction Date" with all data rows set to today's date (formatted as `DD-MM-YYYY`)
+- When a dummy column is added, auto-scroll the table container to the far right using `scrollLeft = scrollWidth`
+- Each dummy column automatically gets marked as auto-matched (since the header name will match the keywords)
+- Dummy columns can be removed via an ✕ button in the column header — removing resets the state and re-enables the CTA
 
-```typescript
-const pdfResp = await fetch(matchingFile.file_url);
-if (pdfResp.ok) {
-  const pdfBuf = await pdfResp.arrayBuffer();
-  pdfFileBase64 = btoa(
-    new Uint8Array(pdfBuf).reduce((s, b) => s + String.fromCharCode(b), "")
-  );
-  pdfFileName = matchingFile.file_name;
-}
-```
+### CTAs
 
-With:
+- Placed below the warning alert section in Step 2
+- Two buttons: "Add Balance Column" and "Add Date Column"
+- Only shown when the respective header (`balance`/`date`) is in the `unmatched` list
+- Disabled when the corresponding dummy column is already added
+- Styled as `variant="outline"` with a `Plus` icon
 
-```typescript
-const { data: pdfBlob } = await supabase.storage
-  .from('case-files')
-  .download(matchingFile.file_url);
-if (pdfBlob) {
-  const pdfBuf = await pdfBlob.arrayBuffer();
-  pdfFileBase64 = btoa(
-    new Uint8Array(pdfBuf).reduce((s, b) => s + String.fromCharCode(b), "")
-  );
-  pdfFileName = matchingFile.file_name;
-}
-```
+### JSON Update
 
-## Issue 2: Duplicate emails on every "View Results" click
+- The `onSave` callback already builds `columnMapping` from the header row — since dummy columns are appended to the rows, they'll naturally appear in the mapping
+- Add a new field `dummyColumns` to the save data so `CaseUpload.tsx` can include it in `header_mapping.json`:
+  ```json
+  {
+    "files_config": [{
+      "fileName": "...",
+      "hasManualMapping": true,
+      "headerRowIndex": 2,
+      "columnMapping": { "date": "Transaction Date", "balance": "Balance", ... },
+      "dummyColumns": {
+        "balance": { "header": "Balance", "defaultValue": "0" },
+        "date": { "header": "Transaction Date", "defaultValue": "01-04-2026" }
+      }
+    }]
+  }
+  ```
 
-**Root Cause**: The localStorage key uses `case_.updated_at` which comes from the `cases` table's `updated_at` column. This value can change even without new results (e.g., any case update). More critically, `case_` is a dependency of the `useEffect`, and if the reference changes on re-render (which it does since it comes from a query), the effect re-runs. The `localStorage.setItem` is inside `setTimeout` (7s delay), but if the user navigates away and back within 7s, or if `case_` object reference changes, the key might not yet be set.
+### Files
 
-However, the **real issue** is that `localStorage.setItem(storageKey, "1")` is placed **inside** the `setTimeout` callback. If the useEffect fires, checks localStorage (empty), then fires again before the 7s timeout completes, the second invocation also sees no localStorage entry and schedules another timeout. This happens because `case_` is in the dependency array and React may re-render with a new object reference.
+- `src/components/app/MapColumnsDialog.tsx` — Add dummy column logic, CTAs, remove buttons
+- `src/pages/app/CaseUpload.tsx` — Pass `dummyColumns` through to `header_mapping.json`
 
-**Fix**: Move `localStorage.setItem(storageKey, "1")` **before** the `setTimeout` (immediately when the effect runs), so duplicate effect invocations see the flag instantly. Also use the case `id` + a stable result identifier (like `result_zip_url` or the `updated_at` of the result_files record) instead of `case_.updated_at` as the storage key. Since the secure flow doesn't update `result_zip_url`, use `case_.updated_at` but truncate to minute precision to avoid micro-changes.
+---
 
-Actually, the simplest robust fix: set the localStorage flag **synchronously before the timeout**, not inside it:
+## Change 2: Redesigned Mapping Row (Step 2 Table Layout)
 
-```typescript
-const storageKey = `mismatch_checked_${id}_${case_.updated_at}`;
-if (localStorage.getItem(storageKey)) return;
-localStorage.setItem(storageKey, "1"); // Set immediately, not inside setTimeout
+**Current**: The selected header row itself contains dropdowns and green ticks inline.
 
-const timer = setTimeout(async () => {
-  // ... scan logic
-}, 7000);
-```
+**New layout**:
 
-For Issues 1 and 2, make sure no flow is broken
+- **Row 1 (new "Mapping" row)**: A new sticky row at the top of `<thead>`, above the column labels row. Contains:
+  - For **all** columns: A `<Select>` dropdown with default placeholder "Select Header"
+  - For auto-matched columns: The dropdown is pre-populated with the matched header and shows a green `CheckCircle2` icon next to it (user can still override)
+  - For manually mapped columns: Shows the selected mapping
+  - For unmatched empty columns: Dropdown with "Select Header" placeholder
+- **Row 2**: Column labels (A, B, C...) — unchanged
+- **Header row (in tbody)**: The original selected header row is rendered with a light grey background (`bg-muted/30`) to visually distinguish it, but **no** dropdowns or highlights — just plain text
 
-## Issue 3: Cache invalidation on deploy (informational — no code changes) Dont do this
+This gives all columns dropdowns (per user's preference) while keeping auto-detected ones pre-filled.
 
-When you deploy new code to Cloudflare Pages, users with cached assets see the old version until they hard-refresh. Options:
+---
 
-1. **Service Worker with update detection** — Register a service worker that checks for new versions periodically (e.g., every 24h or on each navigation). When a new version is detected, prompt the user or auto-reload.
-2. **Vite's built-in cache busting** — Vite already hashes filenames, so new deploys serve new files. The issue is the cached `index.html`. Set `Cache-Control: no-cache` on `index.html` in Cloudflare Pages headers config, while keeping hashed assets cached long-term. This way the browser always fetches a fresh `index.html` which points to the new hashed JS/CSS files.
-3. **Cloudflare Pages `_headers` file** — Add a `public/_headers` file with `/ Cache-Control: no-cache` for HTML. This is the simplest approach and requires no timer — users get new code on their next page load/navigation without hard refresh.
+## Change 3: Hover Tooltip on Step 1 Checkbox Column
 
-**Recommended**: Option 3 (Cloudflare `_headers` file) is the simplest and most reliable. No timer needed.
+`**src/components/app/MapColumnsDialog.tsx**` — Step 1 table:
 
-## Files to modify
+- On the `✓` column header (`<th>`), add a tooltip/popover that:
+  - Appears automatically when Step 1 renders (using a `useEffect` + state `showHint: true`)
+  - Shows text: "Please select the header row."
+  - Has a slightly grey background matching the theme (`bg-muted`)
+  - Auto-dismisses after 25 seconds OR when the user selects any header row (whichever comes first)
+  - Implemented as an absolutely-positioned div (not a radix tooltip, since those need hover) styled as a floating hint near the `✓` header
+
+---
+
+## Files to Modify
 
 
-| File                                    | Change                                                                                    |
-| --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `src/pages/app/CaseAnalysisResults.tsx` | Fix PDF download to use Supabase storage SDK; move localStorage.setItem before setTimeout |
+| File                                      | Change                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------- |
+| `src/components/app/MapColumnsDialog.tsx` | All 3 changes: dummy columns, redesigned mapping row, Step 1 hint      |
+| `src/pages/app/CaseUpload.tsx`            | Include `dummyColumns` in `header_mapping.json` output (~line 418-431) |

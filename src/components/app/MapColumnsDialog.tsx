@@ -324,13 +324,8 @@ export default function MapColumnsDialog({
               <table className="text-xs border-collapse">
                 <thead className="sticky top-0 z-10 bg-muted">
                   <tr>
-                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground sticky left-0 bg-muted z-20 relative">
+                    <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground sticky left-0 bg-muted z-20">
                       ✓
-                      {showHint && selectedRow === null && (
-                        <div className="absolute top-full left-0 mt-1 z-30 whitespace-nowrap px-3 py-1.5 rounded-md bg-muted border border-border shadow-md text-xs text-foreground font-normal animate-in fade-in slide-in-from-top-1 duration-300">
-                          Please select the header row.
-                        </div>
-                      )}
                     </th>
                     <th className="px-2 py-1.5 border border-border text-center w-10 font-medium text-muted-foreground">
                       #

@@ -28,6 +28,7 @@ import { useTraceLayout, formatAmountShort } from "./trace/useTraceLayout";
 import type { TraceTreeResponse, SelectedTransaction } from "@/types/traceTransaction";
 import { toPng } from "html-to-image";
 import { toast } from "@/hooks/use-toast";
+import TraceLoader from "./trace/TraceLoader";
 
 interface TraceTransactionModalProps {
   open: boolean;

@@ -98,25 +98,7 @@ function TraceFlowCanvas({
   }
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <div className="space-y-4 w-80">
-          <Skeleton className="h-20 w-full rounded-xl" />
-          <div className="flex gap-4 justify-center">
-            <Skeleton className="h-16 w-32 rounded-xl" />
-            <Skeleton className="h-16 w-32 rounded-xl" />
-          </div>
-          <div className="flex gap-4 justify-center">
-            <Skeleton className="h-14 w-28 rounded-xl" />
-            <Skeleton className="h-14 w-28 rounded-xl" />
-            <Skeleton className="h-14 w-28 rounded-xl" />
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground mt-4 animate-pulse">
-          Tracing money flow...
-        </p>
-      </div>
-    );
+    return <TraceLoader />;
   }
 
   if (error) {

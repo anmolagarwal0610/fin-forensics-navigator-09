@@ -124,22 +124,29 @@ export default function BeneficiaryTransactionsDialog({
 
   const hasActiveFilters = selectedTypes.length > 0 || dateRange?.from || dateRange?.to;
 
-  // Build selected transaction for trace
-  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
-    if (selectedTxIndex === null || !filteredTransactions[selectedTxIndex]) return null;
-    const tx = filteredTransactions[selectedTxIndex];
-    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
-    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
-    return {
-      beneficiary: tx.beneficiary || beneficiaryName,
-      amount: debitNum || creditNum || 0,
-      date: tx.date || '',
-      source_file: tx.source_file || '',
-      description: tx.description,
-      debit: tx.debit,
-      credit: tx.credit,
-    };
-  }, [selectedTxIndex, filteredTransactions, beneficiaryName]);
+  // Build selected transactions for trace
+  const selectedTransactions: SelectedTransaction[] = useMemo(() => {
+    return Array.from(selectedTxIndices).map((idx) => {
+      const tx = filteredTransactions[idx];
+      if (!tx) return null;
+      const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+      const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+      return {
+        beneficiary: tx.beneficiary || beneficiaryName,
+        amount: debitNum || creditNum || 0,
+        date: tx.date || '',
+        source_file: tx.source_file || '',
+        description: tx.description,
+        debit: tx.debit,
+        credit: tx.credit,
+        row_index: idx,
+      };
+    }).filter(Boolean) as SelectedTransaction[];
+  }, [selectedTxIndices, filteredTransactions, beneficiaryName]);
+
+  // Current trace index for sequential tracing
+  const [currentTraceIdx, setCurrentTraceIdx] = useState(0);
+  const selectedTransaction = selectedTransactions[currentTraceIdx] || null;
   
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";

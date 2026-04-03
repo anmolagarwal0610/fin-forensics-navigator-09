@@ -1977,6 +1977,16 @@ export default function CaseAnalysisResults() {
           onDownload={downloadPdfReport}
         />
       )}
+
+      {/* Batch Trace Modal */}
+      {analysisData.fundTracesData && (
+        <BatchTraceModal
+          open={batchTraceModalOpen}
+          onClose={() => setBatchTraceModalOpen(false)}
+          batchData={analysisData.fundTracesData}
+          initialFile={batchTraceInitialFile}
+        />
+      )}
     </>
   );
 }

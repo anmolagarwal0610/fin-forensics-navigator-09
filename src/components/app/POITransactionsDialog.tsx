@@ -303,7 +303,14 @@ export default function POITransactionsDialog({
         {/* Trace Transaction Modal */}
         <TraceTransactionModal
           open={showTraceModal}
-          onClose={() => setShowTraceModal(false)}
+          onClose={() => {
+            if (currentTraceIdx < selectedTransactions.length - 1) {
+              setCurrentTraceIdx((prev) => prev + 1);
+            } else {
+              setShowTraceModal(false);
+              setCurrentTraceIdx(0);
+            }
+          }}
           selectedTransaction={selectedTransaction}
           traceData={traceData}
           isLoading={traceLoading}

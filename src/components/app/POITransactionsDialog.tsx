@@ -151,15 +151,15 @@ export default function POITransactionsDialog({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {selectedTxIndex !== null && (
+              {selectedTxIndices.size > 0 && (
                 <Button
                   size="sm"
                   variant="accent"
                   className="h-8 gap-1.5 text-xs shrink-0"
-                  onClick={() => setShowTraceModal(true)}
+                  onClick={() => { setCurrentTraceIdx(0); setShowTraceModal(true); }}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
-                  Trace Transaction
+                  Trace {selectedTxIndices.size > 1 ? `${selectedTxIndices.size} Transactions` : "Transaction"}
                 </Button>
               )}
               {onEditGroupedNames && (

@@ -16,6 +16,7 @@ import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import { useReportGeneration } from "@/hooks/useReportGeneration";
 import type { ReportData } from "@/types/reportData";
+import type { BatchTraceResponse } from "@/types/traceTransaction";
 import {
   ArrowLeft,
   Download,

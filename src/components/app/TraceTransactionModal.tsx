@@ -12,7 +12,7 @@ import "@xyflow/react/dist/style.css";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   Download,
   X,

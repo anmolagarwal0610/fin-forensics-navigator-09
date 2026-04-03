@@ -1797,6 +1797,37 @@ export default function CaseAnalysisResults() {
                             </Button>
                           </div>
                         )}
+                        {(() => {
+                          // Check if this file has batch trace data
+                          const baseName = summary.originalFile.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                          const fileIdx = analysisData.fundTracesData?.file_index;
+                          const hasTraces = fileIdx && Object.keys(fileIdx).some((key) => {
+                            const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                            return keyBase.toLowerCase() === baseName.toLowerCase();
+                          });
+                          if (!hasTraces || !analysisData.fundTracesData) return null;
+                          const matchedKey = Object.keys(fileIdx!).find((key) => {
+                            const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                            return keyBase.toLowerCase() === baseName.toLowerCase();
+                          });
+                          return (
+                            <div className="flex items-center gap-2 text-sm bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setBatchTraceInitialFile(matchedKey);
+                                  setBatchTraceModalOpen(true);
+                                }}
+                                className="h-7 gap-1.5 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                              >
+                                <GitBranch className="h-3 w-3" />
+                                Transaction Tree
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     {summary.summaryFile && (

@@ -120,6 +120,10 @@ export default function CaseAnalysisResults() {
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
 
+  // State for batch trace modal
+  const [batchTraceModalOpen, setBatchTraceModalOpen] = useState(false);
+  const [batchTraceInitialFile, setBatchTraceInitialFile] = useState<string | undefined>(undefined);
+
   // State for viewing previous results - auto-set from query param for failed cases
   const searchParams = new URLSearchParams(window.location.search);
   const [viewingPreviousResults, setViewingPreviousResults] = useState(searchParams.get('previous') === 'true');

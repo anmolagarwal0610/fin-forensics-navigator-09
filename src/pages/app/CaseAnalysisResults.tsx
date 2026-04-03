@@ -43,6 +43,7 @@ import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
 import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
 import ApplyChangesDialog, { GroupingOverridesState } from "@/components/app/ApplyChangesDialog";
+import BatchTraceModal from "@/components/app/BatchTraceModal";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";

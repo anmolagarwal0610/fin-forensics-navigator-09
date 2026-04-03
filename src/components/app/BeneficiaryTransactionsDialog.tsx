@@ -49,7 +49,7 @@ export default function BeneficiaryTransactionsDialog({
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   
   // Trace transaction state
-  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [selectedTxIndices, setSelectedTxIndices] = useState<Set<number>>(new Set());
   const [showTraceModal, setShowTraceModal] = useState(false);
 
   // Mock trace data - will be replaced with API call

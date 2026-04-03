@@ -967,6 +967,22 @@ export default function CaseAnalysisResults() {
         parsedData.reportData = null;
       }
 
+      // Parse fund_traces.json for batch transaction tracing
+      const fundTracesFile = zipData.file("fund_traces.json");
+      if (fundTracesFile) {
+        try {
+          const ftContent = await fundTracesFile.async("text");
+          parsedData.fundTracesData = JSON.parse(ftContent) as BatchTraceResponse;
+          console.log("[Analysis] ✓ fund_traces.json extracted —", parsedData.fundTracesData.seeds?.length || 0, "seeds");
+        } catch (error) {
+          console.warn("[Analysis] Failed to parse fund_traces.json:", error);
+          parsedData.fundTracesData = null;
+        }
+      } else {
+        console.log("[Analysis] No fund_traces.json found in ZIP");
+        parsedData.fundTracesData = null;
+      }
+
       parsedData.zipData = zip;
       return parsedData;
     } catch (error) {

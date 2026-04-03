@@ -29,6 +29,7 @@ import {
   Loader2,
   BarChart3,
   Settings2,
+  GitBranch,
 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";

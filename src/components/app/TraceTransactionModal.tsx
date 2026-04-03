@@ -12,7 +12,7 @@ import "@xyflow/react/dist/style.css";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   Download,
   X,
@@ -28,6 +28,7 @@ import { useTraceLayout, formatAmountShort } from "./trace/useTraceLayout";
 import type { TraceTreeResponse, SelectedTransaction } from "@/types/traceTransaction";
 import { toPng } from "html-to-image";
 import { toast } from "@/hooks/use-toast";
+import TraceLoader from "./trace/TraceLoader";
 
 interface TraceTransactionModalProps {
   open: boolean;
@@ -97,25 +98,7 @@ function TraceFlowCanvas({
   }
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <div className="space-y-4 w-80">
-          <Skeleton className="h-20 w-full rounded-xl" />
-          <div className="flex gap-4 justify-center">
-            <Skeleton className="h-16 w-32 rounded-xl" />
-            <Skeleton className="h-16 w-32 rounded-xl" />
-          </div>
-          <div className="flex gap-4 justify-center">
-            <Skeleton className="h-14 w-28 rounded-xl" />
-            <Skeleton className="h-14 w-28 rounded-xl" />
-            <Skeleton className="h-14 w-28 rounded-xl" />
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground mt-4 animate-pulse">
-          Tracing money flow...
-        </p>
-      </div>
-    );
+    return <TraceLoader />;
   }
 
   if (error) {

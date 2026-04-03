@@ -40,27 +40,33 @@ export default function POITransactionsDialog({
 }: POITransactionsDialogProps) {
   
   // Trace transaction state
-  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [selectedTxIndices, setSelectedTxIndices] = useState<Set<number>>(new Set());
   const [showTraceModal, setShowTraceModal] = useState(false);
   const [traceData] = useState<TraceTreeResponse | null>(null);
   const [traceLoading] = useState(false);
   const [traceError] = useState<string | null>(null);
+  const [currentTraceIdx, setCurrentTraceIdx] = useState(0);
 
-  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
-    if (selectedTxIndex === null || !transactions[selectedTxIndex]) return null;
-    const tx = transactions[selectedTxIndex];
-    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
-    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
-    return {
-      beneficiary: tx.beneficiary || beneficiaryName,
-      amount: debitNum || creditNum || 0,
-      date: tx.date || '',
-      source_file: tx.source_file || '',
-      description: tx.description,
-      debit: tx.debit,
-      credit: tx.credit,
-    };
-  }, [selectedTxIndex, transactions, beneficiaryName]);
+  const selectedTransactions: SelectedTransaction[] = useMemo(() => {
+    return Array.from(selectedTxIndices).map((idx) => {
+      const tx = transactions[idx];
+      if (!tx) return null;
+      const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+      const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+      return {
+        beneficiary: tx.beneficiary || beneficiaryName,
+        amount: debitNum || creditNum || 0,
+        date: tx.date || '',
+        source_file: tx.source_file || '',
+        description: tx.description,
+        debit: tx.debit,
+        credit: tx.credit,
+        row_index: idx,
+      };
+    }).filter(Boolean) as SelectedTransaction[];
+  }, [selectedTxIndices, transactions, beneficiaryName]);
+
+  const selectedTransaction = selectedTransactions[currentTraceIdx] || null;
 
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";
@@ -145,15 +151,15 @@ export default function POITransactionsDialog({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {selectedTxIndex !== null && (
+              {selectedTxIndices.size > 0 && (
                 <Button
                   size="sm"
                   variant="accent"
                   className="h-8 gap-1.5 text-xs shrink-0"
-                  onClick={() => setShowTraceModal(true)}
+                  onClick={() => { setCurrentTraceIdx(0); setShowTraceModal(true); }}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
-                  Trace Transaction
+                  Trace {selectedTxIndices.size > 1 ? `${selectedTxIndices.size} Transactions` : "Transaction"}
                 </Button>
               )}
               {onEditGroupedNames && (
@@ -254,9 +260,14 @@ export default function POITransactionsDialog({
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           <Checkbox
-                            checked={selectedTxIndex === idx}
+                            checked={selectedTxIndices.has(idx)}
                             onCheckedChange={(checked) => {
-                              setSelectedTxIndex(checked ? idx : null);
+                              setSelectedTxIndices((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.add(idx);
+                                else next.delete(idx);
+                                return next;
+                              });
                             }}
                             className="mx-auto"
                           />
@@ -292,7 +303,14 @@ export default function POITransactionsDialog({
         {/* Trace Transaction Modal */}
         <TraceTransactionModal
           open={showTraceModal}
-          onClose={() => setShowTraceModal(false)}
+          onClose={() => {
+            if (currentTraceIdx < selectedTransactions.length - 1) {
+              setCurrentTraceIdx((prev) => prev + 1);
+            } else {
+              setShowTraceModal(false);
+              setCurrentTraceIdx(0);
+            }
+          }}
           selectedTransaction={selectedTransaction}
           traceData={traceData}
           isLoading={traceLoading}

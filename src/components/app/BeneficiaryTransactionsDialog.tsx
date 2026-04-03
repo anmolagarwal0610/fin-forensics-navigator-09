@@ -49,7 +49,7 @@ export default function BeneficiaryTransactionsDialog({
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   
   // Trace transaction state
-  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [selectedTxIndices, setSelectedTxIndices] = useState<Set<number>>(new Set());
   const [showTraceModal, setShowTraceModal] = useState(false);
 
   // Mock trace data - will be replaced with API call
@@ -124,22 +124,29 @@ export default function BeneficiaryTransactionsDialog({
 
   const hasActiveFilters = selectedTypes.length > 0 || dateRange?.from || dateRange?.to;
 
-  // Build selected transaction for trace
-  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
-    if (selectedTxIndex === null || !filteredTransactions[selectedTxIndex]) return null;
-    const tx = filteredTransactions[selectedTxIndex];
-    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
-    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
-    return {
-      beneficiary: tx.beneficiary || beneficiaryName,
-      amount: debitNum || creditNum || 0,
-      date: tx.date || '',
-      source_file: tx.source_file || '',
-      description: tx.description,
-      debit: tx.debit,
-      credit: tx.credit,
-    };
-  }, [selectedTxIndex, filteredTransactions, beneficiaryName]);
+  // Build selected transactions for trace
+  const selectedTransactions: SelectedTransaction[] = useMemo(() => {
+    return Array.from(selectedTxIndices).map((idx) => {
+      const tx = filteredTransactions[idx];
+      if (!tx) return null;
+      const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+      const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+      return {
+        beneficiary: tx.beneficiary || beneficiaryName,
+        amount: debitNum || creditNum || 0,
+        date: tx.date || '',
+        source_file: tx.source_file || '',
+        description: tx.description,
+        debit: tx.debit,
+        credit: tx.credit,
+        row_index: idx,
+      };
+    }).filter(Boolean) as SelectedTransaction[];
+  }, [selectedTxIndices, filteredTransactions, beneficiaryName]);
+
+  // Current trace index for sequential tracing
+  const [currentTraceIdx, setCurrentTraceIdx] = useState(0);
+  const selectedTransaction = selectedTransactions[currentTraceIdx] || null;
   
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";
@@ -234,15 +241,15 @@ export default function BeneficiaryTransactionsDialog({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {selectedTxIndex !== null && (
+              {selectedTxIndices.size > 0 && (
                 <Button
                   size="sm"
                   variant="accent"
                   className="h-8 gap-1.5 text-xs"
-                  onClick={() => setShowTraceModal(true)}
+                  onClick={() => { setCurrentTraceIdx(0); setShowTraceModal(true); }}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
-                  Trace Transaction
+                  Trace {selectedTxIndices.size > 1 ? `${selectedTxIndices.size} Transactions` : "Transaction"}
                 </Button>
               )}
               <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 shrink-0">
@@ -502,9 +509,14 @@ export default function BeneficiaryTransactionsDialog({
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <Checkbox
-                          checked={selectedTxIndex === idx}
+                          checked={selectedTxIndices.has(idx)}
                           onCheckedChange={(checked) => {
-                            setSelectedTxIndex(checked ? idx : null);
+                            setSelectedTxIndices((prev) => {
+                              const next = new Set(prev);
+                              if (checked) next.add(idx);
+                              else next.delete(idx);
+                              return next;
+                            });
                           }}
                           className="mx-auto"
                         />
@@ -540,7 +552,15 @@ export default function BeneficiaryTransactionsDialog({
         {/* Trace Transaction Modal */}
         <TraceTransactionModal
           open={showTraceModal}
-          onClose={() => setShowTraceModal(false)}
+          onClose={() => {
+            // Sequential: advance to next transaction or close
+            if (currentTraceIdx < selectedTransactions.length - 1) {
+              setCurrentTraceIdx((prev) => prev + 1);
+            } else {
+              setShowTraceModal(false);
+              setCurrentTraceIdx(0);
+            }
+          }}
           selectedTransaction={selectedTransaction}
           traceData={traceData}
           isLoading={traceLoading}

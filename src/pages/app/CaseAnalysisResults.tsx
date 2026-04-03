@@ -16,6 +16,7 @@ import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import { useReportGeneration } from "@/hooks/useReportGeneration";
 import type { ReportData } from "@/types/reportData";
+import type { BatchTraceResponse } from "@/types/traceTransaction";
 import {
   ArrowLeft,
   Download,
@@ -28,6 +29,7 @@ import {
   Loader2,
   BarChart3,
   Settings2,
+  GitBranch,
 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -41,6 +43,7 @@ import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
 import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
 import ApplyChangesDialog, { GroupingOverridesState } from "@/components/app/ApplyChangesDialog";
+import BatchTraceModal from "@/components/app/BatchTraceModal";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -95,6 +98,7 @@ interface ParsedAnalysisData {
   rawDataMap: Map<string, CellData[][]>; // Cache for raw transaction data (lazy loaded)
   poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
   reportData?: ReportData | null; // report_data.json from backend
+  fundTracesData?: BatchTraceResponse | null; // fund_traces.json batch traces
 }
 
 export default function CaseAnalysisResults() {
@@ -115,6 +119,10 @@ export default function CaseAnalysisResults() {
   // State for per-file sankey modal
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
+
+  // State for batch trace modal
+  const [batchTraceModalOpen, setBatchTraceModalOpen] = useState(false);
+  const [batchTraceInitialFile, setBatchTraceInitialFile] = useState<string | undefined>(undefined);
 
   // State for viewing previous results - auto-set from query param for failed cases
   const searchParams = new URLSearchParams(window.location.search);
@@ -963,6 +971,22 @@ export default function CaseAnalysisResults() {
         parsedData.reportData = null;
       }
 
+      // Parse fund_traces.json for batch transaction tracing
+      const fundTracesFile = zipData.file("fund_traces.json");
+      if (fundTracesFile) {
+        try {
+          const ftContent = await fundTracesFile.async("text");
+          parsedData.fundTracesData = JSON.parse(ftContent) as BatchTraceResponse;
+          console.log("[Analysis] ✓ fund_traces.json extracted —", parsedData.fundTracesData.seeds?.length || 0, "seeds");
+        } catch (error) {
+          console.warn("[Analysis] Failed to parse fund_traces.json:", error);
+          parsedData.fundTracesData = null;
+        }
+      } else {
+        console.log("[Analysis] No fund_traces.json found in ZIP");
+        parsedData.fundTracesData = null;
+      }
+
       parsedData.zipData = zip;
       return parsedData;
     } catch (error) {
@@ -1773,6 +1797,37 @@ export default function CaseAnalysisResults() {
                             </Button>
                           </div>
                         )}
+                        {(() => {
+                          // Check if this file has batch trace data
+                          const baseName = summary.originalFile.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                          const fileIdx = analysisData.fundTracesData?.file_index;
+                          const hasTraces = fileIdx && Object.keys(fileIdx).some((key) => {
+                            const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                            return keyBase.toLowerCase() === baseName.toLowerCase();
+                          });
+                          if (!hasTraces || !analysisData.fundTracesData) return null;
+                          const matchedKey = Object.keys(fileIdx!).find((key) => {
+                            const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                            return keyBase.toLowerCase() === baseName.toLowerCase();
+                          });
+                          return (
+                            <div className="flex items-center gap-2 text-sm bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setBatchTraceInitialFile(matchedKey);
+                                  setBatchTraceModalOpen(true);
+                                }}
+                                className="h-7 gap-1.5 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                              >
+                                <GitBranch className="h-3 w-3" />
+                                Transaction Tree
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     {summary.summaryFile && (
@@ -1920,6 +1975,16 @@ export default function CaseAnalysisResults() {
           fileName={`case_report_${case_?.name || "report"}.pdf`}
           fileUrl={reportPdfUrl}
           onDownload={downloadPdfReport}
+        />
+      )}
+
+      {/* Batch Trace Modal */}
+      {analysisData.fundTracesData && (
+        <BatchTraceModal
+          open={batchTraceModalOpen}
+          onClose={() => setBatchTraceModalOpen(false)}
+          batchData={analysisData.fundTracesData}
+          initialFile={batchTraceInitialFile}
         />
       )}
     </>

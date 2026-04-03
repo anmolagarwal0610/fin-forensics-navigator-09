@@ -260,9 +260,14 @@ export default function POITransactionsDialog({
                         </td>
                         <td className="px-3 py-2.5 text-center">
                           <Checkbox
-                            checked={selectedTxIndex === idx}
+                            checked={selectedTxIndices.has(idx)}
                             onCheckedChange={(checked) => {
-                              setSelectedTxIndex(checked ? idx : null);
+                              setSelectedTxIndices((prev) => {
+                                const next = new Set(prev);
+                                if (checked) next.add(idx);
+                                else next.delete(idx);
+                                return next;
+                              });
                             }}
                             className="mx-auto"
                           />

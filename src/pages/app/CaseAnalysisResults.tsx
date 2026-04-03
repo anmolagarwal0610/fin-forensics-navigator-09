@@ -98,6 +98,7 @@ interface ParsedAnalysisData {
   rawDataMap: Map<string, CellData[][]>; // Cache for raw transaction data (lazy loaded)
   poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
   reportData?: ReportData | null; // report_data.json from backend
+  fundTracesData?: BatchTraceResponse | null; // fund_traces.json batch traces
 }
 
 export default function CaseAnalysisResults() {

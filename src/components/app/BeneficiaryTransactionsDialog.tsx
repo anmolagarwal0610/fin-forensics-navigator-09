@@ -35,6 +35,9 @@ interface BeneficiaryTransactionsDialogProps {
   transactions: TransactionRow[];
   isLoading?: boolean;
   onEditGroupedNames?: () => void;
+  fundTracesData?: BatchTraceResponse | null;
+  zipData?: JSZip | null;
+  caseId?: string;
 }
 
 export default function BeneficiaryTransactionsDialog({
@@ -44,6 +47,9 @@ export default function BeneficiaryTransactionsDialog({
   transactions,
   isLoading = false,
   onEditGroupedNames,
+  fundTracesData,
+  zipData,
+  caseId,
 }: BeneficiaryTransactionsDialogProps) {
   
   // Filter state
@@ -54,10 +60,9 @@ export default function BeneficiaryTransactionsDialog({
   const [selectedTxIndices, setSelectedTxIndices] = useState<Set<number>>(new Set());
   const [showTraceModal, setShowTraceModal] = useState(false);
 
-  // Mock trace data - will be replaced with API call
-  const [traceData] = useState<TraceTreeResponse | null>(null);
-  const [traceLoading] = useState(false);
-  const [traceError] = useState<string | null>(null);
+  const [traceData, setTraceData] = useState<DebitTraceResponse | CreditTraceResponse | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
 
   
   // Parse transaction date

@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import BeneficiaryTransactionsDialog, { TransactionRow } from "./BeneficiaryTransactionsDialog";
 import EditGroupedNamesDialog, { BeneficiaryEntry, GroupingOverrideResult, PendingClusterState } from "./EditGroupedNamesDialog";
+import type { BatchTraceResponse } from "@/types/traceTransaction";
+import type JSZip from "jszip";
 
 interface SummaryTableViewerProps {
   data: CellData[][] | undefined;

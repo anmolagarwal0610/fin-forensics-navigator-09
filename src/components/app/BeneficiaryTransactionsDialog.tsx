@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -13,7 +13,9 @@ import { toast } from "@/hooks/use-toast";
 import { format, parse, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import TraceTransactionModal from "./TraceTransactionModal";
-import type { SelectedTransaction, TraceTreeResponse } from "@/types/traceTransaction";
+import type { SelectedTransaction, TraceTreeResponse, BatchTraceResponse, DebitTraceResponse, CreditTraceResponse } from "@/types/traceTransaction";
+import { checkBatchCache, checkOnDemandCacheZip, getFromMemoryCache, requestOnDemandTrace } from "@/lib/traceTransaction";
+import type JSZip from "jszip";
 
 export interface TransactionRow {
   description: string;

@@ -42,6 +42,9 @@ export default function SummaryTableViewer({
   onLoadRawData,
   onSaveGroupingOverride,
   pendingOverrides,
+  fundTracesData,
+  zipData,
+  caseId,
 }: SummaryTableViewerProps) {
   const { t } = useTranslation();
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "transactions", direction: "desc" });

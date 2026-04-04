@@ -17,6 +17,10 @@ interface SummaryTableViewerProps {
   // Grouping overrides
   onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
   pendingOverrides?: Record<string, PendingClusterState>;
+  // Trace transaction props
+  fundTracesData?: import("@/types/traceTransaction").BatchTraceResponse | null;
+  zipData?: import("jszip").default | null;
+  caseId?: string;
 }
 
 type SortColumn = "transactions" | "credit" | "debit";

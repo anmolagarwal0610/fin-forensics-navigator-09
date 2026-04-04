@@ -638,15 +638,7 @@ export default function BeneficiaryTransactionsDialog({
         {/* Trace Transaction Modal */}
         <TraceTransactionModal
           open={showTraceModal}
-          onClose={() => {
-            // Sequential: advance to next transaction or close
-            if (currentTraceIdx < selectedTransactions.length - 1) {
-              setCurrentTraceIdx((prev) => prev + 1);
-            } else {
-              setShowTraceModal(false);
-              setCurrentTraceIdx(0);
-            }
-          }}
+          onClose={handleTraceNext}
           selectedTransaction={selectedTransaction}
           traceData={traceData}
           isLoading={traceLoading}

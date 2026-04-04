@@ -576,6 +576,7 @@ export default function CaseAnalysisResults() {
       const allZipFiles = Object.keys(zipData.files).filter(f => !f.endsWith('/'));
       console.log("[Analysis] ZIP contains", allZipFiles.length, "files:", allZipFiles.join(", "));
 
+      const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
         beneficiaryHeaders: [],
         totalBeneficiaryCount: 0,

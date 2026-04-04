@@ -153,7 +153,11 @@ function TraceFlowCanvas({
         <div className="flex items-center gap-2 shrink-0">
           {traceData.metadata && (
             <Badge variant="secondary" className="text-[10px] hidden sm:flex">
-              {traceData.metadata.total_nodes} nodes · {traceData.metadata.max_depth} levels
+              {"total_nodes" in traceData.metadata
+                ? `${(traceData.metadata as any).total_nodes} nodes · ${(traceData.metadata as any).max_depth} levels`
+                : "trace" in traceData
+                  ? `${(traceData as any).trace?.total_accounts_touched || "?"} nodes · ${(traceData as any).trace?.max_depth || "?"} levels`
+                  : ""}
             </Badge>
           )}
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={handleCollapseAll}>

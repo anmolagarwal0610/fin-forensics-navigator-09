@@ -49,6 +49,9 @@ interface ExcelViewerProps {
   // Grouping overrides
   onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
   pendingOverrides?: Record<string, PendingClusterState>;
+  // Trace transaction props
+  fundTracesData?: import("@/types/traceTransaction").BatchTraceResponse | null;
+  caseId?: string;
 }
 
 export default function ExcelViewer({ 
@@ -65,6 +68,8 @@ export default function ExcelViewer({
   onCachePOIData,
   onSaveGroupingOverride,
   pendingOverrides,
+  fundTracesData,
+  caseId,
 }: ExcelViewerProps) {
   const { resolvedTheme } = useTheme();
   const { t } = useTranslation();

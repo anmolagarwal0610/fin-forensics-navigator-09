@@ -1346,7 +1346,6 @@ export default function CaseAnalysisResults() {
             fundTracesData={analysisData.fundTracesData || null}
             caseId={id}
           />
-          />
         )}
 
         {/* Main Flow Graph - with Tabs for Fund Trail, Sankey and Node graphs */}

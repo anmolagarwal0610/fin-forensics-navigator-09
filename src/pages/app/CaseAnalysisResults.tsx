@@ -1857,7 +1857,6 @@ export default function CaseAnalysisResults() {
                           fundTracesData={analysisData.fundTracesData || null}
                           caseId={id}
                         />
-                        />
                       </CollapsibleContent>
                     )}
                   </Collapsible>

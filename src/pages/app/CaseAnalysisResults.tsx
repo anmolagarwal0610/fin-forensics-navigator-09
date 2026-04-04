@@ -572,7 +572,10 @@ export default function CaseAnalysisResults() {
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
 
-      const parsedData: ParsedAnalysisData = {
+      // Log ZIP file listing for debugging
+      const allZipFiles = Object.keys(zipData.files).filter(f => !f.endsWith('/'));
+      console.log("[Analysis] ZIP contains", allZipFiles.length, "files:", allZipFiles.join(", "));
+
         beneficiaries: [],
         beneficiaryHeaders: [],
         totalBeneficiaryCount: 0,

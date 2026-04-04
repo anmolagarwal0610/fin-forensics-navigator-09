@@ -1855,6 +1855,9 @@ export default function CaseAnalysisResults() {
                               summary.summaryFile.replace(/^summary_/i, "").replace(/\.xlsx$/i, "")
                             ] || {}
                           }
+                          fundTracesData={analysisData.fundTracesData || null}
+                          caseId={id}
+                        />
                         />
                       </CollapsibleContent>
                     )}

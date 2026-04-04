@@ -332,7 +332,7 @@ export default function BeneficiaryTransactionsDialog({
                   size="sm"
                   variant="accent"
                   className="h-8 gap-1.5 text-xs"
-                  onClick={() => { setCurrentTraceIdx(0); setShowTraceModal(true); }}
+                  onClick={handleTraceClick}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
                   Trace {selectedTxIndices.size > 1 ? `${selectedTxIndices.size} Transactions` : "Transaction"}

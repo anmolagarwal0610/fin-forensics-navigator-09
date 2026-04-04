@@ -170,19 +170,156 @@ import("dagre").then((mod) => { _dagre = mod.default as any; }).catch(() => {
   console.warn("dagre module not available");
 });
 
-export function useTraceLayout(traceData: TraceTreeResponse | null) {
+// ---------- helpers to detect response format ----------
+function isLegacyResponse(data: NonNullable<TraceModalData>): data is TraceTreeResponse {
+  return "trace_tree" in data;
+}
+function isDebitResponse(data: NonNullable<TraceModalData>): data is DebitTraceResponse {
+  return "trace" in data && (data as any).trace?.trace_type === "debit";
+}
+function isCreditResponse(data: NonNullable<TraceModalData>): data is CreditTraceResponse {
+  return "trace" in data && (data as any).trace?.trace_type === "credit";
+}
+
+// Convert BatchTraceTreeNode (new format) → legacy TraceTreeNodeData
+function batchNodeToLegacy(node: BatchTraceTreeNode): TraceTreeNodeData {
+  const children: TraceTreeNodeData[] = [];
+  for (const outflow of node.outflows || []) {
+    if (outflow.child) {
+      children.push(batchNodeToLegacy(outflow.child));
+    } else {
+      // Leaf outflow
+      children.push({
+        source_file: outflow.dest_file || "",
+        beneficiary: outflow.beneficiary || outflow.dest_owner || "Unknown",
+        amount: outflow.amount,
+        date: outflow.date,
+        has_linked_statement: !!outflow.dest_file,
+        linked_statement_file: outflow.dest_file || undefined,
+        children: [],
+      });
+    }
+  }
+  return {
+    source_file: node.file,
+    beneficiary: node.node,
+    amount: node.traced_credit?.amount || 0,
+    date: node.traced_credit?.date || "",
+    has_linked_statement: node.outflows.some(o => o.is_inter_statement),
+    children,
+  };
+}
+
+function convertToLegacy(data: NonNullable<TraceModalData>): TraceTreeResponse | null {
+  if (isLegacyResponse(data)) return data;
+  
+  if (isDebitResponse(data)) {
+    const t = data.trace;
+    if (!t.tree) {
+      // No tree — create a single root node
+      return {
+        trace_tree: {
+          root_transaction: {
+            source_file: t.seed_file,
+            beneficiary: t.seed_beneficiary,
+            amount: t.seed_amount,
+            date: t.seed_date,
+            has_linked_statement: t.has_inter_statement_edge,
+            children: [],
+          },
+          untraced_amount: 0,
+          cycle_nodes: [],
+        },
+        metadata: {
+          trace_window_days: data.metadata.window_days,
+          total_nodes: 1,
+          max_depth: 0,
+        },
+      };
+    }
+    const root = batchNodeToLegacy(t.tree);
+    // Override root info from seed
+    root.source_file = t.seed_file;
+    root.beneficiary = t.seed_beneficiary;
+    root.amount = t.seed_amount;
+    root.date = t.seed_date;
+    return {
+      trace_tree: {
+        root_transaction: root,
+        untraced_amount: 0,
+        cycle_nodes: [],
+      },
+      metadata: {
+        trace_window_days: data.metadata.window_days,
+        total_nodes: t.total_accounts_touched,
+        max_depth: t.max_depth,
+      },
+    };
+  }
+  
+  if (isCreditResponse(data)) {
+    const t = data.trace;
+    const rootChildren: TraceTreeNodeData[] = [];
+    
+    // Add backward trace as a source node
+    if (t.backward_trace) {
+      rootChildren.push({
+        source_file: t.backward_trace.source_file,
+        beneficiary: t.backward_trace.source_beneficiary || t.backward_trace.source_owner,
+        amount: t.backward_trace.amount,
+        date: t.backward_trace.source_date,
+        has_linked_statement: true,
+        linked_statement_file: t.backward_trace.source_file,
+        children: [],
+      });
+    }
+    
+    // Add forward tree
+    if (t.forward_tree) {
+      const fwdNode = batchNodeToLegacy(t.forward_tree);
+      rootChildren.push(fwdNode);
+    }
+    
+    return {
+      trace_tree: {
+        root_transaction: {
+          source_file: t.file,
+          beneficiary: t.beneficiary,
+          amount: t.amount,
+          date: t.date,
+          has_linked_statement: t.has_backward_trail || t.has_forward_trail,
+          children: rootChildren,
+        },
+        untraced_amount: 0,
+        cycle_nodes: [],
+      },
+      metadata: {
+        trace_window_days: data.metadata.window_days,
+        total_nodes: t.total_accounts_touched,
+        max_depth: t.max_depth,
+      },
+    };
+  }
+  
+  return null;
+}
+
+export function useTraceLayout(traceData: TraceModalData) {
   return useMemo(() => {
     if (!traceData) return { nodes: [], edges: [], breadcrumb: "" };
 
+    const legacyData = convertToLegacy(traceData);
+    if (!legacyData) return { nodes: [], edges: [], breadcrumb: "" };
+
     const nodes: Node<TraceNodeDisplayData>[] = [];
     const edges: Edge[] = [];
-    const root = traceData.trace_tree.root_transaction;
+    const root = legacyData.trace_tree.root_transaction;
 
     // Build tree
     flattenTree(root, null, "root", nodes, edges, 0);
 
     // Add untraced node if applicable
-    if (traceData.trace_tree.untraced_amount > 0) {
+    if (legacyData.trace_tree.untraced_amount > 0) {
       const rootNode = nodes[0];
       if (rootNode) {
         const untracedId = generateId();
@@ -194,11 +331,11 @@ export function useTraceLayout(traceData: TraceTreeResponse | null) {
             id: untracedId,
             type: "untraced",
             beneficiary: "Untraced",
-            amount: traceData.trace_tree.untraced_amount,
+            amount: legacyData.trace_tree.untraced_amount,
             date: "",
             source_file: "",
             has_linked_statement: false,
-            untraced_amount: traceData.trace_tree.untraced_amount,
+            untraced_amount: legacyData.trace_tree.untraced_amount,
           },
         });
         edges.push({
@@ -207,14 +344,14 @@ export function useTraceLayout(traceData: TraceTreeResponse | null) {
           target: untracedId,
           type: "smoothstep",
           style: { stroke: "hsl(220, 8%, 60%)", strokeWidth: 1.5, strokeDasharray: "6 4" },
-          label: formatAmountShort(traceData.trace_tree.untraced_amount),
+          label: formatAmountShort(legacyData.trace_tree.untraced_amount),
           labelStyle: { fontSize: 11, fill: "hsl(220, 8%, 50%)" },
         });
       }
     }
 
     // Add cycle nodes
-    for (const cycle of traceData.trace_tree.cycle_nodes || []) {
+    for (const cycle of legacyData.trace_tree.cycle_nodes || []) {
       const cycleId = generateId();
       nodes.push({
         id: cycleId,
@@ -231,7 +368,6 @@ export function useTraceLayout(traceData: TraceTreeResponse | null) {
           returns_to_file: cycle.returns_to_file,
         },
       });
-      // Find parent node matching source_file
       const parentNode = nodes.find(
         (n) =>
           n.data.source_file === cycle.source_file &&

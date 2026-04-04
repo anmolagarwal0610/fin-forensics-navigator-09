@@ -25,16 +25,18 @@ import {
 import { cn } from "@/lib/utils";
 import TraceTreeNode from "./trace/TraceTreeNode";
 import { useTraceLayout, formatAmountShort } from "./trace/useTraceLayout";
-import type { TraceTreeResponse, SelectedTransaction } from "@/types/traceTransaction";
+import type { TraceTreeResponse, SelectedTransaction, DebitTraceResponse, CreditTraceResponse } from "@/types/traceTransaction";
 import { toPng } from "html-to-image";
 import { toast } from "@/hooks/use-toast";
 import TraceLoader from "./trace/TraceLoader";
+
+export type TraceModalData = TraceTreeResponse | DebitTraceResponse | CreditTraceResponse | null;
 
 interface TraceTransactionModalProps {
   open: boolean;
   onClose: () => void;
   selectedTransaction: SelectedTransaction | null;
-  traceData: TraceTreeResponse | null;
+  traceData: TraceModalData;
   isLoading: boolean;
   error: string | null;
   onRetry?: () => void;

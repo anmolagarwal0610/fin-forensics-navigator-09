@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type { Node, Edge } from "@xyflow/react";
-import type { TraceTreeResponse, TraceTreeNodeData, TraceNodeDisplayData, TraceNodeType } from "@/types/traceTransaction";
+import type { TraceTreeResponse, TraceTreeNodeData, TraceNodeDisplayData, TraceNodeType, DebitTraceResponse, CreditTraceResponse, BatchTraceTreeNode } from "@/types/traceTransaction";
+import type { TraceModalData } from "../TraceTransactionModal";
 
 const NODE_WIDTH = 260;
 const NODE_HEIGHT = 120;

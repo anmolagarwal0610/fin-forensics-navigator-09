@@ -986,6 +986,9 @@ export default function ExcelViewer({
         onEditGroupedNames={onSaveGroupingOverride ? () => {
           setEditGroupedOpen(true);
         } : undefined}
+        fundTracesData={fundTracesData}
+        zipData={zipData}
+        caseId={caseId}
       />
       
       <POITransactionsDialog
@@ -1000,6 +1003,9 @@ export default function ExcelViewer({
         onEditGroupedNames={onSaveGroupingOverride ? () => {
           setEditGroupedOpen(true);
         } : undefined}
+        fundTracesData={fundTracesData}
+        zipData={zipData}
+        caseId={caseId}
       />
 
       {/* Edit Grouped Names Dialog */}

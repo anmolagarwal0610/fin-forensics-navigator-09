@@ -95,13 +95,16 @@
    }
  
    return (
-     <SummaryTableViewer 
-       data={data}
-       fileName={summaryFileName}
-       rawTransactionsFileName={rawTransactionsFileName}
-       onLoadRawData={onLoadRawData}
-       onSaveGroupingOverride={onSaveGroupingOverride}
-       pendingOverrides={pendingOverrides}
-     />
+    <SummaryTableViewer 
+      data={data}
+      fileName={summaryFileName}
+      rawTransactionsFileName={rawTransactionsFileName}
+      onLoadRawData={onLoadRawData}
+      onSaveGroupingOverride={onSaveGroupingOverride}
+      pendingOverrides={pendingOverrides}
+      fundTracesData={fundTracesData}
+      zipData={zipData}
+      caseId={caseId}
+    />
    );
  }

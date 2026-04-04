@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -8,7 +8,9 @@ import { AlertTriangle, X, Download, Users, GitBranch } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/hooks/use-toast";
 import TraceTransactionModal from "./TraceTransactionModal";
-import type { SelectedTransaction, TraceTreeResponse } from "@/types/traceTransaction";
+import type { SelectedTransaction, BatchTraceResponse, DebitTraceResponse, CreditTraceResponse } from "@/types/traceTransaction";
+import { checkBatchCache, checkOnDemandCacheZip, getFromMemoryCache, requestOnDemandTrace } from "@/lib/traceTransaction";
+import type JSZip from "jszip";
 
 export interface POITransactionRow {
   description: string;
@@ -28,6 +30,9 @@ interface POITransactionsDialogProps {
   transactions: POITransactionRow[];
   isLoading?: boolean;
   onEditGroupedNames?: () => void;
+  fundTracesData?: BatchTraceResponse | null;
+  zipData?: JSZip | null;
+  caseId?: string;
 }
 
 export default function POITransactionsDialog({
@@ -37,14 +42,17 @@ export default function POITransactionsDialog({
   transactions,
   isLoading = false,
   onEditGroupedNames,
+  fundTracesData,
+  zipData,
+  caseId,
 }: POITransactionsDialogProps) {
   
   // Trace transaction state
   const [selectedTxIndices, setSelectedTxIndices] = useState<Set<number>>(new Set());
   const [showTraceModal, setShowTraceModal] = useState(false);
-  const [traceData] = useState<TraceTreeResponse | null>(null);
-  const [traceLoading] = useState(false);
-  const [traceError] = useState<string | null>(null);
+  const [traceData, setTraceData] = useState<DebitTraceResponse | CreditTraceResponse | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
   const [currentTraceIdx, setCurrentTraceIdx] = useState(0);
 
   const selectedTransactions: SelectedTransaction[] = useMemo(() => {

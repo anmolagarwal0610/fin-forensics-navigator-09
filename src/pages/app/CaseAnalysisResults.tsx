@@ -572,6 +572,10 @@ export default function CaseAnalysisResults() {
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
 
+      // Log ZIP file listing for debugging
+      const allZipFiles = Object.keys(zipData.files).filter(f => !f.endsWith('/'));
+      console.log("[Analysis] ZIP contains", allZipFiles.length, "files:", allZipFiles.join(", "));
+
       const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
         beneficiaryHeaders: [],
@@ -1343,6 +1347,8 @@ export default function CaseAnalysisResults() {
             }}
             onSaveGroupingOverride={handleSaveGroupingOverride}
             pendingOverrides={groupingOverrides.cross_file}
+            fundTracesData={analysisData.fundTracesData || null}
+            caseId={id}
           />
         )}
 
@@ -1852,6 +1858,8 @@ export default function CaseAnalysisResults() {
                               summary.summaryFile.replace(/^summary_/i, "").replace(/\.xlsx$/i, "")
                             ] || {}
                           }
+                          fundTracesData={analysisData.fundTracesData || null}
+                          caseId={id}
                         />
                       </CollapsibleContent>
                     )}

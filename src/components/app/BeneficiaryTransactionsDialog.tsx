@@ -131,11 +131,13 @@ export default function BeneficiaryTransactionsDialog({
 
   const hasActiveFilters = selectedTypes.length > 0 || dateRange?.from || dateRange?.to;
 
-  // Build selected transactions for trace
+  // Build selected transactions for trace — use original index in transactions array
   const selectedTransactions: SelectedTransaction[] = useMemo(() => {
-    return Array.from(selectedTxIndices).map((idx) => {
-      const tx = filteredTransactions[idx];
+    return Array.from(selectedTxIndices).map((filteredIdx) => {
+      const tx = filteredTransactions[filteredIdx];
       if (!tx) return null;
+      // Find original index in unfiltered transactions for correct cache lookup
+      const originalIdx = transactions.indexOf(tx);
       const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
       const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
       return {
@@ -146,14 +148,91 @@ export default function BeneficiaryTransactionsDialog({
         description: tx.description,
         debit: tx.debit,
         credit: tx.credit,
-        row_index: idx,
+        row_index: originalIdx >= 0 ? originalIdx : filteredIdx,
       };
     }).filter(Boolean) as SelectedTransaction[];
-  }, [selectedTxIndices, filteredTransactions, beneficiaryName]);
+  }, [selectedTxIndices, filteredTransactions, transactions, beneficiaryName]);
 
   // Current trace index for sequential tracing
   const [currentTraceIdx, setCurrentTraceIdx] = useState(0);
   const selectedTransaction = selectedTransactions[currentTraceIdx] || null;
+
+  // Trace fetch logic: batch cache → ZIP cache → memory cache → API
+  const fetchTraceForTransaction = useCallback(async (tx: SelectedTransaction) => {
+    const fileName = tx.source_file;
+    const rowIndex = tx.row_index;
+
+    // 1. Batch cache
+    if (fundTracesData) {
+      const batchHit = checkBatchCache(fundTracesData, fileName, rowIndex);
+      if (batchHit && batchHit.tree) {
+        // Convert BatchTraceSeed to DebitTraceResponse-like
+        return {
+          metadata: { request: { file_name: fileName, row_index: rowIndex, amount: tx.amount, type: "debit" as const }, window_days: fundTracesData.metadata.window_days, min_confidence: fundTracesData.metadata.min_confidence, generated_at: fundTracesData.metadata.generated_at },
+          trace: batchHit,
+        } as any;
+      }
+    }
+
+    // 2. ZIP on-demand cache
+    const zipHit = await checkOnDemandCacheZip(zipData, fileName, rowIndex);
+    if (zipHit) return zipHit;
+
+    // 3. In-memory LRU cache
+    const memHit = getFromMemoryCache(fileName, rowIndex);
+    if (memHit) return memHit;
+
+    // 4. API call
+    if (!caseId) throw new Error("Case ID not available for trace request");
+    const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+    const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+    const txType: "debit" | "credit" = (debitNum && debitNum > 0) ? "debit" : "credit";
+    
+    const results = await requestOnDemandTrace({
+      window_days: 5,
+      transactions: [{ file_name: fileName, row_index: rowIndex, amount: tx.amount, type: txType }],
+    }, caseId);
+
+    return results[0] || null;
+  }, [fundTracesData, zipData, caseId]);
+
+  const handleTraceClick = useCallback(async () => {
+    if (selectedTransactions.length === 0) return;
+    setCurrentTraceIdx(0);
+    setTraceError(null);
+    setTraceLoading(true);
+    setShowTraceModal(true);
+
+    try {
+      const result = await fetchTraceForTransaction(selectedTransactions[0]);
+      setTraceData(result);
+    } catch (err: any) {
+      setTraceError(err?.message || "Failed to fetch trace data");
+    } finally {
+      setTraceLoading(false);
+    }
+  }, [selectedTransactions, fetchTraceForTransaction]);
+
+  const handleTraceNext = useCallback(async () => {
+    const nextIdx = currentTraceIdx + 1;
+    if (nextIdx >= selectedTransactions.length) {
+      setShowTraceModal(false);
+      setCurrentTraceIdx(0);
+      setTraceData(null);
+      return;
+    }
+    setCurrentTraceIdx(nextIdx);
+    setTraceLoading(true);
+    setTraceError(null);
+    try {
+      const result = await fetchTraceForTransaction(selectedTransactions[nextIdx]);
+      setTraceData(result);
+    } catch (err: any) {
+      setTraceError(err?.message || "Failed to fetch trace data");
+    } finally {
+      setTraceLoading(false);
+    }
+  }, [currentTraceIdx, selectedTransactions, fetchTraceForTransaction]);
   
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";

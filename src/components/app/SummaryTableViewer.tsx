@@ -21,7 +21,7 @@ interface SummaryTableViewerProps {
   pendingOverrides?: Record<string, PendingClusterState>;
   // Trace transaction props
   fundTracesData?: import("@/types/traceTransaction").BatchTraceResponse | null;
-  zipData?: import("jszip") extends { default: infer T } ? T : any | null;
+  zipData?: JSZip | null;
   caseId?: string;
 }
 

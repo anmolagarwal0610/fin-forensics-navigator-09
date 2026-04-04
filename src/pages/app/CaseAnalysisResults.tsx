@@ -1343,6 +1343,9 @@ export default function CaseAnalysisResults() {
             }}
             onSaveGroupingOverride={handleSaveGroupingOverride}
             pendingOverrides={groupingOverrides.cross_file}
+            fundTracesData={analysisData.fundTracesData || null}
+            caseId={id}
+          />
           />
         )}
 

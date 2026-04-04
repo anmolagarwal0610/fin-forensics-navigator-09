@@ -4,6 +4,7 @@
  import { Loader2 } from "lucide-react";
  import JSZip from "jszip";
  import type { GroupingOverrideResult, PendingClusterState } from "./EditGroupedNamesDialog";
+ import type { BatchTraceResponse } from "@/types/traceTransaction";
  
  interface LazySummaryTableViewerProps {
    summaryFileName: string;
@@ -15,6 +16,8 @@
    onLoadRawData?: () => Promise<CellData[][] | null>;
    onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
    pendingOverrides?: Record<string, PendingClusterState>;
+   fundTracesData?: BatchTraceResponse | null;
+   caseId?: string;
  }
  
  export default function LazySummaryTableViewer({
@@ -27,6 +30,8 @@
    onLoadRawData,
    onSaveGroupingOverride,
    pendingOverrides,
+   fundTracesData,
+   caseId,
  }: LazySummaryTableViewerProps) {
    const [data, setData] = useState<CellData[][] | undefined>(cachedData);
    const [isLoading, setIsLoading] = useState(false);

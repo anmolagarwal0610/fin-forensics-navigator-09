@@ -500,7 +500,7 @@ async function updateCaseStatus(supabase: any, payload: any) {
             },
             body: JSON.stringify({
               from: "FinNavigator Alerts <help@finnavigatorai.com>",
-              to: ["hello@finnavigatorai.com"],
+              to: ["help@finnavigatorai.com"],
               subject: `[FAILURE ALERT] Case Analysis Failed - ${caseData.name}`,
               html: emailHtml,
             }),

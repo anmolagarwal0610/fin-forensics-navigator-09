@@ -163,6 +163,7 @@ export type Database = {
           org_id: string | null
           previous_result_zip_url: string | null
           result_zip_url: string | null
+          stale_alert_sent: boolean | null
           status: Database["public"]["Enums"]["case_status"]
           tags: string[] | null
           updated_at: string
@@ -182,6 +183,7 @@ export type Database = {
           org_id?: string | null
           previous_result_zip_url?: string | null
           result_zip_url?: string | null
+          stale_alert_sent?: boolean | null
           status?: Database["public"]["Enums"]["case_status"]
           tags?: string[] | null
           updated_at?: string
@@ -201,6 +203,7 @@ export type Database = {
           org_id?: string | null
           previous_result_zip_url?: string | null
           result_zip_url?: string | null
+          stale_alert_sent?: boolean | null
           status?: Database["public"]["Enums"]["case_status"]
           tags?: string[] | null
           updated_at?: string

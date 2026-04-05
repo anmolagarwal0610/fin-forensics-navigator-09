@@ -2,7 +2,7 @@
  * Trace Transaction utilities:
  * - Batch cache check (fund_traces.json)
  * - On-demand cache check (fund_trace_results/ in ZIP)
- * - On-demand API call
+ * - On-demand API call (via Supabase Edge Function proxy)
  * - LRU in-memory cache for fetched results
  */
 import type {
@@ -12,7 +12,7 @@ import type {
   CreditTraceResponse,
   FundTrailRequest,
 } from "@/types/traceTransaction";
-import { getBackendApiUrl, clearBackendUrlCache } from "@/lib/runtime-config";
+import { supabase } from "@/integrations/supabase/client";
 import type JSZip from "jszip";
 
 // ---- In-memory LRU cache for on-demand results ----
@@ -25,7 +25,6 @@ function cacheKey(fileName: string, rowIndex: number): string {
 
 function putCache(key: string, value: DebitTraceResponse | CreditTraceResponse) {
   if (onDemandCache.size >= MAX_CACHE_SIZE) {
-    // Evict oldest entry
     const firstKey = onDemandCache.keys().next().value;
     if (firstKey) onDemandCache.delete(firstKey);
   }
@@ -36,7 +35,6 @@ export function getFromMemoryCache(fileName: string, rowIndex: number): DebitTra
   const key = cacheKey(fileName, rowIndex);
   const val = onDemandCache.get(key);
   if (val) {
-    // Move to end (most recently used)
     onDemandCache.delete(key);
     onDemandCache.set(key, val);
     return val;
@@ -66,7 +64,6 @@ export async function checkOnDemandCacheZip(
 ): Promise<DebitTraceResponse | CreditTraceResponse | null> {
   if (!zipData) return null;
 
-  // Construct expected filename: {filename_without_extension}_{row_index}.json
   const baseName = fileName.replace(/\.[^/.]+$/, "");
   const expectedPath = `fund_trace_results/${baseName}_${rowIndex}.json`;
 
@@ -76,7 +73,6 @@ export async function checkOnDemandCacheZip(
   try {
     const text = await file.async("text");
     const parsed = JSON.parse(text);
-    // Cache it in memory too
     putCache(cacheKey(fileName, rowIndex), parsed);
     return parsed;
   } catch {
@@ -84,34 +80,21 @@ export async function checkOnDemandCacheZip(
   }
 }
 
-// ---- On-demand API call ----
+// ---- On-demand API call (via Supabase Edge Function) ----
 export async function requestOnDemandTrace(
   request: FundTrailRequest,
   caseId: string,
 ): Promise<(DebitTraceResponse | CreditTraceResponse)[]> {
-  let backendUrl: string;
-  try {
-    backendUrl = await getBackendApiUrl();
-  } catch {
-    clearBackendUrlCache();
-    backendUrl = await getBackendApiUrl();
-  }
-
-  const response = await fetch(`${backendUrl}/trace-transaction`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
+  const { data, error } = await supabase.functions.invoke('trace-transaction', {
+    body: {
       case_id: caseId,
       ...request,
-    }),
+    },
   });
 
-  if (!response.ok) {
-    const errorText = await response.text().catch(() => "Unknown error");
-    throw new Error(`Trace request failed (${response.status}): ${errorText}`);
+  if (error) {
+    throw new Error(`Trace request failed: ${error.message}`);
   }
-
-  const data = await response.json();
 
   // The API may return a single trace or an array
   const results: (DebitTraceResponse | CreditTraceResponse)[] = Array.isArray(data) ? data : [data];

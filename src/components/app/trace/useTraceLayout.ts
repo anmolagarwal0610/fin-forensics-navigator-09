@@ -58,6 +58,7 @@ function flattenTree(
       target: id,
       type: "smoothstep",
       animated: type === "cycle",
+      markerEnd: { type: "arrowclosed" as any, width: 16, height: 16 },
       style: {
         stroke: type === "cycle" ? "hsl(38, 100%, 56%)" : "hsl(220, 13%, 70%)",
         strokeWidth: 2,

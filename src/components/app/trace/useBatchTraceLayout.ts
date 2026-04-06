@@ -49,6 +49,7 @@ function flattenBatchTree(
     total_outflow: treeNode.total_outflow_in_window,
     retained: treeNode.retained,
     context_inflows_count: treeNode.context_inflows?.length ?? 0,
+    context_inflows: treeNode.context_inflows ?? [],
     outflows_count: treeNode.outflows?.length ?? 0,
     confidence: treeNode.traced_credit?.confidence,
     status: treeNode.status,
@@ -68,6 +69,7 @@ function flattenBatchTree(
       target: id,
       type: "smoothstep",
       animated: isCycle,
+      markerEnd: { type: "arrowclosed" as any, width: 16, height: 16 },
       style: {
         stroke: isCycle ? "hsl(38, 100%, 56%)" : "hsl(220, 100%, 62%)",
         strokeWidth: 2,
@@ -125,6 +127,7 @@ function flattenBatchTree(
         source: id,
         target: leafId,
         type: "smoothstep",
+        markerEnd: { type: "arrowclosed" as any, width: 14, height: 14 },
         style: {
           stroke: isExternal ? "hsl(2, 76%, 56%)" : "hsl(220, 13%, 70%)",
           strokeWidth: 1.5,

@@ -13,7 +13,9 @@ serve(async (req: Request) => {
 
   try {
     const authHeader = req.headers.get("Authorization");
+    console.log("[send-mismatch-alert] Auth header present:", !!authHeader);
     if (!authHeader?.startsWith("Bearer ")) {
+      console.error("[send-mismatch-alert] Missing or invalid Authorization header");
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -35,10 +37,13 @@ serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(token);
+    if (claimsError || !claimsData?.claims?.sub) {
+      console.error("[send-mismatch-alert] Auth failed:", claimsError?.message);
       return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
+    console.log("[send-mismatch-alert] Authenticated user:", claimsData.claims.sub);
 
     const { case_name, user_email, file_name, file_base64, pdf_file_base64, pdf_file_name } = await req.json();
 

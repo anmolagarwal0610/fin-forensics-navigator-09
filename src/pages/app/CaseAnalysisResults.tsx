@@ -507,9 +507,6 @@ export default function CaseAnalysisResults() {
 
             // Send alert silently
             const base64 = await file.async("base64");
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData?.session?.access_token;
-            if (!accessToken) continue;
 
             // Try to find and attach the original PDF
             const baseName = rawFileName.replace("raw_transactions_", "").replace(".xlsx", "");
@@ -537,20 +534,14 @@ export default function CaseAnalysisResults() {
               }
             }
 
-            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-mismatch-alert`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-              body: JSON.stringify({
+            supabase.functions.invoke('send-mismatch-alert', {
+              body: {
                 case_name: case_.name,
                 user_email: user.email,
                 file_name: rawFileName,
                 file_base64: base64,
                 ...(pdfFileBase64 && pdfFileName ? { pdf_file_base64: pdfFileBase64, pdf_file_name: pdfFileName } : {}),
-              }),
+              },
             }).catch(() => {});
           } catch {
             // Silent - no logging

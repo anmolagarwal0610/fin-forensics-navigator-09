@@ -71,6 +71,7 @@ export interface TraceNodeDisplayData {
   retained?: number;
   context_inflows_count?: number;
   outflows_count?: number;
+  context_inflows?: BatchContextInflow[];
   // For collapsed group nodes
   collapsed_count?: number;
   collapsed_children?: TraceTreeNodeData[];

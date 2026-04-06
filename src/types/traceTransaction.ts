@@ -44,6 +44,7 @@ export type TraceNodeType =
   | "child"
   | "untraced"
   | "dead_end"
+  | "leaf"
   | "cycle"
   | "collapsed_group"
   | "backward_source"

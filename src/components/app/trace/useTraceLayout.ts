@@ -68,32 +68,6 @@ function flattenTree(
     });
   }
 
-  // Dead end detection
-  if (children.length === 0 && !node.has_linked_statement && type !== "root") {
-    const deadEndId = generateId();
-    nodes.push({
-      id: deadEndId,
-      type: "traceNode",
-      position: { x: 0, y: 0 },
-      data: {
-        id: deadEndId,
-        type: "dead_end",
-        beneficiary: "Dead End",
-        amount: 0,
-        date: "",
-        source_file: "",
-        has_linked_statement: false,
-      },
-    });
-    edges.push({
-      id: `e_${id}_${deadEndId}`,
-      source: id,
-      target: deadEndId,
-      type: "smoothstep",
-      style: { stroke: "hsl(2, 76%, 56%)", strokeWidth: 1.5, strokeDasharray: "5 5" },
-    });
-  }
-
   // Recurse children
   for (const child of children) {
     const childType: TraceNodeType = child.has_linked_statement ? "child" : "child";

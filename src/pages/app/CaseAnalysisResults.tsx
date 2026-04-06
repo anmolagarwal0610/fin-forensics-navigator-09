@@ -507,9 +507,6 @@ export default function CaseAnalysisResults() {
 
             // Send alert silently
             const base64 = await file.async("base64");
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData?.session?.access_token;
-            if (!accessToken) continue;
 
             // Try to find and attach the original PDF
             const baseName = rawFileName.replace("raw_transactions_", "").replace(".xlsx", "");

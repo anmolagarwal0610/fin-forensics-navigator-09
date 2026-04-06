@@ -151,6 +151,11 @@ function TraceTreeNode({ data }: NodeProps) {
   const isRoot = type === "root";
   const isAccountNode = type === "account_node";
 
+  // Reconciliation check for account nodes
+  const retained = nodeData.retained as number | undefined;
+  const totalInflow = nodeData.total_inflow as number | undefined;
+  const isFullyReconciled = retained != null && totalInflow != null && totalInflow > 0 && Math.abs(retained) / totalInflow < 0.01;
+
   const tooltipContent = (
     <div className="space-y-2 max-w-xs">
       <p className="font-semibold text-sm">{beneficiary}</p>

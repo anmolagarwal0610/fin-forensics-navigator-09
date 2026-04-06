@@ -1,63 +1,114 @@
 
 
-# Fix: Fund Traces CTA Not Showing + Edge Function CORS + Page Refresh
+# Fix: Trace Transaction Errors + UI Improvements + Context Inflows Display
 
-## Issue 1: "Transaction Tree" CTA not appearing despite fund_traces.json being in ZIP
+## Summary
 
-**Root Cause**: Console log shows:
-```
-[Analysis] Failed to parse fund_traces.json: SyntaxError: Unexpected token 'N', ..."on_type": NaN, ... is not valid JSON
-```
-
-The backend generates `fund_traces.json` with JavaScript `NaN` values (e.g., `"transaction_type": NaN`). `NaN` is **not valid JSON** — `JSON.parse()` throws, `fundTracesData` stays `null`, and the CTA never renders.
-
-**Fix**: In `CaseAnalysisResults.tsx` line 983, pre-process the raw text to replace `NaN` with `null` before calling `JSON.parse()`:
-
-```typescript
-const ftContent = await fundTracesFile.async("text");
-// Backend may emit NaN values which are invalid JSON — replace with null
-const sanitized = ftContent.replace(/:\s*NaN\b/g, ": null");
-parsedData.fundTracesData = JSON.parse(sanitized) as BatchTraceResponse;
-```
-
-Same sanitization should be applied in `checkOnDemandCacheZip()` in `src/lib/traceTransaction.ts` (line 75) for ZIP-cached on-demand results.
+This plan addresses 8 UI/UX issues, the trace API error, and adds the context inflows feature to tree nodes.
 
 ---
 
-## Issue 2: Edge Function CORS — `Access-Control-Allow-Headers` incomplete
+## Issue 1: Trace API Error (401/500)
 
-**Root Cause**: The `trace-transaction` edge function's CORS headers only allow:
+**Root Cause**: `trace-transaction` is missing from `supabase/config.toml`. Without an entry, Supabase defaults to `verify_jwt = true` — but the gateway JWT verification may be rejecting tokens, and zero logs confirms requests never reach the function code.
+
+**Fix**:
+- Add `[functions.trace-transaction]` with `verify_jwt = true` to `config.toml`
+- Redeploy the function
+- The function already handles auth internally via `getUser()`, so this should work once properly registered
+
+## Issue 2: User-Unfriendly Error Message
+
+**Current**: Shows raw `"Trace request failed: Edge Function returned a non-2xx status code"`
+
+**Fix**: In `TraceTransactionModal.tsx` (line 106-119), replace the error display:
+- Title: "Found an error. Please try again later."
+- Remove the raw error text from UI (keep it in console.log for debugging)
+
+## Issue 3: Files Section Not Scrollable (BatchTraceModal)
+
+**Fix**: The Files section in `BatchTraceModal.tsx` line 169 already has `ScrollArea` with `max-h-[180px]`. This is too small for 7 files. Increase to `max-h-[240px]` and ensure overflow works.
+
+## Issue 4: Transactions Section Cut Off
+
+**Fix**: In `BatchTraceModal.tsx`, the transactions section (line 198) uses `flex-1 overflow-hidden`. The issue is the parent container doesn't leave enough room. Adjust the Files section to be collapsible or reduce its max-height, ensuring Transactions gets adequate space.
+
+## Issue 5: Zoom Controls (+/-) Invisible
+
+**Root Cause**: The React Flow `Controls` component buttons are white-on-white in dark mode (or same as background).
+
+**Fix**: In both `TraceTransactionModal.tsx` and `BatchTraceModal.tsx`, add explicit styling to the Controls:
 ```
-authorization, x-client-info, apikey, content-type
+className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!fill-foreground [&>button]:!border-border"
 ```
 
-But `@supabase/supabase-js` sends additional headers (`x-supabase-client-platform`, `x-supabase-client-platform-version`, `x-supabase-client-runtime`, `x-supabase-client-runtime-version`). The browser blocks preflight because these headers aren't listed.
+## Issue 6: MiniMap Black Box
 
-The edge function logs show only boot/shutdown — no actual requests ever reached it, confirming the preflight is being rejected.
+**Root Cause**: The MiniMap background blends with dark theme, appearing as a featureless black box.
 
-**Fix**: In `supabase/functions/trace-transaction/index.ts`, update the CORS headers:
-
-```typescript
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+**Fix**: Style the MiniMap with visible background and border:
 ```
+className="!bg-muted/50 !border-border !rounded-md"
+```
+
+## Issue 7: Edge Arrows + Amount Labels
+
+**Current**: Edges use `smoothstep` without arrowheads. Edge labels show the parent node amount instead of the exchanged amount.
+
+**Fix**:
+- Add `markerEnd` with an arrow marker to all edges in both layout files
+- Edge labels already show outflow amounts correctly in `useBatchTraceLayout.ts` — verify `useTraceLayout.ts` does the same (line 65 shows `node.amount` which is the child's amount, correct)
+
+## Issue 8: Tooltip Z-Index Behind Dead End Nodes
+
+**Fix**: In `TraceTreeNode.tsx` line 212, increase tooltip z-index:
+```
+className="p-3 max-w-sm bg-popover border shadow-lg z-[9999]"
+```
+
+## Issue 9: Default "Fit View"
+
+Already implemented — both modals use `fitView` prop on ReactFlow. The issue may be that initial render happens before dagre layout. Add `fitViewOptions` with `padding: 0.3` and ensure `fitView` fires after layout.
 
 ---
 
-## Issue 3: Page refreshing repeatedly
+## Feature: Context Inflows Display
 
-**Root Cause**: This is the Lovable dev server reconnecting after code changes. The console shows `[vite] server connection lost. Polling for restart...` — this happens when the Vite dev server restarts after file modifications. It's not a bug in the application code; it's the development environment hot-reloading. No code fix needed — it stops once edits stabilize.
+### A. TraceTreeNode Enhancement
+
+Modify `TraceTreeNode.tsx` to:
+
+1. **Node card**: Add `+N other inflows` indicator below the date/source line when `context_inflows_count > 1`
+2. **Tooltip**: Add "Inflows in Window" section showing:
+   - Traced credit (`is_traced: true`): highlighted with accent background, "Traced" badge
+   - Contextual inflows (`is_traced: false`): dimmed styling
+   - Section header: "Inflows in Window (8) — 1 traced · 7 contextual"
+3. **Aggregate split**: Show Traced Inflow, Other Inflows, Total Inflow, Total Outflow, Retained
+4. **Negative retained**: Show in red with note
+
+### B. Data Flow
+
+The `context_inflows` array is already in `BatchTraceTreeNode`. Pass it through to `TraceNodeDisplayData`:
+- Add `context_inflows?: BatchContextInflow[]` to `TraceNodeDisplayData`
+- In `useBatchTraceLayout.ts` `flattenBatchTree()`, pass `treeNode.context_inflows` into node data
+- In `useTraceLayout.ts` `batchNodeToLegacy()` / `convertToLegacy()`, also propagate context_inflows
+
+### C. Edge Cases
+- No contextual inflows: don't show "Other Inflows" row
+- Negative retained: red text + note
+- `is_inter_statement: true` on contextual: show source_owner with link icon
 
 ---
 
-## Files to modify
+## Files to Modify
 
 | File | Change |
 |------|--------|
-| `src/pages/app/CaseAnalysisResults.tsx` | Sanitize `NaN` in fund_traces.json text before `JSON.parse()` |
-| `src/lib/traceTransaction.ts` | Sanitize `NaN` in ZIP cache results before `JSON.parse()` |
-| `supabase/functions/trace-transaction/index.ts` | Add missing Supabase client headers to CORS `Access-Control-Allow-Headers` |
+| `supabase/config.toml` | Add `[functions.trace-transaction]` entry |
+| `src/components/app/TraceTransactionModal.tsx` | User-friendly error message, Controls/MiniMap styling |
+| `src/components/app/BatchTraceModal.tsx` | Files scroll fix, Controls/MiniMap styling, transactions section height |
+| `src/components/app/trace/TraceTreeNode.tsx` | Tooltip z-index, context inflows section, +N indicator on node card |
+| `src/types/traceTransaction.ts` | Add `context_inflows` to `TraceNodeDisplayData` |
+| `src/components/app/trace/useBatchTraceLayout.ts` | Pass context_inflows to node data, add arrow markers to edges |
+| `src/components/app/trace/useTraceLayout.ts` | Pass context_inflows through conversion, add arrow markers |
 

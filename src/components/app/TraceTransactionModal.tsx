@@ -104,11 +104,11 @@ function TraceFlowCanvas({
   }
 
   if (error) {
+    console.error("[TraceTransaction] Error:", error);
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-        <AlertTriangle className="h-12 w-12 opacity-40 text-error" />
-        <p className="text-lg font-medium">Trace Failed</p>
-        <p className="text-sm opacity-70 text-center max-w-md">{error}</p>
+        <AlertTriangle className="h-12 w-12 opacity-40 text-destructive" />
+        <p className="text-lg font-medium">Found an error. Please try again later.</p>
         {onRetry && (
           <Button variant="outline" onClick={onRetry} className="mt-4 gap-2">
             <RefreshCw className="h-4 w-4" />
@@ -192,7 +192,7 @@ function TraceFlowCanvas({
           <Background gap={20} size={1} color="hsl(220, 13%, 91%)" />
           <Controls
             showInteractive={false}
-            className="!bg-card !border-border !shadow-md"
+            className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!fill-foreground [&>button]:!border-border"
           />
           <MiniMap
             nodeColor={(node) => {
@@ -204,7 +204,7 @@ function TraceFlowCanvas({
               return "hsl(220, 100%, 62%)";
             }}
             maskColor="hsl(220, 31%, 8%, 0.08)"
-            className="!bg-card !border-border"
+            className="!bg-muted/50 !border-border !rounded-md"
           />
         </ReactFlow>
       </div>

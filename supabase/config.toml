@@ -71,3 +71,6 @@ verify_jwt = true
 
 [functions.send-mismatch-alert]
 verify_jwt = false
+
+[functions.trace-transaction]
+verify_jwt = true

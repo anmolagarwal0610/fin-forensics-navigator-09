@@ -166,7 +166,7 @@ function BatchTraceCanvas({
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Files ({fileEntries.length})
           </h3>
-          <ScrollArea className="max-h-[180px]">
+          <ScrollArea className="max-h-[240px]">
             <div className="space-y-0.5">
               {fileEntries.map(([fileName, entry]) => (
                 <button
@@ -271,7 +271,7 @@ function BatchTraceCanvas({
               proOptions={{ hideAttribution: true }}
             >
               <Background gap={20} size={1} color="hsl(220, 13%, 91%)" />
-              <Controls showInteractive={false} className="!bg-card !border-border !shadow-md" />
+              <Controls showInteractive={false} className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!fill-foreground [&>button]:!border-border" />
               <MiniMap
                 nodeColor={(node) => {
                   const t = (node.data as unknown as { type: string })?.type;
@@ -282,7 +282,7 @@ function BatchTraceCanvas({
                   return "hsl(220, 100%, 75%)";
                 }}
                 maskColor="hsl(220, 31%, 8%, 0.08)"
-                className="!bg-card !border-border"
+                className="!bg-muted/50 !border-border !rounded-md"
               />
             </ReactFlow>
           ) : (

@@ -1,68 +1,63 @@
 
 
-# Fix: Trace Transaction CORS Error + Email Notifications
+# Fix: Fund Traces CTA Not Showing + Edge Function CORS + Page Refresh
 
-## Issue 1: CORS Error on `/trace-transaction`
+## Issue 1: "Transaction Tree" CTA not appearing despite fund_traces.json being in ZIP
 
-**Root Cause**: The frontend in `src/lib/traceTransaction.ts` (line 100) calls the FastAPI backend directly from the browser:
+**Root Cause**: Console log shows:
 ```
-fetch(`${backendUrl}/trace-transaction`, { method: "POST", ... })
+[Analysis] Failed to parse fund_traces.json: SyntaxError: Unexpected token 'N', ..."on_type": NaN, ... is not valid JSON
 ```
 
-The FastAPI CORS config only allows the production domain (`finnavigatorai.lovable.app`). The preview domain (`id-preview--*.lovable.app`) is blocked, causing the preflight OPTIONS request to fail with a CORS error. Even in production, this is fragile.
+The backend generates `fund_traces.json` with JavaScript `NaN` values (e.g., `"transaction_type": NaN`). `NaN` is **not valid JSON** — `JSON.parse()` throws, `fundTracesData` stays `null`, and the CTA never renders.
 
-**Fix**: Route through a new Supabase Edge Function `trace-transaction` that proxies the request to the backend. This is the same pattern used by other backend calls (e.g., `final-analysis-files`).
+**Fix**: In `CaseAnalysisResults.tsx` line 983, pre-process the raw text to replace `NaN` with `null` before calling `JSON.parse()`:
 
-### New Edge Function: `supabase/functions/trace-transaction/index.ts`
-- Accept POST with `{ case_id, window_days, transactions }` from the authenticated frontend
-- Verify the user is authenticated via JWT
-- Forward the request to `BACKEND_API_URL/trace-transaction/`
-- Return the backend response to the frontend
+```typescript
+const ftContent = await fundTracesFile.async("text");
+// Backend may emit NaN values which are invalid JSON — replace with null
+const sanitized = ftContent.replace(/:\s*NaN\b/g, ": null");
+parsedData.fundTracesData = JSON.parse(sanitized) as BatchTraceResponse;
+```
 
-### Update: `src/lib/traceTransaction.ts`
-- Replace direct `fetch(backendUrl/trace-transaction)` with `supabase.functions.invoke('trace-transaction', { body: {...} })`
-- Remove dependency on `getBackendApiUrl` / `clearBackendUrlCache` (no longer needed here)
-
----
-
-## Issue 2: Email for cases processing > 3 hours
-
-**Approach**: Create a scheduled Edge Function `check-stale-processing` that runs periodically (every 30 minutes via pg_cron). It queries for cases with `status = 'Processing'` where `updated_at` is older than 3 hours, and sends an email alert for each.
-
-### New Edge Function: `supabase/functions/check-stale-processing/index.ts`
-- Query cases where `status = 'Processing'` AND `updated_at < NOW() - INTERVAL '3 hours'`
-- For each stale case, fetch: case name, creator_id, file count (from `case_files`), and the time processing started (`updated_at` when status changed to Processing)
-- Send email to `help@finnavigatorai.com` with: Case Name, User ID, Time analysis started, Number of files
-- To prevent duplicate emails, track already-alerted cases (add a `stale_alert_sent` boolean column to cases, or use an events table entry)
-
-### Database: Add `stale_alert_sent` column
-- `ALTER TABLE cases ADD COLUMN stale_alert_sent BOOLEAN DEFAULT FALSE`
-- Reset to `false` when case status changes away from Processing
-
-### Cron Job (via SQL insert, not migration)
-- Schedule `check-stale-processing` to run every 30 minutes
+Same sanitization should be applied in `checkOnDemandCacheZip()` in `src/lib/traceTransaction.ts` (line 75) for ZIP-cached on-demand results.
 
 ---
 
-## Issue 3: Email for failed cases — enhanced info
+## Issue 2: Edge Function CORS — `Access-Control-Allow-Headers` incomplete
 
-**Current state**: The `job-webhook` already sends a failure email (lines 406-506) but it lacks "Time analysis started" and "Number of files".
+**Root Cause**: The `trace-transaction` edge function's CORS headers only allow:
+```
+authorization, x-client-info, apikey, content-type
+```
 
-### Update: `supabase/functions/job-webhook/index.ts`
-- In the FAILED block, also fetch:
-  - `case_files` count for the case: `SELECT COUNT(*) FROM case_files WHERE case_id = caseId`
-  - Case `created_at` or the earliest Processing event timestamp as "Time analysis started"
-- Add these fields to the email HTML template
+But `@supabase/supabase-js` sends additional headers (`x-supabase-client-platform`, `x-supabase-client-platform-version`, `x-supabase-client-runtime`, `x-supabase-client-runtime-version`). The browser blocks preflight because these headers aren't listed.
+
+The edge function logs show only boot/shutdown — no actual requests ever reached it, confirming the preflight is being rejected.
+
+**Fix**: In `supabase/functions/trace-transaction/index.ts`, update the CORS headers:
+
+```typescript
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+};
+```
 
 ---
 
-## Files to Create/Modify
+## Issue 3: Page refreshing repeatedly
 
-| File | Action | Description |
-|------|--------|-------------|
-| `supabase/functions/trace-transaction/index.ts` | Create | Proxy edge function to forward trace requests to backend |
-| `src/lib/traceTransaction.ts` | Modify | Use `supabase.functions.invoke` instead of direct fetch |
-| `supabase/functions/check-stale-processing/index.ts` | Create | Scheduled function to detect cases stuck in Processing > 3h |
-| `supabase/functions/job-webhook/index.ts` | Modify | Add file count and processing start time to failure email |
-| Database migration | Create | Add `stale_alert_sent` column to cases table |
+**Root Cause**: This is the Lovable dev server reconnecting after code changes. The console shows `[vite] server connection lost. Polling for restart...` — this happens when the Vite dev server restarts after file modifications. It's not a bug in the application code; it's the development environment hot-reloading. No code fix needed — it stops once edits stabilize.
+
+---
+
+## Files to modify
+
+| File | Change |
+|------|--------|
+| `src/pages/app/CaseAnalysisResults.tsx` | Sanitize `NaN` in fund_traces.json text before `JSON.parse()` |
+| `src/lib/traceTransaction.ts` | Sanitize `NaN` in ZIP cache results before `JSON.parse()` |
+| `supabase/functions/trace-transaction/index.ts` | Add missing Supabase client headers to CORS `Access-Control-Allow-Headers` |
 

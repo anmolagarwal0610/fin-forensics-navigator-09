@@ -1,114 +1,71 @@
 
 
-# Fix: Trace Transaction Errors + UI Improvements + Context Inflows Display
+# Fix: Scrollable Sidebar + Replace "Dead End" with Correct Leaf Node Labels
 
-## Summary
+## Issue 1: Left Sidebar Sections Not Scrollable
 
-This plan addresses 8 UI/UX issues, the trace API error, and adds the context inflows feature to tree nodes.
+**Root Cause**: The `ScrollArea` components in `BatchTraceModal.tsx` are working, but the parent `div.w-[280px]` uses `flex flex-col` without `overflow-hidden`, and the file list section doesn't constrain height properly. The transactions `ScrollArea` at line 204 uses `flex-1` but the parent also needs `min-h-0` for flex overflow to work.
 
----
+**Fix** in `BatchTraceModal.tsx`:
+- Line 163: Add `overflow-hidden min-h-0` to the sidebar container
+- Line 165: Add `shrink-0` to the file list wrapper so it doesn't grow unboundedly  
+- Line 198: Add `min-h-0` to the transactions flex container so `flex-1` + `ScrollArea` can scroll
 
-## Issue 1: Trace API Error (401/500)
+## Issue 2: Replace "Dead End" with Correct Leaf Node Semantics
 
-**Root Cause**: `trace-transaction` is missing from `supabase/config.toml`. Without an entry, Supabase defaults to `verify_jwt = true` — but the gateway JWT verification may be rejecting tokens, and zero logs confirms requests never reach the function code.
+**Current behavior**: Any leaf outflow where `is_inter_statement: false` is rendered as a `dead_end` node with a red dashed border and "Dead End — No further trace found" label.
 
-**Fix**:
-- Add `[functions.trace-transaction]` with `verify_jwt = true` to `config.toml`
-- Redeploy the function
-- The function already handles auth internally via `getUser()`, so this should work once properly registered
+**Correct behavior**: These are simply destinations whose statements were not uploaded. The money is accounted for — it's not "dead".
 
-## Issue 2: User-Unfriendly Error Message
+### Changes in `useBatchTraceLayout.ts` (lines 102-123)
 
-**Current**: Shows raw `"Trace request failed: Edge Function returned a non-2xx status code"`
+Replace the `dead_end` type assignment for external leaf nodes:
+- Leaf outflows with `is_inter_statement: false` and a beneficiary name → type `"leaf"` (new type, neutral styling)
+- Leaf outflows with no beneficiary → type `"leaf"` with beneficiary "Unknown Recipient"
 
-**Fix**: In `TraceTransactionModal.tsx` (line 106-119), replace the error display:
-- Title: "Found an error. Please try again later."
-- Remove the raw error text from UI (keep it in console.log for debugging)
+Remove all `dead_end` type usage from this file.
 
-## Issue 3: Files Section Not Scrollable (BatchTraceModal)
+### Changes in `useTraceLayout.ts` (lines 71-95)
 
-**Fix**: The Files section in `BatchTraceModal.tsx` line 169 already has `ScrollArea` with `max-h-[180px]`. This is too small for 7 files. Increase to `max-h-[240px]` and ensure overflow works.
+Remove the dead end detection block entirely (lines 71-95). This block auto-creates synthetic "Dead End" nodes for any childless non-root node without a linked statement. Instead:
+- If a node is childless and has no linked statement, it's simply a leaf — render it normally with its name and amount
 
-## Issue 4: Transactions Section Cut Off
+### Changes in `TraceTreeNode.tsx`
 
-**Fix**: In `BatchTraceModal.tsx`, the transactions section (line 198) uses `flex-1 overflow-hidden`. The issue is the parent container doesn't leave enough room. Adjust the Files section to be collapsible or reduce its max-height, ensuring Transactions gets adequate space.
+**Remove** the `dead_end` rendering block (lines 56-67) entirely.
 
-## Issue 5: Zoom Controls (+/-) Invisible
+**Add** a new `"leaf"` node type rendering:
+- Neutral card styling (similar to `child` but with a subtle tag)
+- Show beneficiary name + amount + date
+- Small tag: "No statement" if `!has_linked_statement`, or "External" if no source file
+- No red/destructive styling
 
-**Root Cause**: The React Flow `Controls` component buttons are white-on-white in dark mode (or same as background).
+**Add reconciliation indicator** to `account_node` and `root` nodes:
+- Calculate: `outflows_total = sum of outflow edge amounts` from `outflows_count` and `retained`
+- If `retained ≈ 0` (within 1% of total): show green "✅ Fully reconciled" text
+- If `retained > 0`: show "₹X retained in account" in neutral style
+- Display this below the node card content
 
-**Fix**: In both `TraceTransactionModal.tsx` and `BatchTraceModal.tsx`, add explicit styling to the Controls:
-```
-className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!fill-foreground [&>button]:!border-border"
-```
+### Changes in `types/traceTransaction.ts`
 
-## Issue 6: MiniMap Black Box
+Add `"leaf"` to the `TraceNodeType` union type.
 
-**Root Cause**: The MiniMap background blends with dark theme, appearing as a featureless black box.
+### Node Style Updates
 
-**Fix**: Style the MiniMap with visible background and border:
-```
-className="!bg-muted/50 !border-border !rounded-md"
-```
-
-## Issue 7: Edge Arrows + Amount Labels
-
-**Current**: Edges use `smoothstep` without arrowheads. Edge labels show the parent node amount instead of the exchanged amount.
-
-**Fix**:
-- Add `markerEnd` with an arrow marker to all edges in both layout files
-- Edge labels already show outflow amounts correctly in `useBatchTraceLayout.ts` — verify `useTraceLayout.ts` does the same (line 65 shows `node.amount` which is the child's amount, correct)
-
-## Issue 8: Tooltip Z-Index Behind Dead End Nodes
-
-**Fix**: In `TraceTreeNode.tsx` line 212, increase tooltip z-index:
-```
-className="p-3 max-w-sm bg-popover border shadow-lg z-[9999]"
-```
-
-## Issue 9: Default "Fit View"
-
-Already implemented — both modals use `fitView` prop on ReactFlow. The issue may be that initial render happens before dagre layout. Add `fitViewOptions` with `padding: 0.3` and ensure `fitView` fires after layout.
-
----
-
-## Feature: Context Inflows Display
-
-### A. TraceTreeNode Enhancement
-
-Modify `TraceTreeNode.tsx` to:
-
-1. **Node card**: Add `+N other inflows` indicator below the date/source line when `context_inflows_count > 1`
-2. **Tooltip**: Add "Inflows in Window" section showing:
-   - Traced credit (`is_traced: true`): highlighted with accent background, "Traced" badge
-   - Contextual inflows (`is_traced: false`): dimmed styling
-   - Section header: "Inflows in Window (8) — 1 traced · 7 contextual"
-3. **Aggregate split**: Show Traced Inflow, Other Inflows, Total Inflow, Total Outflow, Retained
-4. **Negative retained**: Show in red with note
-
-### B. Data Flow
-
-The `context_inflows` array is already in `BatchTraceTreeNode`. Pass it through to `TraceNodeDisplayData`:
-- Add `context_inflows?: BatchContextInflow[]` to `TraceNodeDisplayData`
-- In `useBatchTraceLayout.ts` `flattenBatchTree()`, pass `treeNode.context_inflows` into node data
-- In `useTraceLayout.ts` `batchNodeToLegacy()` / `convertToLegacy()`, also propagate context_inflows
-
-### C. Edge Cases
-- No contextual inflows: don't show "Other Inflows" row
-- Negative retained: red text + note
-- `is_inter_statement: true` on contextual: show source_owner with link icon
-
----
+| Node Type | Old Label | New Label | Style |
+|-----------|-----------|-----------|-------|
+| Leaf (named beneficiary) | "Dead End" | Shows name + amount | Neutral card, "No statement" tag |
+| Leaf (no name) | "Dead End" | "Unknown Recipient" | Muted card |
+| Parent with retained=0 | — | "✅ Fully reconciled" | Green text |
+| Parent with retained>0 | — | "₹X retained" | Neutral text on node |
 
 ## Files to Modify
 
 | File | Change |
 |------|--------|
-| `supabase/config.toml` | Add `[functions.trace-transaction]` entry |
-| `src/components/app/TraceTransactionModal.tsx` | User-friendly error message, Controls/MiniMap styling |
-| `src/components/app/BatchTraceModal.tsx` | Files scroll fix, Controls/MiniMap styling, transactions section height |
-| `src/components/app/trace/TraceTreeNode.tsx` | Tooltip z-index, context inflows section, +N indicator on node card |
-| `src/types/traceTransaction.ts` | Add `context_inflows` to `TraceNodeDisplayData` |
-| `src/components/app/trace/useBatchTraceLayout.ts` | Pass context_inflows to node data, add arrow markers to edges |
-| `src/components/app/trace/useTraceLayout.ts` | Pass context_inflows through conversion, add arrow markers |
+| `src/components/app/BatchTraceModal.tsx` | Fix sidebar overflow/scroll with `min-h-0` and `overflow-hidden` |
+| `src/components/app/trace/useBatchTraceLayout.ts` | Replace `dead_end` leaf type with `leaf` |
+| `src/components/app/trace/useTraceLayout.ts` | Remove dead end detection block |
+| `src/components/app/trace/TraceTreeNode.tsx` | Remove `dead_end` render, add `leaf` render + reconciliation indicator |
+| `src/types/traceTransaction.ts` | Add `"leaf"` to `TraceNodeType` |
 

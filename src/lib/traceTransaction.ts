@@ -72,7 +72,9 @@ export async function checkOnDemandCacheZip(
 
   try {
     const text = await file.async("text");
-    const parsed = JSON.parse(text);
+    // Backend may emit NaN values which are invalid JSON — replace with null
+    const sanitized = text.replace(/:\s*NaN\b/g, ": null");
+    const parsed = JSON.parse(sanitized);
     putCache(cacheKey(fileName, rowIndex), parsed);
     return parsed;
   } catch {

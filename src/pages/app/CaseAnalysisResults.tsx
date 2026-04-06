@@ -980,7 +980,9 @@ export default function CaseAnalysisResults() {
       if (fundTracesFile) {
         try {
           const ftContent = await fundTracesFile.async("text");
-          parsedData.fundTracesData = JSON.parse(ftContent) as BatchTraceResponse;
+          // Backend may emit NaN values which are invalid JSON — replace with null
+          const sanitizedFt = ftContent.replace(/:\s*NaN\b/g, ": null");
+          parsedData.fundTracesData = JSON.parse(sanitizedFt) as BatchTraceResponse;
           console.log("[Analysis] ✓ fund_traces.json extracted —", parsedData.fundTracesData.seeds?.length || 0, "seeds");
         } catch (error) {
           console.warn("[Analysis] Failed to parse fund_traces.json:", error);

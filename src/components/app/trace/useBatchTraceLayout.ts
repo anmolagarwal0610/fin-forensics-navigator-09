@@ -100,10 +100,9 @@ function flattenBatchTree(
       // Recurse into child tree
       flattenBatchTree(outflow.child, id, nodes, edges);
     } else {
-      // Leaf node (external payment)
+      // Leaf node — destination whose statement is not uploaded
       const leafId = genId();
-      const isExternal = !outflow.is_inter_statement;
-      const leafType: TraceNodeType = isExternal ? "dead_end" : "child";
+      const leafType: TraceNodeType = "leaf";
 
       nodes.push({
         id: leafId,
@@ -112,7 +111,7 @@ function flattenBatchTree(
         data: {
           id: leafId,
           type: leafType,
-          beneficiary: outflow.beneficiary || "External",
+          beneficiary: outflow.beneficiary || "Unknown Recipient",
           amount: outflow.amount,
           date: outflow.date,
           source_file: outflow.dest_file || "",
@@ -129,9 +128,8 @@ function flattenBatchTree(
         type: "smoothstep",
         markerEnd: { type: "arrowclosed" as any, width: 14, height: 14 },
         style: {
-          stroke: isExternal ? "hsl(2, 76%, 56%)" : "hsl(220, 13%, 70%)",
+          stroke: "hsl(220, 13%, 70%)",
           strokeWidth: 1.5,
-          ...(isExternal ? { strokeDasharray: "5 5" } : {}),
         },
         label: formatAmountShort(outflow.amount),
         labelStyle: { fontSize: 10, fill: "hsl(220, 12%, 55%)" },

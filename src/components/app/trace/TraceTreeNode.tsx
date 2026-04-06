@@ -2,7 +2,7 @@ import { memo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { AlertTriangle, CornerDownRight, HelpCircle, Layers, Link2, RotateCcw } from "lucide-react";
+import { CheckCircle2, CornerDownRight, ExternalLink, HelpCircle, Layers, Link2, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { TraceNodeDisplayData, BatchContextInflow } from "@/types/traceTransaction";
 import { formatAmountShort } from "./useTraceLayout";
@@ -30,15 +30,16 @@ function TraceTreeNode({ data }: NodeProps) {
     root: "bg-primary text-primary-foreground border-primary shadow-lg",
     child: "bg-card text-card-foreground border-accent/40 hover:border-accent shadow-md",
     account_node: "bg-card text-card-foreground border-accent/40 hover:border-accent shadow-md",
+    leaf: "bg-card text-card-foreground border-border hover:border-muted-foreground/50 shadow-sm",
     untraced: "bg-muted/50 text-muted-foreground border-dashed border-muted-foreground/30",
-    dead_end: "bg-card text-muted-foreground border-dashed border-destructive/40",
+    dead_end: "bg-card text-muted-foreground border-dashed border-muted-foreground/30",
     cycle: "bg-warning/10 text-warning-foreground border-dashed border-warning/50",
     collapsed_group: "bg-muted/30 text-muted-foreground border-dashed border-border cursor-pointer",
     backward_source: "bg-emerald-50 dark:bg-emerald-950/30 text-card-foreground border-emerald-400/50 shadow-md",
   };
 
   const iconMap: Record<string, React.ReactNode> = {
-    dead_end: <AlertTriangle className="h-3.5 w-3.5 text-destructive" />,
+    leaf: <ExternalLink className="h-3 w-3 text-muted-foreground" />,
     cycle: <RotateCcw className="h-3.5 w-3.5 text-warning" />,
     collapsed_group: <Layers className="h-3.5 w-3.5" />,
     untraced: <HelpCircle className="h-3.5 w-3.5" />,
@@ -53,16 +54,52 @@ function TraceTreeNode({ data }: NodeProps) {
   const hasContextInflows = contextInflows.length > 1;
 
   // Render special node types
-  if (type === "dead_end") {
+  if (type === "dead_end" || type === "leaf") {
+    const displayName = beneficiary || "Unknown Recipient";
+    const tagLabel = !nodeData.has_linked_statement ? "No statement" : "External";
     return (
-      <div className={cn("rounded-lg border-2 px-4 py-3 w-[240px] text-center", nodeStyles.dead_end)}>
-        <Handle type="target" position={Position.Top} className="!bg-destructive/40 !w-2 !h-2" />
-        <div className="flex items-center justify-center gap-2">
-          {iconMap.dead_end}
-          <span className="text-xs font-medium">Dead End</span>
-        </div>
-        <p className="text-[10px] mt-1 opacity-70">No further trace found</p>
-      </div>
+      <TooltipProvider delayDuration={200}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className={cn("rounded-xl border-2 px-4 py-3 w-[240px] transition-all duration-200 hover:scale-[1.02]", nodeStyles.leaf)}>
+              <Handle type="target" position={Position.Top} className="!bg-muted-foreground/40 !w-2.5 !h-2.5" />
+              <p className="text-xs font-semibold truncate">{displayName}</p>
+              <p className="text-sm font-mono font-bold mt-1">{formatAmount(amount)}</p>
+              <div className="flex items-center justify-between mt-1.5 gap-2">
+                <span className="text-[10px] text-muted-foreground">{formatDate(date)}</span>
+                <Badge variant="outline" className="text-[8px] px-1.5 py-0 h-4 border-muted-foreground/30 text-muted-foreground gap-1">
+                  {iconMap.leaf}
+                  {tagLabel}
+                </Badge>
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="p-3 max-w-sm bg-popover border shadow-lg z-[9999]">
+            <div className="space-y-1.5">
+              <p className="font-semibold text-sm">{displayName}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <span className="text-muted-foreground">Amount:</span>
+                <span className="font-mono">{formatAmount(amount)}</span>
+                <span className="text-muted-foreground">Date:</span>
+                <span>{formatDate(date)}</span>
+                {nodeData.transaction_type && (
+                  <>
+                    <span className="text-muted-foreground">Type:</span>
+                    <span>{nodeData.transaction_type}</span>
+                  </>
+                )}
+                {nodeData.description && (
+                  <>
+                    <span className="text-muted-foreground">Description:</span>
+                    <span className="truncate">{nodeData.description}</span>
+                  </>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground italic">Statement not uploaded in this case</p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
@@ -286,8 +323,21 @@ function TraceTreeNode({ data }: NodeProps) {
               </p>
             )}
 
+            {/* Reconciliation indicator */}
+            {isAccountNode && isFullyReconciled && (
+              <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-600 dark:text-emerald-400">
+                <CheckCircle2 className="h-3 w-3" />
+                <span>Fully reconciled</span>
+              </div>
+            )}
+            {isAccountNode && retained != null && !isFullyReconciled && retained > 0 && (
+              <p className="text-[9px] text-muted-foreground mt-1.5">
+                {formatAmountShort(retained)} retained
+              </p>
+            )}
+
             {/* Linked statement indicator */}
-            {nodeData.has_linked_statement && !isRoot && (
+            {nodeData.has_linked_statement && !isRoot && !isAccountNode && (
               <div className="flex items-center gap-1 mt-1 text-[10px] text-accent">
                 <CornerDownRight className="h-2.5 w-2.5" />
                 <span className="truncate">Has statement</span>

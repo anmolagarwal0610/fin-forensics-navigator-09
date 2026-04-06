@@ -160,13 +160,13 @@ function BatchTraceCanvas({
   return (
     <div className="flex h-full">
       {/* Left Sidebar */}
-      <div className="w-[280px] border-r flex flex-col shrink-0 bg-card/50">
+      <div className="w-[280px] border-r flex flex-col shrink-0 bg-card/50 overflow-hidden min-h-0">
         {/* File List */}
-        <div className="px-3 py-3 border-b">
+        <div className="px-3 py-3 border-b shrink-0">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
             Files ({fileEntries.length})
           </h3>
-          <ScrollArea className="max-h-[240px]">
+          <div className="max-h-[200px] overflow-y-auto">
             <div className="space-y-0.5">
               {fileEntries.map(([fileName, entry]) => (
                 <button
@@ -191,17 +191,17 @@ function BatchTraceCanvas({
                 </button>
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </div>
 
         {/* Seed List */}
-        <div className="flex-1 overflow-hidden flex flex-col">
-          <div className="px-3 py-2 border-b">
+        <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b shrink-0">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Transactions ({fileSeeds.length})
             </h3>
           </div>
-          <ScrollArea className="flex-1 px-2 py-1">
+          <div className="flex-1 overflow-y-auto px-2 py-1 min-h-0">
             <div className="space-y-1">
               {fileSeeds.map((seed) => (
                 <SeedListItem
@@ -212,7 +212,7 @@ function BatchTraceCanvas({
                 />
               ))}
             </div>
-          </ScrollArea>
+          </div>
         </div>
       </div>
 

@@ -803,6 +803,11 @@ export default function ExcelViewer({
     );
   }
 
+  // Dynamic S.No column width based on row count
+  const totalDataRows = filteredDisplayData.dataRows.length;
+  const col0WidthClass = totalDataRows >= 1000 ? 'w-16 min-w-[64px] max-w-[80px]' : totalDataRows >= 100 ? 'w-[50px] min-w-[50px] max-w-[64px]' : 'w-10 min-w-[40px] max-w-[60px]';
+  const col1LeftClass = totalDataRows >= 1000 ? 'left-[64px]' : totalDataRows >= 100 ? 'left-[50px]' : 'left-[40px]';
+
   return (
     <Card>
       <CardHeader className="p-4 sm:p-6">

@@ -187,6 +187,36 @@ export default function CaseAnalysisResults() {
     return Object.values(groupingOverrides.individual).some((f) => Object.keys(f).length > 0);
   }, [groupingOverrides]);
 
+  // Compute beneficiary breakdown for KPI tooltip (Credit Only / Debit Only / Both)
+  const beneficiaryBreakdown = useMemo(() => {
+    const excelData = analysisData?.beneficiariesExcelData;
+    if (!excelData || excelData.length < 3) return null;
+    
+    const headerRow = excelData[1];
+    let creditIdx = -1, debitIdx = -1;
+    headerRow?.forEach((cell: any, idx: number) => {
+      const text = String(cell?.value || '').toLowerCase().trim();
+      if (text === 'total credit') creditIdx = idx;
+      if (text === 'total debit') debitIdx = idx;
+    });
+    if (creditIdx === -1 || debitIdx === -1) return null;
+    
+    let creditOnly = 0, debitOnly = 0, both = 0;
+    for (let i = 2; i < excelData.length; i++) {
+      const row = excelData[i];
+      const creditVal = typeof row?.[creditIdx]?.value === 'number' 
+        ? row[creditIdx].value 
+        : parseFloat(String(row?.[creditIdx]?.value || '0').replace(/[₹$€£,\s]/g, '')) || 0;
+      const debitVal = typeof row?.[debitIdx]?.value === 'number'
+        ? row[debitIdx].value
+        : parseFloat(String(row?.[debitIdx]?.value || '0').replace(/[₹$€£,\s]/g, '')) || 0;
+      if (creditVal > 0 && debitVal > 0) both++;
+      else if (creditVal > 0) creditOnly++;
+      else if (debitVal > 0) debitOnly++;
+    }
+    return { creditOnly, debitOnly, both };
+  }, [analysisData?.beneficiariesExcelData]);
+
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
@@ -1280,18 +1310,40 @@ export default function CaseAnalysisResults() {
 
         {/* Key Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {t("analysisResults.totalBeneficiaries")}
-              </CardTitle>
-              <Users className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
-              <p className="text-xs text-muted-foreground">{t("analysisResults.identifiedInAnalysis")}</p>
-            </CardContent>
-          </Card>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow cursor-help">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {t("analysisResults.totalBeneficiaries")}
+                  </CardTitle>
+                  <Users className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
+                  <p className="text-xs text-muted-foreground">{t("analysisResults.identifiedInAnalysis")}</p>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            {beneficiaryBreakdown && (
+              <TooltipContent side="bottom" className="text-sm">
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Credit Only</span>
+                    <span className="font-medium">{beneficiaryBreakdown.creditOnly.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Debit Only</span>
+                    <span className="font-medium">{beneficiaryBreakdown.debitOnly.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Credit & Debit</span>
+                    <span className="font-medium">{beneficiaryBreakdown.both.toLocaleString()}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            )}
+          </Tooltip>
 
           <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1323,10 +1375,10 @@ export default function CaseAnalysisResults() {
         {/* Enhanced Beneficiaries Preview */}
         {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
           <ExcelViewer
-            title={t("analysisResults.topBeneficiaries", { count: Math.min(100, analysisData.totalBeneficiaryCount) })}
+            title={t("analysisResults.topBeneficiaries", { count: Math.min(1000, analysisData.totalBeneficiaryCount) })}
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
-            maxRows={102}
+            maxRows={1002}
             fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
             enableBeneficiaryClick={true}
             zipData={analysisData.zipData}

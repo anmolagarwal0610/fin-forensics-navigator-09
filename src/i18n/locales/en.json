@@ -126,7 +126,7 @@
     "presentInMultipleFiles": "Beneficiaries Present in more than one file",
     "analysisFiles": "Analysis Files",
     "originalFilesProcessed": "Original files processed",
-    "topBeneficiaries": "Top {{count}} Beneficiaries",
+    "topBeneficiaries": "Overall Beneficiaries",
     "transactionFlowAnalysis": "Transaction Flow Analysis",
     "interactiveVisualization": "Interactive visualization of person of interest relationships and transaction flows",
     "sankeyGraph": "Sankey Graph",

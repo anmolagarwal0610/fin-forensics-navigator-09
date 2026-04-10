@@ -696,6 +696,15 @@ export default function ExcelViewer({
       }
     }
 
+    // 3. Fallback color for currency columns beyond preview coverage
+    if (!backgroundColor && rowIndex >= 2 && currencyColumnIndices.includes(colIndex)) {
+      const cellVal = cell.value;
+      const numVal = typeof cellVal === 'number' ? cellVal : parseFloat(String(cellVal || '0').replace(/[₹$€£,\s]/g, ''));
+      if (!isNaN(numVal) && numVal > 0) {
+        backgroundColor = isDarkMode ? '#1a3a2a' : '#d4edda';
+      }
+    }
+
     // Calculate optimal contrast-based text color first
     let optimalTextColor = isDarkMode ? '#ffffff' : '#000000';
     
@@ -809,7 +818,7 @@ export default function ExcelViewer({
       </CardHeader>
       <CardContent className="p-3 sm:p-6 pt-0 sm:pt-0">
         <p className="text-xs text-muted-foreground mb-3 sm:mb-4">
-          Credit and Debit amounts are with respect to bank statements. Any amount appearing under Total Credit means that the bank account owner received that amount from the beneficiary. Any amount under Total Debit means the bank account owner paid that amount to the beneficiary.
+          This table provides a ranked analysis of all beneficiaries identified in the statement. Total Credit represents the aggregate amount received by the account owner from the beneficiary, while Total Debit represents the aggregate amount paid to the beneficiary.
         </p>
         <div ref={scrollContainerRef} className="relative overflow-auto h-[400px] sm:h-[600px] w-full border rounded-md">
           <TooltipProvider>
@@ -852,9 +861,9 @@ export default function ExcelViewer({
 
                             // Determine sticky column classes
                             const stickyClass = colIndex === 0 
-                              ? 'sticky left-0 z-30 bg-background w-10 min-w-[40px] max-w-[60px]' 
+                              ? `sticky left-0 z-30 bg-background ${col0WidthClass}` 
                               : colIndex === 1 
-                                ? 'sticky left-[40px] z-30 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
+                                ? `sticky ${col1LeftClass} z-30 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]` 
                                 : '';
 
                             // Check if this header is a sortable column
@@ -869,7 +878,7 @@ export default function ExcelViewer({
                                 key={colIndex}
                                 {...span}
                                 style={{ ...style, backgroundColor: style.backgroundColor || 'hsl(var(--background))' }}
-                                className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left font-semibold ${stickyClass}`}
+                                className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? col0WidthClass : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left font-semibold ${stickyClass}`}
                               >
                                 {/* Sort toggle for Total Credit / Total Debit */}
                                 {sortableCol ? (
@@ -994,25 +1003,30 @@ export default function ExcelViewer({
                                       } catch {
                                         displayValue = `₹${rawValue.toFixed(2)}`;
                                       }
-                                    } else if (typeof rawValue === 'number') {
-                                      displayValue = new Intl.NumberFormat('en-US', {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      }).format(rawValue);
-                                    } else if (typeof rawValue === 'string') {
-                                      displayValue = rawValue.replace('\u200B', '').trim();
-                                    }
+                    } else if (typeof rawValue === 'number') {
+                      // Column 0 (S.No): show as integer
+                      if (colIndex === 0) {
+                        displayValue = Math.round(rawValue).toString();
+                      } else {
+                        displayValue = new Intl.NumberFormat('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        }).format(rawValue);
+                      }
+                    } else if (typeof rawValue === 'string') {
+                      displayValue = rawValue.replace('\u200B', '').trim();
+                    }
 
-                                    const cellContent = truncateText(displayValue);
-                                    const isClickable = isBeneficiaryCell(rowIndex, colIndex);
-                                    const isAliasColumn = colIndex === aliasSearchColumnIndex && aliasSearchColumnIndex !== -1;
+                    const cellContent = truncateText(displayValue);
+                    const isClickable = isBeneficiaryCell(rowIndex, colIndex);
+                    const isAliasColumn = colIndex === aliasSearchColumnIndex && aliasSearchColumnIndex !== -1;
                                     const showTooltip = cellContent.truncated || (isAliasColumn && displayValue.length > 0);
 
                                     // Determine sticky column classes for body cells
                                     const bodyStickyClass = colIndex === 0 
-                                      ? 'sticky left-0 z-10 bg-background w-10 min-w-[40px] max-w-[60px]' 
+                                      ? `sticky left-0 z-10 bg-background ${col0WidthClass}` 
                                       : colIndex === 1 
-                                        ? 'sticky left-[40px] z-10 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
+                                        ? `sticky ${col1LeftClass} z-10 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]` 
                                         : '';
 
                                     return (
@@ -1020,7 +1034,7 @@ export default function ExcelViewer({
                                         key={colIndex}
                                         {...span}
                                         style={style}
-                                        className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left ${bodyStickyClass}`}
+                                        className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? col0WidthClass : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left ${bodyStickyClass}`}
                                       >
                                         {isClickable ? (
                                           <button

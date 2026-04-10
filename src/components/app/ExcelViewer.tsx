@@ -696,29 +696,6 @@ export default function ExcelViewer({
       }
     }
 
-    // 3. Fallback for rows beyond preview coverage
-    if (!backgroundColor && rowIndex >= 2) {
-      // 3a. Alternating row bands for all columns
-      const dataRowIndex = rowIndex - 2;
-      if (dataRowIndex % 2 === 1) {
-        backgroundColor = isDarkMode ? '#1a1f2e' : '#f0f0f0';
-      }
-
-      // 3b. Currency column color overrides (credit=green, debit=pink)
-      if (currencyColumnIndices.includes(colIndex)) {
-        const cellVal = cell.value;
-        const numVal = typeof cellVal === 'number' ? cellVal : parseFloat(String(cellVal || '0').replace(/[₹$€£,\s]/g, ''));
-        if (!isNaN(numVal) && numVal > 0) {
-          if (columnIndices && colIndex === columnIndices.totalCreditIdx) {
-            backgroundColor = isDarkMode ? '#1a3a2a' : '#c6efce';
-          } else if (columnIndices && colIndex === columnIndices.totalDebitIdx) {
-            backgroundColor = isDarkMode ? '#3a1a1a' : '#fce4ec';
-          } else {
-            backgroundColor = isDarkMode ? '#1a3a2a' : '#c6efce';
-          }
-        }
-      }
-    }
 
     // Calculate optimal contrast-based text color first
     let optimalTextColor = isDarkMode ? '#ffffff' : '#000000';

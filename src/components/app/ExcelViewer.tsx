@@ -696,12 +696,27 @@ export default function ExcelViewer({
       }
     }
 
-    // 3. Fallback color for currency columns beyond preview coverage
-    if (!backgroundColor && rowIndex >= 2 && currencyColumnIndices.includes(colIndex)) {
-      const cellVal = cell.value;
-      const numVal = typeof cellVal === 'number' ? cellVal : parseFloat(String(cellVal || '0').replace(/[₹$€£,\s]/g, ''));
-      if (!isNaN(numVal) && numVal > 0) {
-        backgroundColor = isDarkMode ? '#1a3a2a' : '#d4edda';
+    // 3. Fallback for rows beyond preview coverage
+    if (!backgroundColor && rowIndex >= 2) {
+      // 3a. Alternating row bands for all columns
+      const dataRowIndex = rowIndex - 2;
+      if (dataRowIndex % 2 === 1) {
+        backgroundColor = isDarkMode ? '#1a1f2e' : '#f0f0f0';
+      }
+
+      // 3b. Currency column color overrides (credit=green, debit=pink)
+      if (currencyColumnIndices.includes(colIndex)) {
+        const cellVal = cell.value;
+        const numVal = typeof cellVal === 'number' ? cellVal : parseFloat(String(cellVal || '0').replace(/[₹$€£,\s]/g, ''));
+        if (!isNaN(numVal) && numVal > 0) {
+          if (columnIndices && colIndex === columnIndices.totalCreditIdx) {
+            backgroundColor = isDarkMode ? '#1a3a2a' : '#c6efce';
+          } else if (columnIndices && colIndex === columnIndices.totalDebitIdx) {
+            backgroundColor = isDarkMode ? '#3a1a1a' : '#fce4ec';
+          } else {
+            backgroundColor = isDarkMode ? '#1a3a2a' : '#c6efce';
+          }
+        }
       }
     }
 
@@ -1028,10 +1043,13 @@ export default function ExcelViewer({
                                     const showTooltip = cellContent.truncated || (isAliasColumn && displayValue.length > 0);
 
                                     // Determine sticky column classes for body cells
+                                    // Only use bg-background if no inline backgroundColor is set
+                                    const hasBgFromStyle = !!style.backgroundColor;
+                                    const stickyBg = hasBgFromStyle ? '' : 'bg-background';
                                     const bodyStickyClass = colIndex === 0 
-                                      ? `sticky left-0 z-10 bg-background ${col0WidthClass}` 
+                                      ? `sticky left-0 z-10 ${stickyBg} ${col0WidthClass}` 
                                       : colIndex === 1 
-                                        ? `sticky ${col1LeftClass} z-10 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]` 
+                                        ? `sticky ${col1LeftClass} z-10 ${stickyBg} shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]` 
                                         : '';
 
                                     return (

@@ -1,39 +1,47 @@
-# Fix S.No Column Width, Color Coding, and Rename Section
+
+
+# Fix Color Coding Theme Match + Alternating Row Background
+
+## Issues from Screenshot
+
+1. **Green/Pink fallback colors don't match dark theme**: The hardcoded `#d4edda` (light green) and `#ffcccc` (pink) used as fallback beyond row 100 look garish in dark mode. The preview JSON uses darker, theme-appropriate greens/pinks for the first 100 rows.
+
+2. **Beneficiary Name column (col 1) shows white background on alternating rows**: The sticky column uses `bg-background` which is white in light mode. For rows beyond the preview JSON coverage, there's no `cell_bg` entry, so the cell has no background — but the sticky column's `bg-background` class makes it solid white, breaking the visual pattern.
 
 ## Changes
 
-### 1. Dynamic S.No Column Width (ExcelViewer.tsx)
+### File: `src/components/app/ExcelViewer.tsx`
 
-The first column uses hardcoded `w-10 min-w-[40px] max-w-[60px]`, which clips numbers like "1023.0". Fix:
+**1. Fix fallback currency column colors (lines 699-706)**
 
-- Compute the max number of digits from `filteredDisplayData.dataRows.length` (e.g., 1000 rows = 4 digits)
-- Set `min-w` dynamically: up to 99 rows = 40px, up to 999 = 50px, 1000+ = 64px
-- Apply this dynamic width to both `<th>` (line 872) and `<td>` (line 1023) for column 0
-- Also update the sticky `left` offset for column 1 to match the new column 0 width
-- Also, remove the decimal please - we only want to show the numbers.
+Replace the hardcoded green with theme-aware colors that match the preview JSON pattern:
+- Credit column (value > 0): Light mode `#c6efce` / Dark mode `#1a3a2a` (subtle green)
+- Debit column (value > 0): Light mode `#fce4ec` / Dark mode `#3a1a1a` (subtle pink/red)
 
-### 2. Color Coding for All Rows (ExcelViewer.tsx)
+This requires knowing which currency column is credit vs debit. Use `columnIndices.totalCreditIndex` and `columnIndices.totalDebitIndex` to differentiate:
+- If `colIndex === totalCreditIndex` and value > 0 → green tint
+- If `colIndex === totalDebitIndex` and value > 0 → pink tint
+- Otherwise keep current single-color fallback
 
-The preview JSON `cell_bg` only covers the first ~100 data rows. Rows beyond that lose their green highlighting on non-zero credit/debit cells.
+**2. Fix alternating row backgrounds for non-preview rows (lines 699-706)**
 
-Fix in `getCellStyle` (around line 698): After checking preview JSON colors, add a fallback for currency columns — if no background color was set and the cell has a numeric value > 0, apply a light green tint (`#d4edda` in light mode, `#1a3a2a` in dark mode). This matches the existing color pattern from the preview JSON.
+Add a fallback for ALL columns (not just currency) beyond the preview coverage: apply alternating row backgrounds using even/odd `rowIndex`:
+- Even rows: transparent (inherits theme background)
+- Odd rows: subtle muted band (`hsl(var(--muted))` equivalent — use `#f0f0f0` light / `#1a1f2e` dark)
 
-### 3. Rename Section Title and Description
+This goes BEFORE the currency fallback check, so currency colors override the band.
 
-**ExcelViewer.tsx line 811**: Replace the hardcoded description text with the new copy:
+**3. Fix sticky column background for rows beyond preview (lines 1030-1035)**
 
-> "This table provides a ranked analysis of all beneficiaries identified in the statement. Total Credit represents the aggregate amount received by the account owner from the beneficiary, while Total Debit represents the aggregate amount paid to the beneficiary."
+The `bg-background` on sticky columns is always applied, which is correct for scroll overlap. But when a cell has a `style.backgroundColor` from `getCellStyle`, the inline style should take precedence. The issue is that `bg-background` in the className overrides the inline style in some cases.
 
-**CaseAnalysisResults.tsx line 1378**: Change the title from `t("analysisResults.topBeneficiaries", { count: ... })` to a static `"Overall Beneficiaries"` string (or update the i18n key).
+Fix: Instead of `bg-background` on sticky body cells, apply the background conditionally — if `getCellStyle` already set a backgroundColor, skip `bg-background`. Alternatively, ensure the inline style always wins by keeping `bg-background` as a fallback but making sure `getCellStyle` always sets a background for sticky columns (even if it's just the theme background or alternating band color).
 
-**en.json / hi.json**: Update the `topBeneficiaries` key to `"Overall Beneficiaries"` / `"समग्र लाभार्थी"` (remove `{{count}}`).
+The simplest fix: in `getCellStyle`, always set `backgroundColor` for rows beyond preview coverage. For non-currency cells, use the alternating band color. This way the inline `style` always has a value and overrides the Tailwind `bg-background`.
 
 ## Files to Modify
 
+| File | Change |
+|------|--------|
+| `src/components/app/ExcelViewer.tsx` | Theme-aware credit/debit fallback colors, alternating row bands for all rows, fix sticky col background |
 
-| File                                    | Change                                                                                 |
-| --------------------------------------- | -------------------------------------------------------------------------------------- |
-| `src/components/app/ExcelViewer.tsx`    | Dynamic col 0 width, fallback color coding for currency cells, update description text |
-| `src/pages/app/CaseAnalysisResults.tsx` | Update title prop (remove count interpolation)                                         |
-| `src/i18n/locales/en.json`              | `"topBeneficiaries": "Overall Beneficiaries"`                                          |
-| `src/i18n/locales/hi.json`              | `"topBeneficiaries": "समग्र लाभार्थी"`                                                 |

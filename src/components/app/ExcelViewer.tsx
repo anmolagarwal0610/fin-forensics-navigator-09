@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
-import { Download, Search, X } from 'lucide-react';
+import { Download, Search, X, ArrowUpDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTranslation } from 'react-i18next';
@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { CellData } from '@/utils/excelParser';
 import JSZip from 'jszip';
 import { parseExcelFile } from '@/utils/excelParser';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import BeneficiaryTransactionsDialog, { TransactionRow } from './BeneficiaryTransactionsDialog';
 import POITransactionsDialog, { POITransactionRow } from './POITransactionsDialog';
 import EditGroupedNamesDialog, { BeneficiaryEntry, GroupingOverrideResult, PendingClusterState } from './EditGroupedNamesDialog';
@@ -83,6 +84,16 @@ export default function ExcelViewer({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   
+  // Sort state for Total Credit / Total Debit columns
+  const [sortConfig, setSortConfig] = useState<{ column: 'credit' | 'debit' | null; direction: 'desc' | 'asc' | null }>({ column: null, direction: null });
+  
+  // Debounced search query for full-dataset search
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // Scroll container ref for virtualizer
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
   // Beneficiary drill-down state
   const [dialogOpen, setDialogOpen] = useState(false);
   const [poiDialogOpen, setPOIDialogOpen] = useState(false);
@@ -125,6 +136,8 @@ export default function ExcelViewer({
     
     let filesPresentIdx = -1;
     let similarNamesIdx = -1;
+    let totalCreditIdx = -1;
+    let totalDebitIdx = -1;
     const totalCreditDebitIndices: number[] = [];
     
     headerRow.forEach((cell, idx) => {
@@ -138,9 +151,11 @@ export default function ExcelViewer({
       if (headerText.includes('total credit') || headerText.includes('total debit')) {
         totalCreditDebitIndices.push(idx);
       }
+      if (headerText === 'total credit') totalCreditIdx = idx;
+      if (headerText === 'total debit') totalDebitIdx = idx;
     });
     
-    return { filesPresentIdx, similarNamesIdx, totalCreditDebitIndices, fileRow };
+    return { filesPresentIdx, similarNamesIdx, totalCreditDebitIndices, totalCreditIdx, totalDebitIdx, fileRow };
   }, [enableBeneficiaryClick, processedData]);
 
   // Build allBeneficiaries list for EditGroupedNamesDialog search
@@ -539,22 +554,85 @@ export default function ExcelViewer({
     loadPreview();
   }, [fileUrl]);
   
-  // Filter data based on search query (check Beneficiary Name col 1 + alias column)
-  const filteredDisplayData = useMemo(() => {
-    const sliced = processedData.slice(0, maxRows);
-    if (!searchQuery.trim() || !enableBeneficiaryClick) return sliced;
-    
-    const query = searchQuery.toLowerCase().trim();
-    const headerRows = sliced.slice(0, 2);
-    const dataRows = sliced.slice(2).filter((row) => {
-      const beneficiaryValue = String(row[1]?.value || '').toLowerCase();
-      const aliasValue = aliasSearchColumnIndex !== -1
-        ? String(row[aliasSearchColumnIndex]?.value || '').toLowerCase()
-        : '';
-      return beneficiaryValue.includes(query) || aliasValue.includes(query);
+  // Debounce search query for full-dataset search
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 200);
+    return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
+  }, [searchQuery]);
+
+  // Pre-computed search index: array of { idx, text } for all data rows
+  const searchIndex = useMemo(() => {
+    if (!enableBeneficiaryClick || processedData.length < 3) return null;
+    const entries: Array<{ idx: number; text: string }> = [];
+    for (let i = 2; i < processedData.length; i++) {
+      const row = processedData[i];
+      const name = String(row[1]?.value || '').toLowerCase();
+      const alias = aliasSearchColumnIndex !== -1 ? String(row[aliasSearchColumnIndex]?.value || '').toLowerCase() : '';
+      entries.push({ idx: i, text: `${name}\t${alias}` });
+    }
+    return entries;
+  }, [processedData, enableBeneficiaryClick, aliasSearchColumnIndex]);
+
+  // Parse numeric value from a cell (for sorting)
+  const parseNumericValue = useCallback((cell: CellData | undefined): number => {
+    if (!cell) return 0;
+    const val = cell.value;
+    if (typeof val === 'number') return val;
+    const parsed = parseFloat(String(val || '0').replace(/[₹$€£,\s]/g, ''));
+    return isNaN(parsed) ? 0 : parsed;
+  }, []);
+
+  // Handle sort toggle (3-state: default → desc → asc → default)
+  const handleSortToggle = useCallback((column: 'credit' | 'debit') => {
+    setSortConfig(prev => {
+      if (prev.column !== column) return { column, direction: 'desc' };
+      if (prev.direction === 'desc') return { column, direction: 'asc' };
+      return { column: null, direction: null };
     });
-    return [...headerRows, ...dataRows];
-  }, [processedData, maxRows, searchQuery, enableBeneficiaryClick, aliasSearchColumnIndex]);
+  }, []);
+
+  // Filtered + sorted display data (split into headerRows + dataRows)
+  const filteredDisplayData = useMemo(() => {
+    const headerRows = processedData.slice(0, 2);
+    const query = debouncedQuery.toLowerCase().trim();
+    
+    let dataRows: CellData[][];
+    
+    if (query && enableBeneficiaryClick && searchIndex) {
+      // Search across ALL data (not limited by maxRows)
+      const matchedIndices = searchIndex
+        .filter(entry => entry.text.includes(query))
+        .map(entry => entry.idx);
+      dataRows = matchedIndices.map(idx => processedData[idx]);
+    } else {
+      // Default: show first (maxRows - 2) data rows
+      dataRows = processedData.slice(2, maxRows);
+    }
+    
+    // Apply sorting
+    if (sortConfig.column && sortConfig.direction && columnIndices) {
+      const colIdx = sortConfig.column === 'credit' ? columnIndices.totalCreditIdx : columnIndices.totalDebitIdx;
+      if (colIdx !== -1) {
+        const dir = sortConfig.direction === 'desc' ? -1 : 1;
+        dataRows = [...dataRows].sort((a, b) => {
+          return dir * (parseNumericValue(a[colIdx]) - parseNumericValue(b[colIdx]));
+        });
+      }
+    }
+    
+    return { headerRows, dataRows };
+  }, [processedData, maxRows, debouncedQuery, enableBeneficiaryClick, searchIndex, sortConfig, columnIndices, parseNumericValue]);
+
+  // Virtualizer for data rows
+  const rowVirtualizer = useVirtualizer({
+    count: filteredDisplayData.dataRows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => 36,
+    overscan: 15,
+  });
 
   // Handle search close
   const handleCloseSearch = () => {
@@ -565,8 +643,6 @@ export default function ExcelViewer({
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") handleCloseSearch();
   };
-
-  const displayData = filteredDisplayData;
 
   const getCellStyle = useCallback((cell: CellData, rowIndex: number, colIndex: number) => {
     const style: React.CSSProperties = {};
@@ -735,12 +811,12 @@ export default function ExcelViewer({
         <p className="text-xs text-muted-foreground mb-3 sm:mb-4">
           Credit and Debit amounts are with respect to bank statements. Any amount appearing under Total Credit means that the bank account owner received that amount from the beneficiary. Any amount under Total Debit means the bank account owner paid that amount to the beneficiary.
         </p>
-        <div className="relative overflow-auto h-[400px] sm:h-[600px] w-full border rounded-md">
+        <div ref={scrollContainerRef} className="relative overflow-auto h-[400px] sm:h-[600px] w-full border rounded-md">
           <TooltipProvider>
                 <table className="border-collapse min-w-full">
                   {/* Sticky header for first 2 rows */}
                   <thead className="sticky top-0 z-20">
-                    {displayData.slice(0, 2).map((row, rowIndex) => (
+                    {filteredDisplayData.headerRows.map((row, rowIndex) => (
                       <tr key={rowIndex} className="bg-background">
                         {row
                           .map((cell, colIndex) => {
@@ -781,6 +857,13 @@ export default function ExcelViewer({
                                 ? 'sticky left-[40px] z-30 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
                                 : '';
 
+                            // Check if this header is a sortable column
+                            const sortableCol = enableBeneficiaryClick && rowIndex === 1 && columnIndices
+                              ? (colIndex === columnIndices.totalCreditIdx ? 'credit' as const
+                                : colIndex === columnIndices.totalDebitIdx ? 'debit' as const
+                                : null)
+                              : null;
+
                             return (
                               <th
                                 key={colIndex}
@@ -788,8 +871,25 @@ export default function ExcelViewer({
                                 style={{ ...style, backgroundColor: style.backgroundColor || 'hsl(var(--background))' }}
                                 className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left font-semibold ${stickyClass}`}
                               >
-                                {/* Search UI for Beneficiary Name column (row 1, col 1) */}
-                                {enableBeneficiaryClick && rowIndex === 1 && colIndex === 1 ? (
+                                {/* Sort toggle for Total Credit / Total Debit */}
+                                {sortableCol ? (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleSortToggle(sortableCol); }}
+                                    className="flex items-center gap-1 w-full text-left font-semibold group"
+                                  >
+                                    <span className="block truncate">{cellContent.text}</span>
+                                    <ArrowUpDown className={`h-3 w-3 flex-shrink-0 transition-colors ${
+                                      sortConfig.column === sortableCol 
+                                        ? 'text-primary' 
+                                        : 'text-muted-foreground/50 group-hover:text-muted-foreground'
+                                    }`} />
+                                    {sortConfig.column === sortableCol && (
+                                      <span className="text-[10px] text-primary flex-shrink-0">
+                                        {sortConfig.direction === 'desc' ? '↓' : '↑'}
+                                      </span>
+                                    )}
+                                  </button>
+                                ) : enableBeneficiaryClick && rowIndex === 1 && colIndex === 1 ? (
                                   <div className="flex items-center gap-1">
                                     {isSearchOpen ? (
                                       <div className="flex items-center gap-1 flex-1">
@@ -857,120 +957,153 @@ export default function ExcelViewer({
                     ))}
                   </thead>
                   <tbody>
-                    {displayData.slice(2).map((row, idx) => {
-                      const rowIndex = idx + 2; // Adjust for actual row index
+                    {(() => {
+                      const virtualItems = rowVirtualizer.getVirtualItems();
+                      const paddingTop = virtualItems.length > 0 ? virtualItems[0].start : 0;
+                      const paddingBottom = virtualItems.length > 0 
+                        ? rowVirtualizer.getTotalSize() - virtualItems[virtualItems.length - 1].end 
+                        : 0;
                       return (
-                        <tr key={rowIndex}>
-                          {row
-                            .map((cell, colIndex) => {
-                              if (cell.isHidden) return null;
+                        <>
+                          {paddingTop > 0 && (
+                            <tr><td colSpan={9999} style={{ height: paddingTop, padding: 0, border: 'none' }} /></tr>
+                          )}
+                          {virtualItems.map(virtualRow => {
+                            const row = filteredDisplayData.dataRows[virtualRow.index];
+                            const rowIndex = virtualRow.index + 2;
+                            return (
+                              <tr key={virtualRow.index} ref={rowVirtualizer.measureElement} data-index={virtualRow.index}>
+                                {row
+                                  .map((cell, colIndex) => {
+                                    if (cell.isHidden) return null;
 
-                              const span = getCellSpan(cell);
-                              const style = getCellStyle(cell, rowIndex, colIndex);
-                              const rawValue = cell.value;
-                              let displayValue = String(rawValue || '');
+                                    const span = getCellSpan(cell);
+                                    const style = getCellStyle(cell, rowIndex, colIndex);
+                                    const rawValue = cell.value;
+                                    let displayValue = String(rawValue || '');
 
-                              const isCurrencyColumn = currencyColumnIndices.includes(colIndex);
-                              if (typeof rawValue === 'number' && isCurrencyColumn) {
-                                try {
-                                  displayValue = new Intl.NumberFormat('en-IN', {
-                                    style: 'currency',
-                                    currency: 'INR',
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  }).format(rawValue);
-                                } catch {
-                                  displayValue = `₹${rawValue.toFixed(2)}`;
-                                }
-                              } else if (typeof rawValue === 'number') {
-                                displayValue = new Intl.NumberFormat('en-US', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                }).format(rawValue);
-                              } else if (typeof rawValue === 'string') {
-                                displayValue = rawValue.replace('\u200B', '').trim();
-                              }
+                                    const isCurrencyColumn = currencyColumnIndices.includes(colIndex);
+                                    if (typeof rawValue === 'number' && isCurrencyColumn) {
+                                      try {
+                                        displayValue = new Intl.NumberFormat('en-IN', {
+                                          style: 'currency',
+                                          currency: 'INR',
+                                          minimumFractionDigits: 2,
+                                          maximumFractionDigits: 2,
+                                        }).format(rawValue);
+                                      } catch {
+                                        displayValue = `₹${rawValue.toFixed(2)}`;
+                                      }
+                                    } else if (typeof rawValue === 'number') {
+                                      displayValue = new Intl.NumberFormat('en-US', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      }).format(rawValue);
+                                    } else if (typeof rawValue === 'string') {
+                                      displayValue = rawValue.replace('\u200B', '').trim();
+                                    }
 
-                              const cellContent = truncateText(displayValue);
-                              const isClickable = isBeneficiaryCell(rowIndex, colIndex);
-                              const isAliasColumn = colIndex === aliasSearchColumnIndex && aliasSearchColumnIndex !== -1;
-                              const showTooltip = cellContent.truncated || (isAliasColumn && displayValue.length > 0);
+                                    const cellContent = truncateText(displayValue);
+                                    const isClickable = isBeneficiaryCell(rowIndex, colIndex);
+                                    const isAliasColumn = colIndex === aliasSearchColumnIndex && aliasSearchColumnIndex !== -1;
+                                    const showTooltip = cellContent.truncated || (isAliasColumn && displayValue.length > 0);
 
-                              // Determine sticky column classes for body cells
-                              const bodyStickyClass = colIndex === 0 
-                                ? 'sticky left-0 z-10 bg-background w-10 min-w-[40px] max-w-[60px]' 
-                                : colIndex === 1 
-                                  ? 'sticky left-[40px] z-10 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
-                                  : '';
+                                    // Determine sticky column classes for body cells
+                                    const bodyStickyClass = colIndex === 0 
+                                      ? 'sticky left-0 z-10 bg-background w-10 min-w-[40px] max-w-[60px]' 
+                                      : colIndex === 1 
+                                        ? 'sticky left-[40px] z-10 bg-background shadow-[4px_0_6px_-2px_rgba(0,0,0,0.1)]' 
+                                        : '';
 
-                              return (
-                                <td
-                                  key={colIndex}
-                                  {...span}
-                                  style={style}
-                                  className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left ${bodyStickyClass}`}
-                                >
-                                  {isClickable ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleBeneficiaryClick(row)}
-                                      className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
-                                      style={{ color: style.color || 'inherit' }}
-                                      title={`View transactions for ${displayValue}`}
-                                    >
-                                      {cellContent.truncated ? (
-                                        <Tooltip>
-                                          <TooltipTrigger asChild>
-                                            <span className="block truncate overflow-hidden text-ellipsis">
-                                              {cellContent.text}
-                                            </span>
-                                          </TooltipTrigger>
-                                          <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
-                                            <p className="whitespace-pre-wrap break-words text-xs">
-                                              {cellContent.original}
-                                            </p>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      ) : (
-                                        <span className="block truncate overflow-hidden text-ellipsis">
-                                          {cellContent.text}
-                                        </span>
-                                      )}
-                                    </button>
-                                  ) : showTooltip ? (
-                                    <Tooltip>
-                                      <TooltipTrigger asChild>
-                                        <span className="cursor-help block truncate overflow-hidden text-ellipsis">
-                                          {cellContent.truncated ? cellContent.text : displayValue}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
-                                        <p className="whitespace-pre-wrap break-words text-xs">
-                                          {cellContent.truncated ? cellContent.original : displayValue}
-                                        </p>
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  ) : (
-                                    <span className="block truncate overflow-hidden text-ellipsis">
-                                      {cellContent.text}
-                                    </span>
-                                  )}
-                                </td>
-                              );
-                            })
-                            .filter(Boolean)}
-                        </tr>
+                                    return (
+                                      <td
+                                        key={colIndex}
+                                        {...span}
+                                        style={style}
+                                        className={`p-1.5 sm:p-2 text-xs sm:text-sm border border-border align-top overflow-hidden ${colIndex === 0 ? 'w-10 min-w-[40px] max-w-[60px]' : 'min-w-[80px] sm:min-w-[120px] max-w-[300px] sm:max-w-[400px]'} text-left ${bodyStickyClass}`}
+                                      >
+                                        {isClickable ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleBeneficiaryClick(row)}
+                                            className="hover:underline cursor-pointer font-medium text-left w-full transition-colors"
+                                            style={{ color: style.color || 'inherit' }}
+                                            title={`View transactions for ${displayValue}`}
+                                          >
+                                            {cellContent.truncated ? (
+                                              <Tooltip>
+                                                <TooltipTrigger asChild>
+                                                  <span className="block truncate overflow-hidden text-ellipsis">
+                                                    {cellContent.text}
+                                                  </span>
+                                                </TooltipTrigger>
+                                                <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                                  <p className="whitespace-pre-wrap break-words text-xs">
+                                                    {cellContent.original}
+                                                  </p>
+                                                </TooltipContent>
+                                              </Tooltip>
+                                            ) : (
+                                              <span className="block truncate overflow-hidden text-ellipsis">
+                                                {cellContent.text}
+                                              </span>
+                                            )}
+                                          </button>
+                                        ) : showTooltip ? (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className="cursor-help block truncate overflow-hidden text-ellipsis">
+                                                {cellContent.truncated ? cellContent.text : displayValue}
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent className="max-w-[600px] max-h-[300px] overflow-auto">
+                                              <p className="whitespace-pre-wrap break-words text-xs">
+                                                {cellContent.truncated ? cellContent.original : displayValue}
+                                              </p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        ) : (
+                                          <span className="block truncate overflow-hidden text-ellipsis">
+                                            {cellContent.text}
+                                          </span>
+                                        )}
+                                      </td>
+                                    );
+                                  })
+                                  .filter(Boolean)}
+                              </tr>
+                            );
+                          })}
+                          {paddingBottom > 0 && (
+                            <tr><td colSpan={9999} style={{ height: paddingBottom, padding: 0, border: 'none' }} /></tr>
+                          )}
+                        </>
                       );
-                    })}
+                    })()}
                   </tbody>
                 </table>
           </TooltipProvider>
         </div>
-        {processedData.length > maxRows && (
-          <p className="mt-4 text-sm text-muted-foreground">
-            Showing top {Math.max(0, maxRows - 2)} rows of {Math.max(0, processedData.length - 2)} total rows
-          </p>
-        )}
+        {(() => {
+          const totalDataRows = Math.max(0, processedData.length - 2);
+          const displayedCount = filteredDisplayData.dataRows.length;
+          const isSearching = debouncedQuery.trim().length > 0;
+          if (isSearching) {
+            return (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Found {displayedCount} matches out of {totalDataRows} total beneficiaries
+              </p>
+            );
+          }
+          if (totalDataRows > displayedCount) {
+            return (
+              <p className="mt-4 text-sm text-muted-foreground">
+                Showing top {displayedCount} of {totalDataRows} total beneficiaries
+              </p>
+            );
+          }
+          return null;
+        })()}
       </CardContent>
       
       {/* Dialogs for beneficiary drill-down */}

@@ -319,6 +319,36 @@ export default function CaseAnalysisResults() {
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
 
+  // Compute beneficiary breakdown for KPI tooltip (Credit Only / Debit Only / Both)
+  const beneficiaryBreakdown = useMemo(() => {
+    const excelData = analysisData?.beneficiariesExcelData;
+    if (!excelData || excelData.length < 3) return null;
+    
+    const headerRow = excelData[1];
+    let creditIdx = -1, debitIdx = -1;
+    headerRow?.forEach((cell: any, idx: number) => {
+      const text = String(cell?.value || '').toLowerCase().trim();
+      if (text === 'total credit') creditIdx = idx;
+      if (text === 'total debit') debitIdx = idx;
+    });
+    if (creditIdx === -1 || debitIdx === -1) return null;
+    
+    let creditOnly = 0, debitOnly = 0, both = 0;
+    for (let i = 2; i < excelData.length; i++) {
+      const row = excelData[i];
+      const creditVal = typeof row?.[creditIdx]?.value === 'number' 
+        ? row[creditIdx].value 
+        : parseFloat(String(row?.[creditIdx]?.value || '0').replace(/[₹$€£,\s]/g, '')) || 0;
+      const debitVal = typeof row?.[debitIdx]?.value === 'number'
+        ? row[debitIdx].value
+        : parseFloat(String(row?.[debitIdx]?.value || '0').replace(/[₹$€£,\s]/g, '')) || 0;
+      if (creditVal > 0 && debitVal > 0) both++;
+      else if (creditVal > 0) creditOnly++;
+      else if (debitVal > 0) debitOnly++;
+    }
+    return { creditOnly, debitOnly, both };
+  }, [analysisData?.beneficiariesExcelData]);
+
   // PDF Report generation hook
   const {
     pdfUrl: reportPdfUrl,

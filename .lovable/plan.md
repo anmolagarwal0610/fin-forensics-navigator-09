@@ -1,34 +1,64 @@
-Let me investigate. The screenshot shows multiple cases (TEST, dhd, shrgr, retht, fvbf, eh5yg, wyy) all stuck in "Processing" with "21h ago" timestamp. User says these appeared automatically.
+The user approved the 3-step mitigation. Let me confirm what I'm executing:
 
-Key observations from context:
+1. **Reset updated_at for 9 corrupted rows** — UPDATE cases SET updated_at = created_at WHERE these 9 stuck-since-Nov rows.
+2. **Re-attach missing trigger** — CREATE TRIGGER on cases BEFORE UPDATE calling update_cases_updated_at(). Also re-attach reset_stale_alert_on_status_change trigger which is also missing.
+3. **Lock down Edge Function** — change config.toml `verify_jwt = true` for check-stale-processing.
 
-1. The trigger fix was applied — `update_cases_updated_at` now skips bumping `updated_at` when only `stale_alert_sent` changes. - check if this was applied as I didnt deploy it and it was stuck.
-2. But the user is still seeing many cases in "Processing" with recent timestamps (21h ago).
-3. The check-stale-processing cron was NOT scheduled (user declined the migration).
-4. So `stale_alert_sent` is NOT being toggled automatically.
+Step 1 is a data UPDATE → use insert/data tool.
+Step 2 is a SCHEMA change (CREATE TRIGGER) → use migration tool.
+Step 3 is a file edit on supabase/config.toml.
 
-Let me check the database to see what's actually going on.
+I should also identify the 9 cases precisely. From prior RCA, they share `updated_at = 2026-04-16 11:56:09` (the timestamp of the ad-hoc invocation) and were originally created in Nov 2025. The safest filter:
+`WHERE status = 'Processing' AND stale_alert_sent = true AND created_at < '2025-12-01'`
 
-Investigation needed:
+# Mitigation Plan: Restore Trigger + Reset Timestamps + Lock Edge Function
 
-- Query cases table: what's the actual status, created_at, updated_at for these cases?
-- Check if these are truly "old" cases or if something is creating them
-- Check jobs table for these cases
-- Check if there's any other trigger
-- Check db-triggers section: says "There are no triggers in the database" — wait, that's suspicious. The `update_cases_updated_at` function exists but no triggers? That might mean the trigger was dropped during the previous migration and never re-created!
+## Step 1 — Reset corrupted `updated_at` (data update)
 
-Let me verify this carefully before drafting plan.
+```sql
+UPDATE public.cases
+SET updated_at = created_at
+WHERE status = 'Processing'
+  AND stale_alert_sent = true
+  AND created_at < '2025-12-01';
+```
 
-Actually looking again at db-functions: `update_cases_updated_at` function exists. db-triggers section says "There are no triggers in the database." If triggers are truly gone, then `updated_at` would never bump on any case update — which would actually freeze timestamps, not refresh them.
+This restores the 9 Nov-2025 cases to their true last-meaningful-update time so they fall back down the dashboard.
 
-But the user shows "21h ago" — these could be cases legitimately created 21 hours ago and stuck. Let me check.
+## Step 2 — Re-create the missing triggers (schema migration)
 
-Hypothesis options:
-A. The previous migration dropped the `update_cases_updated_at` trigger but didn't re-create it (or re-created with wrong condition).
-B. Some other process is updating these cases.
-C. These cases are simply stuck in Processing genuinely from 21h ago and the timestamp is correct.
+Both `update_cases_updated_at()` and `reset_stale_alert_on_status_change()` functions exist but no trigger is attached. Re-attach both:
 
-I need to query the DB to confirm. Let me do that. - Also check what all changes are deployed on prod (there is no such thing as prod on supabase, so also check what are the last set of changes that were published there?)  
-  
-Also, these cases got triggered 21h back but these cases miggh have been created earlier maybe. something common that I found was - 11/11/2025 is the date that the analysis was run for all these cases and suddenly they appeared out of nowhere again.  
-Check the glitch and send the plan again.
+```sql
+DROP TRIGGER IF EXISTS trg_update_cases_updated_at ON public.cases;
+CREATE TRIGGER trg_update_cases_updated_at
+BEFORE UPDATE ON public.cases
+FOR EACH ROW
+EXECUTE FUNCTION public.update_cases_updated_at();
+
+DROP TRIGGER IF EXISTS trg_reset_stale_alert_on_status_change ON public.cases;
+CREATE TRIGGER trg_reset_stale_alert_on_status_change
+BEFORE UPDATE ON public.cases
+FOR EACH ROW
+EXECUTE FUNCTION public.reset_stale_alert_on_status_change();
+```
+
+After this, future `stale_alert_sent` toggles will NOT bump `updated_at`, and reverting a case from Processing will reset the alert flag.
+
+## Step 3 — Lock down the public Edge Function
+
+Update `supabase/config.toml`: change `check-stale-processing` from `verify_jwt = false` to `verify_jwt = true`. This prevents anonymous ad-hoc invocations like the one that caused this incident. When pg_cron is eventually scheduled, it will pass the service-role bearer.
+
+## Files / Tools
+
+
+| Step | Tool               | Target                     |
+| ---- | ------------------ | -------------------------- |
+| 1    | data insert/update | `cases` table — 9 rows     |
+| 2    | migration          | `cases` table — 2 triggers |
+| 3    | file edit          | `supabase/config.toml`     |
+
+
+No application code changes. No edge function code changes. Top 1000 table changes are unrelated and remain untouched.  
+Okay, make sure nothing is broken in this and the system should run fine as it was running before.  
+Do a recheck from your end as well.

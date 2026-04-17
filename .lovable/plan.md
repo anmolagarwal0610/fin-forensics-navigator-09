@@ -1,72 +1,34 @@
+Let me investigate. The screenshot shows multiple cases (TEST, dhd, shrgr, retht, fvbf, eh5yg, wyy) all stuck in "Processing" with "21h ago" timestamp. User says these appeared automatically.
 
+Key observations from context:
 
-# Fix Stale Processing Alert Side Effects + Deploy Properly
+1. The trigger fix was applied — `update_cases_updated_at` now skips bumping `updated_at` when only `stale_alert_sent` changes. - check if this was applied as I didnt deploy it and it was stuck.
+2. But the user is still seeing many cases in "Processing" with recent timestamps (21h ago).
+3. The check-stale-processing cron was NOT scheduled (user declined the migration).
+4. So `stale_alert_sent` is NOT being toggled automatically.
 
-## Root Cause
+Let me check the database to see what's actually going on.
 
-The `update_cases_updated_at` trigger sets `updated_at = now()` on ANY update to the `cases` table. When `check-stale-processing` sets `stale_alert_sent = true`, the trigger fires and bumps `updated_at`, making old cases appear recent on the dashboard.
+Investigation needed:
 
-## Changes
+- Query cases table: what's the actual status, created_at, updated_at for these cases?
+- Check if these are truly "old" cases or if something is creating them
+- Check jobs table for these cases
+- Check if there's any other trigger
+- Check db-triggers section: says "There are no triggers in the database" — wait, that's suspicious. The `update_cases_updated_at` function exists but no triggers? That might mean the trigger was dropped during the previous migration and never re-created!
 
-### 1. SQL Migration: Fix the `updated_at` trigger
+Let me verify this carefully before drafting plan.
 
-Modify `update_updated_at_column()` — or better, create a new cases-specific trigger — to skip updating `updated_at` when the only changed column is `stale_alert_sent`:
+Actually looking again at db-functions: `update_cases_updated_at` function exists. db-triggers section says "There are no triggers in the database." If triggers are truly gone, then `updated_at` would never bump on any case update — which would actually freeze timestamps, not refresh them.
 
-```sql
-CREATE OR REPLACE FUNCTION public.update_cases_updated_at()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-  -- Skip updated_at bump if only stale_alert_sent changed
-  IF (OLD IS DISTINCT FROM NEW) AND
-     (OLD.stale_alert_sent IS DISTINCT FROM NEW.stale_alert_sent) AND
-     (ROW(OLD.name, OLD.status, OLD.description, OLD.tags, OLD.color_hex,
-          OLD.result_zip_url, OLD.input_zip_url, OLD.analysis_mode, OLD.hitl_stage)
-      IS NOT DISTINCT FROM
-      ROW(NEW.name, NEW.status, NEW.description, NEW.tags, NEW.color_hex,
-          NEW.result_zip_url, NEW.input_zip_url, NEW.analysis_mode, NEW.hitl_stage)) THEN
-    NEW.updated_at := OLD.updated_at;
-  ELSE
-    NEW.updated_at := now();
-  END IF;
-  RETURN NEW;
-END;
-$$;
-```
+But the user shows "21h ago" — these could be cases legitimately created 21 hours ago and stuck. Let me check.
 
-Then replace the trigger to use this new function instead of the generic `update_updated_at_column()`.
+Hypothesis options:
+A. The previous migration dropped the `update_cases_updated_at` trigger but didn't re-create it (or re-created with wrong condition).
+B. Some other process is updating these cases.
+C. These cases are simply stuck in Processing genuinely from 21h ago and the timestamp is correct.
 
-### 2. SQL Migration: Fix affected rows
-
-Reset the 9 affected cases' `updated_at` back to their `created_at` (since they've been stuck in Processing since November 2025, the last meaningful update was around creation time). This must run AFTER the trigger fix to avoid re-bumping.
-
-### 3. Register function in config.toml
-
-Add:
-```toml
-[functions.check-stale-processing]
-verify_jwt = false
-```
-
-### 4. SQL Migration: Create pg_cron job
-
-```sql
-SELECT cron.schedule(
-  'check-stale-processing',
-  '*/30 * * * *',
-  $$
-  SELECT net.http_post(
-    url:='https://db.finnavigatorai.com/functions/v1/check-stale-processing',
-    headers:='{"Content-Type": "application/json", "Authorization": "Bearer <anon_key>"}'::jsonb,
-    body:='{}'::jsonb
-  ) AS request_id;
-  $$
-);
-```
-
-## Files to Modify
-
-| File | Change |
-|------|--------|
-| `supabase/config.toml` | Add `check-stale-processing` function config |
-| Database (migration) | Replace `update_cases_updated_at` trigger, fix affected rows, create cron job |
-
+I need to query the DB to confirm. Let me do that. - Also check what all changes are deployed on prod (there is no such thing as prod on supabase, so also check what are the last set of changes that were published there?)  
+  
+Also, these cases got triggered 21h back but these cases miggh have been created earlier maybe. something common that I found was - 11/11/2025 is the date that the analysis was run for all these cases and suddenly they appeared out of nowhere again.  
+Check the glitch and send the plan again.

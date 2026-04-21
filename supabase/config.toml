@@ -77,3 +77,6 @@ verify_jwt = true
 
 [functions.check-stale-processing]
 verify_jwt = true
+
+[functions.send-stale-processing-alert]
+verify_jwt = true

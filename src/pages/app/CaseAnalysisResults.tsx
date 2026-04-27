@@ -1340,29 +1340,40 @@ export default function CaseAnalysisResults() {
             <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            <DateRangePicker
-              value={resultsMasterTimeline}
-              align="end"
-              onSave={setResultsMasterTimeline}
-              trigger={
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="default"
-                  className={cn(
-                    "gap-2 w-full sm:w-auto",
-                    isValidRange(resultsMasterTimeline) && "border-primary text-primary hover:text-primary",
-                  )}
-                >
-                  <CalendarRange className="h-4 w-4" />
-                  <span className="truncate">
-                    {isValidRange(resultsMasterTimeline)
-                      ? formatRangeShort(resultsMasterTimeline)
-                      : "Select Timeline"}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="w-full sm:w-auto">
+                    <DateRangePicker
+                      value={resultsMasterTimeline}
+                      align="end"
+                      onSave={setResultsMasterTimeline}
+                      trigger={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="default"
+                          className={cn(
+                            "gap-2 w-full sm:w-auto",
+                            isValidRange(resultsMasterTimeline) && "border-primary text-primary hover:text-primary",
+                          )}
+                        >
+                          <CalendarRange className="h-4 w-4" />
+                          <span className="truncate">
+                            {isValidRange(resultsMasterTimeline)
+                              ? formatRangeShort(resultsMasterTimeline)
+                              : t("timeline.selectTimeline")}
+                          </span>
+                        </Button>
+                      }
+                    />
                   </span>
-                </Button>
-              }
-            />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-[260px]">
+                  <p>{t("timeline.tooltip")}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {(hasGroupingChanges || hasTimelineChanges) && (
               <Button
                 onClick={() => setApplyChangesOpen(true)}
@@ -1371,7 +1382,7 @@ export default function CaseAnalysisResults() {
                 className="gap-2 w-full sm:w-auto border-primary text-primary hover:bg-primary/10"
               >
                 <Settings2 className="h-4 w-4" />
-                Apply Changes
+                {t("timeline.applyChanges")}
               </Button>
             )}
             <DropdownMenu>
@@ -1922,38 +1933,48 @@ export default function CaseAnalysisResults() {
                             const range = resultsPerFileTimeline[tlKey] ?? null;
                             const hasRange = isValidRange(range);
                             return (
-                              <DateRangePicker
-                                value={range}
-                                align="start"
-                                onSave={(r) =>
-                                  setResultsPerFileTimeline((prev) => {
-                                    const next = { ...prev };
-                                    if (r) next[tlKey] = r;
-                                    else delete next[tlKey];
-                                    return next;
-                                  })
-                                }
-                                trigger={
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className={cn(
-                                      "h-6 px-2 ml-1 text-xs gap-1 flex-shrink-0",
-                                      hasRange
-                                        ? "text-primary hover:text-primary"
-                                        : "text-muted-foreground hover:text-foreground",
-                                    )}
-                                    title={hasRange ? formatRangeShort(range) : "Set date range for this file"}
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <CalendarClock className="h-3.5 w-3.5" />
-                                    <span className="hidden md:inline">
-                                      {hasRange ? formatRangeShort(range) : "Timeline"}
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span onClick={(e) => e.stopPropagation()}>
+                                      <DateRangePicker
+                                        value={range}
+                                        align="start"
+                                        onSave={(r) =>
+                                          setResultsPerFileTimeline((prev) => {
+                                            const next = { ...prev };
+                                            if (r) next[tlKey] = r;
+                                            else delete next[tlKey];
+                                            return next;
+                                          })
+                                        }
+                                        trigger={
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className={cn(
+                                              "h-6 px-2 ml-1 text-xs gap-1 flex-shrink-0",
+                                              hasRange
+                                                ? "text-primary hover:text-primary"
+                                                : "text-muted-foreground hover:text-foreground",
+                                            )}
+                                            onClick={(e) => e.stopPropagation()}
+                                          >
+                                            <CalendarClock className="h-3.5 w-3.5" />
+                                            <span className="hidden md:inline">
+                                              {hasRange ? formatRangeShort(range) : t("timeline.short")}
+                                            </span>
+                                          </Button>
+                                        }
+                                      />
                                     </span>
-                                  </Button>
-                                }
-                              />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-[260px]">
+                                    <p>{t("timeline.tooltip")}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             );
                           })()}
                         </h4>

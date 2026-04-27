@@ -86,6 +86,11 @@ export default function CaseUpload() {
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
   const { fetchFileForParsing } = useSecureDownload();
 
+  // Timeline state
+  const [masterTimeline, setMasterTimeline] = useState<TimelineRange | null>(null);
+  // Keyed by sanitized filename (matches what is sent to the backend)
+  const [perFileTimeline, setPerFileTimeline] = useState<Record<string, TimelineRange>>({});
+
   // Check if this is "add files" mode
   const isAddFilesMode = searchParams.get("addFiles") === "true";
   const sourceResultUrl = searchParams.get("sourceResultUrl"); // Legacy URL fallback

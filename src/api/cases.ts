@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import type { MergeConfig } from "@/utils/mergeConfig";
 
 export type CaseStatus = 'Draft' | 'Processing' | 'Ready' | 'Archived' | 'Failed' | 'Timeout' | 'Review';
 export type AnalysisMode = 'hitl' | 'direct';
@@ -23,7 +22,7 @@ export interface CaseRecord {
   hitl_stage?: HitlStage;
   csv_zip_url?: string;
   input_zip_url?: string;
-  merge_config?: MergeConfig | null;
+  merge_config?: any;
 }
 
 export interface CaseCsvFileRecord {

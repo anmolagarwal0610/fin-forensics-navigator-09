@@ -40,6 +40,8 @@ interface FileUploaderProps {
   maxFileSize?: number;
   acceptedTypes?: string[];
   renderFileExtra?: (file: FileItem) => React.ReactNode;
+  /** Optional extra actions rendered in the right-side action cluster of each row. */
+  renderFileActions?: (file: FileItem) => React.ReactNode;
 }
 
 export default function FileUploader({ 
@@ -47,7 +49,8 @@ export default function FileUploader({
   onFilesChange, 
   maxFileSize = 250 * 1024 * 1024, // 250MB
   acceptedTypes = ['.pdf', '.zip'],
-  renderFileExtra
+  renderFileExtra,
+  renderFileActions,
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});
@@ -509,6 +512,11 @@ export default function FileUploader({
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {renderFileActions && (
+                    <span onClick={(e) => e.stopPropagation()} className="flex items-center">
+                      {renderFileActions(file)}
+                    </span>
+                  )}
                   {isSub && (
                     <Button
                       variant="ghost"

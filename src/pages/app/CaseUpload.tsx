@@ -27,12 +27,19 @@ import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
-import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save, AlertTriangle, Loader2, CalendarRange, CalendarClock } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { RequiredHeader } from "@/utils/headerKeywords";
 import JSZip from "jszip";
 import { countFilePages } from "@/utils/pageCounter";
-import { sanitizeFilename } from "@/lib/utils";
+import { cn, sanitizeFilename } from "@/lib/utils";
+import DateRangePicker from "@/components/app/DateRangePicker";
+import {
+  buildTimelineConfigFile,
+  formatRangeShort,
+  isValidRange,
+  type TimelineRange,
+} from "@/utils/timelineConfig";
 
 interface FileItem {
   name: string;
@@ -78,6 +85,11 @@ export default function CaseUpload() {
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
   const { fetchFileForParsing } = useSecureDownload();
+
+  // Timeline state
+  const [masterTimeline, setMasterTimeline] = useState<TimelineRange | null>(null);
+  // Keyed by sanitized filename (matches what is sent to the backend)
+  const [perFileTimeline, setPerFileTimeline] = useState<Record<string, TimelineRange>>({});
 
   // Check if this is "add files" mode
   const isAddFilesMode = searchParams.get("addFiles") === "true";
@@ -464,6 +476,27 @@ export default function CaseUpload() {
         console.log(`📋 Including merge_config.json with ${primaryToSubs.size} primary file(s)`);
       }
 
+      // Build timeline_config.json from master + per-file selections.
+      // Per-file entries are filtered to currently uploaded files (sanitized names).
+      {
+        const sanitizedNames = new Set(files.map((f) => sanitizeFilename(f.name)));
+        const perFileEntries = Object.entries(perFileTimeline).filter(
+          ([name, range]) => sanitizedNames.has(name) && isValidRange(range),
+        );
+        const timelineFile = buildTimelineConfigFile({
+          master: isValidRange(masterTimeline) ? masterTimeline : null,
+          per_file: Object.fromEntries(perFileEntries),
+        });
+        if (timelineFile) {
+          configFiles.push(timelineFile);
+          console.log(
+            `📋 Including timeline_config.json (master=${
+              isValidRange(masterTimeline) ? "set" : "none"
+            }, per_file=${perFileEntries.length})`,
+          );
+        }
+      }
+
       // Persist merge hierarchy to the case row so view pages can render it.
       // Set to null if no merges, to clear stale data on re-analysis.
       try {
@@ -827,6 +860,45 @@ export default function CaseUpload() {
             <FileUploader
               files={files}
               onFilesChange={setFiles}
+              renderFileActions={(file) => {
+                if (file.isPreExisting) return null;
+                const key = sanitizeFilename(file.name);
+                const range = perFileTimeline[key] ?? null;
+                const hasRange = isValidRange(range);
+                return (
+                  <DateRangePicker
+                    value={range}
+                    align="end"
+                    onSave={(r) => {
+                      setPerFileTimeline((prev) => {
+                        const next = { ...prev };
+                        if (r) next[key] = r;
+                        else delete next[key];
+                        return next;
+                      });
+                    }}
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-7 px-2 gap-1 text-xs",
+                          hasRange
+                            ? "text-primary hover:text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                        title={hasRange ? formatRangeShort(range) : "Set date range for this file"}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">
+                          {hasRange ? formatRangeShort(range) : "Timeline"}
+                        </span>
+                      </Button>
+                    }
+                  />
+                );
+              }}
               renderFileExtra={(file) => {
                 // Pre-existing badge
                 if (file.isPreExisting) {
@@ -946,6 +1018,27 @@ export default function CaseUpload() {
                   {savingForLater ? t("caseUpload.saving") : t("caseUpload.saveForLater")}
                 </Button>
               )}
+              <DateRangePicker
+                value={masterTimeline}
+                align="end"
+                onSave={setMasterTimeline}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className={cn(
+                      "gap-2",
+                      isValidRange(masterTimeline) && "border-primary text-primary hover:text-primary",
+                    )}
+                  >
+                    <CalendarRange className="h-4 w-4" />
+                    {isValidRange(masterTimeline)
+                      ? formatRangeShort(masterTimeline)
+                      : "Select Timeline"}
+                  </Button>
+                }
+              />
               <Button
                 onClick={handleStartAnalysis}
                 disabled={!canSubmit || submitting || savingForLater || loadingPreExisting}

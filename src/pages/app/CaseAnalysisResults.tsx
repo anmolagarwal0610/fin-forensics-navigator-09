@@ -30,6 +30,8 @@ import {
   BarChart3,
   Settings2,
   GitBranch,
+  CalendarRange,
+  CalendarClock,
 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -39,6 +41,13 @@ import FileSankeyModal from "@/components/app/FileSankeyModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
 import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
+import DateRangePicker from "@/components/app/DateRangePicker";
+import {
+  buildTimelineConfigFile,
+  formatRangeShort,
+  isValidRange,
+  type TimelineRange,
+} from "@/utils/timelineConfig";
 import LazySummaryTableViewer from "@/components/app/LazySummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
@@ -187,6 +196,14 @@ export default function CaseAnalysisResults() {
     if (Object.keys(groupingOverrides.cross_file).length > 0) return true;
     return Object.values(groupingOverrides.individual).some((f) => Object.keys(f).length > 0);
   }, [groupingOverrides]);
+
+  // Timeline state for re-analysis
+  const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
+  const [resultsPerFileTimeline, setResultsPerFileTimeline] = useState<Record<string, TimelineRange>>({});
+  const hasTimelineChanges = useMemo(() => {
+    if (isValidRange(resultsMasterTimeline)) return true;
+    return Object.values(resultsPerFileTimeline).some(isValidRange);
+  }, [resultsMasterTimeline, resultsPerFileTimeline]);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
@@ -372,7 +389,7 @@ export default function CaseAnalysisResults() {
 
     setIsApplyingChanges(true);
     try {
-      // 1. Build grouping_logic.json (versioned format)
+      // 1. Build grouping_logic.json (versioned format) — only if grouping changes exist
       let existingVersions: any[] = [];
 
       // Load existing versions from ZIP (if any)
@@ -442,7 +459,20 @@ export default function CaseAnalysisResults() {
           newZip.file(rawFile.replace("raw_transactions_", ""), content);
         }
       }
-      newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
+      if (hasGroupingChanges) {
+        newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
+      }
+
+      // Add timeline_config.json if user set any timeline range
+      if (hasTimelineChanges) {
+        const timelinePayload = {
+          master: isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null,
+          per_file: Object.fromEntries(
+            Object.entries(resultsPerFileTimeline).filter(([, r]) => isValidRange(r)),
+          ),
+        };
+        newZip.file("timeline_config.json", JSON.stringify(timelinePayload, null, 2));
+      }
 
       const zipBlob = await newZip.generateAsync({ type: "blob" });
       const zipFile = new File([zipBlob], "reanalysis.zip", { type: "application/zip" });
@@ -464,6 +494,8 @@ export default function CaseAnalysisResults() {
 
       // 6. Clear state and navigate
       setGroupingOverrides({ cross_file: {}, individual: {} });
+      setResultsMasterTimeline(null);
+      setResultsPerFileTimeline({});
       setApplyChangesOpen(false);
       queryClient.removeQueries({ queryKey: ["case-results", id] });
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === "analysis-data" && q.queryKey[1] === id });
@@ -1308,7 +1340,30 @@ export default function CaseAnalysisResults() {
             <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            {hasGroupingChanges && (
+            <DateRangePicker
+              value={resultsMasterTimeline}
+              align="end"
+              onSave={setResultsMasterTimeline}
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  className={cn(
+                    "gap-2 w-full sm:w-auto",
+                    isValidRange(resultsMasterTimeline) && "border-primary text-primary hover:text-primary",
+                  )}
+                >
+                  <CalendarRange className="h-4 w-4" />
+                  <span className="truncate">
+                    {isValidRange(resultsMasterTimeline)
+                      ? formatRangeShort(resultsMasterTimeline)
+                      : "Select Timeline"}
+                  </span>
+                </Button>
+              }
+            />
+            {(hasGroupingChanges || hasTimelineChanges) && (
               <Button
                 onClick={() => setApplyChangesOpen(true)}
                 size="default"
@@ -1862,6 +1917,45 @@ export default function CaseAnalysisResults() {
                               </Tooltip>
                             </TooltipProvider>
                           )}
+                          {(() => {
+                            const tlKey = summary.originalFile;
+                            const range = resultsPerFileTimeline[tlKey] ?? null;
+                            const hasRange = isValidRange(range);
+                            return (
+                              <DateRangePicker
+                                value={range}
+                                align="start"
+                                onSave={(r) =>
+                                  setResultsPerFileTimeline((prev) => {
+                                    const next = { ...prev };
+                                    if (r) next[tlKey] = r;
+                                    else delete next[tlKey];
+                                    return next;
+                                  })
+                                }
+                                trigger={
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className={cn(
+                                      "h-6 px-2 ml-1 text-xs gap-1 flex-shrink-0",
+                                      hasRange
+                                        ? "text-primary hover:text-primary"
+                                        : "text-muted-foreground hover:text-foreground",
+                                    )}
+                                    title={hasRange ? formatRangeShort(range) : "Set date range for this file"}
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <CalendarClock className="h-3.5 w-3.5" />
+                                    <span className="hidden md:inline">
+                                      {hasRange ? formatRangeShort(range) : "Timeline"}
+                                    </span>
+                                  </Button>
+                                }
+                              />
+                            );
+                          })()}
                         </h4>
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
@@ -2105,6 +2199,12 @@ export default function CaseAnalysisResults() {
         onRemoveChange={handleRemoveChange}
         onApply={handleApplyChanges}
         isApplying={isApplyingChanges}
+        timelineSummary={{
+          master: isValidRange(resultsMasterTimeline) ? formatRangeShort(resultsMasterTimeline) : null,
+          perFile: Object.entries(resultsPerFileTimeline)
+            .filter(([, r]) => isValidRange(r))
+            .map(([file, r]) => ({ file, range: formatRangeShort(r) })),
+        }}
       />
 
       {/* PDF Report Preview Modal */}

@@ -27,6 +27,8 @@ interface ApplyChangesDialogProps {
   onRemoveChange: (entry: ChangeEntry) => void;
   onApply: () => void;
   isApplying?: boolean;
+  /** Optional human-readable summary lines describing timeline changes that will also be applied. */
+  timelineSummary?: { master?: string | null; perFile?: Array<{ file: string; range: string }> };
 }
 
 export default function ApplyChangesDialog({
@@ -36,6 +38,7 @@ export default function ApplyChangesDialog({
   onRemoveChange,
   onApply,
   isApplying = false,
+  timelineSummary,
 }: ApplyChangesDialogProps) {
   const changes = useMemo(() => {
     const entries: ChangeEntry[] = [];
@@ -114,12 +117,39 @@ export default function ApplyChangesDialog({
             Review Changes
           </DialogTitle>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-            The following name grouping changes will be applied and re-analysis will be triggered.
+            The following changes will be applied and re-analysis will be triggered.
           </p>
         </DialogHeader>
 
         <div className="flex-1 px-4 sm:px-6 py-3 sm:py-4 max-h-[55vh] overflow-y-auto">
           <div className="space-y-5">
+            {/* Timeline changes */}
+            {timelineSummary && (timelineSummary.master || (timelineSummary.perFile && timelineSummary.perFile.length > 0)) && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-primary" />
+                  Timeline Range
+                  <Badge variant="secondary" className="text-xs">
+                    {(timelineSummary.master ? 1 : 0) + (timelineSummary.perFile?.length ?? 0)}
+                  </Badge>
+                </h3>
+                <div className="space-y-2">
+                  {timelineSummary.master && (
+                    <div className="px-3 py-2 rounded-md border bg-card text-sm">
+                      <span className="text-xs text-muted-foreground mr-2">Master:</span>
+                      <span className="font-medium">{timelineSummary.master}</span>
+                    </div>
+                  )}
+                  {timelineSummary.perFile?.map((pf) => (
+                    <div key={pf.file} className="px-3 py-2 rounded-md border bg-card text-sm">
+                      <p className="text-xs font-mono text-muted-foreground truncate">{pf.file}</p>
+                      <p className="font-medium text-sm mt-0.5">{pf.range}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Cross-file changes */}
             {crossFileChanges.length > 0 && (
               <div>
@@ -166,7 +196,7 @@ export default function ApplyChangesDialog({
               </div>
             )}
 
-            {changes.length === 0 && (
+            {changes.length === 0 && !(timelineSummary && (timelineSummary.master || (timelineSummary.perFile && timelineSummary.perFile.length > 0))) && (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 No pending changes
               </div>
@@ -177,7 +207,11 @@ export default function ApplyChangesDialog({
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-muted/30">
           <Button
             onClick={onApply}
-            disabled={changes.length === 0 || isApplying}
+            disabled={
+              isApplying ||
+              (changes.length === 0 &&
+                !(timelineSummary && (timelineSummary.master || (timelineSummary.perFile && timelineSummary.perFile.length > 0))))
+            }
             className="w-full gap-2"
             size="default"
           >

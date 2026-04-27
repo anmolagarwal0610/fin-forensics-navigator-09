@@ -1962,7 +1962,8 @@ export default function CaseAnalysisResults() {
                       </CollapsibleContent>
                     )}
                   </Collapsible>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

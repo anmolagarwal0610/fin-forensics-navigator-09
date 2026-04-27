@@ -1063,27 +1063,6 @@ export default function CaseUpload() {
                   {savingForLater ? t("caseUpload.saving") : t("caseUpload.saveForLater")}
                 </Button>
               )}
-              <DateRangePicker
-                value={masterTimeline}
-                align="end"
-                onSave={setMasterTimeline}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className={cn(
-                      "gap-2",
-                      isValidRange(masterTimeline) && "border-primary text-primary hover:text-primary",
-                    )}
-                  >
-                    <CalendarRange className="h-4 w-4" />
-                    {isValidRange(masterTimeline)
-                      ? formatRangeShort(masterTimeline)
-                      : "Select Timeline"}
-                  </Button>
-                }
-              />
               <Button
                 onClick={handleStartAnalysis}
                 disabled={!canSubmit || submitting || savingForLater || loadingPreExisting}

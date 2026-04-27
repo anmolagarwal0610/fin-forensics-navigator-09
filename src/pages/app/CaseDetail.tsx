@@ -475,12 +475,13 @@ export default function CaseDetail() {
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>{t('caseDetail.noFilesYet')}</p>
               </div> : <div className="columns-1 md:columns-2 gap-6">
-                {files.map((file, index) => {
+                {visibleFiles.map((file, index) => {
                   const ext = file.file_name.split('.').pop()?.toLowerCase();
                   const isPdf = ext === 'pdf';
                   const isSpreadsheet = ['xlsx', 'xls', 'csv'].includes(ext || '');
                   const FileIcon = isPdf ? FileText : isSpreadsheet ? FileSpreadsheet : FileText;
-                  
+                  const mergedSubs = getSubFilesFor(mergeConfig, file.file_name);
+                  const isMerged = mergedSubs.length > 0;
                   return <div key={file.id} className="flex items-center justify-between p-2 rounded border mb-2 break-inside-avoid">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <span className="text-xs font-medium text-muted-foreground w-5 text-center flex-shrink-0">
@@ -497,6 +498,44 @@ export default function CaseDetail() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+                      {isMerged && (
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground cursor-help hover:underline flex-shrink-0">
+                                Merged
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                              <p className="text-xs font-medium mb-1.5">Merged files:</p>
+                              <ul className="space-y-1">
+                                {mergedSubs.map((sub) => {
+                                  const subRec = findSubFileRecord(sub);
+                                  return (
+                                    <li key={sub} className="flex items-center gap-2 text-xs">
+                                      <span className="break-all flex-1">{sub}</span>
+                                      {subRec && canPreview(sub) && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 flex-shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePreviewFile(subRec);
+                                          }}
+                                          title="Preview original file"
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {canPreview(file.file_name) && (

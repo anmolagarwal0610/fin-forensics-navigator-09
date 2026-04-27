@@ -1861,7 +1861,7 @@ export default function CaseAnalysisResults() {
                             const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
                             return keyBase.toLowerCase() === baseName.toLowerCase();
                           });
-                          return (
+                          return false && (
                             <div className="flex items-center gap-2 text-sm bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
                               <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
                               <Button

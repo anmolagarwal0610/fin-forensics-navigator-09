@@ -1367,7 +1367,7 @@ export default function CaseAnalysisResults() {
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analysisData.fileSummaries.length}</div>
+              <div className="text-2xl font-bold">{visibleFileSummaries.length}</div>
               <p className="text-xs text-muted-foreground">{t("analysisResults.originalFilesProcessed")}</p>
             </CardContent>
           </Card>

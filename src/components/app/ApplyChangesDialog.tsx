@@ -196,7 +196,7 @@ export default function ApplyChangesDialog({
               </div>
             )}
 
-            {changes.length === 0 && (
+            {changes.length === 0 && !(timelineSummary && (timelineSummary.master || (timelineSummary.perFile && timelineSummary.perFile.length > 0))) && (
               <div className="text-center py-8 text-muted-foreground text-sm">
                 No pending changes
               </div>
@@ -207,7 +207,11 @@ export default function ApplyChangesDialog({
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-t bg-muted/30">
           <Button
             onClick={onApply}
-            disabled={changes.length === 0 || isApplying}
+            disabled={
+              isApplying ||
+              (changes.length === 0 &&
+                !(timelineSummary && (timelineSummary.master || (timelineSummary.perFile && timelineSummary.perFile.length > 0))))
+            }
             className="w-full gap-2"
             size="default"
           >

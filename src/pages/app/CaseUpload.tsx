@@ -456,9 +456,9 @@ export default function CaseUpload() {
           })),
         };
         const mergesBlob = new Blob([JSON.stringify(mergesJson, null, 2)], { type: 'application/json' });
-        const mergesFile = new File([mergesBlob], 'merges.json', { type: 'application/json' });
+        const mergesFile = new File([mergesBlob], 'merge_config.json', { type: 'application/json' });
         configFiles.push(mergesFile);
-        console.log(`📋 Including merges.json with ${primaryToSubs.size} primary file(s)`);
+        console.log(`📋 Including merge_config.json with ${primaryToSubs.size} primary file(s)`);
       }
 
       // Extract passwords for protected files

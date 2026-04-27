@@ -476,6 +476,27 @@ export default function CaseUpload() {
         console.log(`📋 Including merge_config.json with ${primaryToSubs.size} primary file(s)`);
       }
 
+      // Build timeline_config.json from master + per-file selections.
+      // Per-file entries are filtered to currently uploaded files (sanitized names).
+      {
+        const sanitizedNames = new Set(files.map((f) => sanitizeFilename(f.name)));
+        const perFileEntries = Object.entries(perFileTimeline).filter(
+          ([name, range]) => sanitizedNames.has(name) && isValidRange(range),
+        );
+        const timelineFile = buildTimelineConfigFile({
+          master: isValidRange(masterTimeline) ? masterTimeline : null,
+          per_file: Object.fromEntries(perFileEntries),
+        });
+        if (timelineFile) {
+          configFiles.push(timelineFile);
+          console.log(
+            `📋 Including timeline_config.json (master=${
+              isValidRange(masterTimeline) ? "set" : "none"
+            }, per_file=${perFileEntries.length})`,
+          );
+        }
+      }
+
       // Persist merge hierarchy to the case row so view pages can render it.
       // Set to null if no merges, to clear stale data on re-analysis.
       try {

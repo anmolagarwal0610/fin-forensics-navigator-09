@@ -31,7 +31,6 @@ import {
   Settings2,
   GitBranch,
   CalendarRange,
-  CalendarClock,
 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -199,11 +198,10 @@ export default function CaseAnalysisResults() {
 
   // Timeline state for re-analysis
   const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
-  const [resultsPerFileTimeline, setResultsPerFileTimeline] = useState<Record<string, TimelineRange>>({});
   const hasTimelineChanges = useMemo(() => {
     if (isValidRange(resultsMasterTimeline)) return true;
-    return Object.values(resultsPerFileTimeline).some(isValidRange);
-  }, [resultsMasterTimeline, resultsPerFileTimeline]);
+    return false;
+  }, [resultsMasterTimeline]);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
@@ -467,9 +465,7 @@ export default function CaseAnalysisResults() {
       if (hasTimelineChanges) {
         const timelinePayload = {
           master: isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null,
-          per_file: Object.fromEntries(
-            Object.entries(resultsPerFileTimeline).filter(([, r]) => isValidRange(r)),
-          ),
+          per_file: {},
         };
         newZip.file("timeline_config.json", JSON.stringify(timelinePayload, null, 2));
       }
@@ -495,7 +491,6 @@ export default function CaseAnalysisResults() {
       // 6. Clear state and navigate
       setGroupingOverrides({ cross_file: {}, individual: {} });
       setResultsMasterTimeline(null);
-      setResultsPerFileTimeline({});
       setApplyChangesOpen(false);
       queryClient.removeQueries({ queryKey: ["case-results", id] });
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === "analysis-data" && q.queryKey[1] === id });

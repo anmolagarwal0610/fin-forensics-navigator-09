@@ -389,7 +389,7 @@ export default function CaseAnalysisResults() {
 
     setIsApplyingChanges(true);
     try {
-      // 1. Build grouping_logic.json (versioned format)
+      // 1. Build grouping_logic.json (versioned format) — only if grouping changes exist
       let existingVersions: any[] = [];
 
       // Load existing versions from ZIP (if any)
@@ -459,7 +459,20 @@ export default function CaseAnalysisResults() {
           newZip.file(rawFile.replace("raw_transactions_", ""), content);
         }
       }
-      newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
+      if (hasGroupingChanges) {
+        newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
+      }
+
+      // Add timeline_config.json if user set any timeline range
+      if (hasTimelineChanges) {
+        const timelinePayload = {
+          master: isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null,
+          per_file: Object.fromEntries(
+            Object.entries(resultsPerFileTimeline).filter(([, r]) => isValidRange(r)),
+          ),
+        };
+        newZip.file("timeline_config.json", JSON.stringify(timelinePayload, null, 2));
+      }
 
       const zipBlob = await newZip.generateAsync({ type: "blob" });
       const zipFile = new File([zipBlob], "reanalysis.zip", { type: "application/zip" });

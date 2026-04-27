@@ -1829,6 +1829,39 @@ export default function CaseAnalysisResults() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {isMerged && (
+                            <TooltipProvider delayDuration={150}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground cursor-help hover:underline ml-1 flex-shrink-0">
+                                    Merged
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                                  <p className="text-xs font-medium mb-1.5">Merged files:</p>
+                                  <ul className="space-y-1">
+                                    {mergedSubs.map((sub) => (
+                                      <li key={sub} className="flex items-center gap-2 text-xs">
+                                        <span className="break-all flex-1 font-mono">{sub}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 flex-shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            previewCaseFileByName(sub);
+                                          }}
+                                          title="Preview original file"
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </h4>
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>

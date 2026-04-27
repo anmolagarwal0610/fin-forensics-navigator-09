@@ -259,21 +259,82 @@ export default function FileUploader({
 
   const toggleSelect = (name: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
     setSelected((prev) => {
       const next = new Set(prev);
-      if (e.metaKey || e.ctrlKey) {
-        next.has(name) ? next.delete(name) : next.add(name);
-      } else {
-        if (next.size === 1 && next.has(name)) {
-          next.clear();
-        } else {
-          next.clear();
-          next.add(name);
-        }
-      }
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
       return next;
     });
   };
+
+  // ── Marquee (rubber-band) selection ──
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const marqueeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
+  const baseSelectionRef = useRef<Set<string>>(new Set());
+  const [marqueeRect, setMarqueeRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+
+  const handleListMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    // Don't start marquee on a row, button, or input
+    if (target.closest('[data-file-row]') || target.closest('button') || target.closest('input')) return;
+    const wrap = listRef.current;
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    marqueeStartRef.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    baseSelectionRef.current = new Set(selected);
+    setMarqueeRect({ left: marqueeStartRef.current.x, top: marqueeStartRef.current.y, width: 0, height: 0 });
+  };
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!marqueeStartRef.current || !listRef.current) return;
+      const rect = listRef.current.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const sx = marqueeStartRef.current.x;
+      const sy = marqueeStartRef.current.y;
+      const left = Math.min(sx, cx);
+      const top = Math.min(sy, cy);
+      const width = Math.abs(cx - sx);
+      const height = Math.abs(cy - sy);
+      setMarqueeRect({ left, top, width, height });
+      // Compute hit test against rows
+      const rowEls = listRef.current.querySelectorAll<HTMLElement>('[data-file-row]');
+      const hits = new Set(baseSelectionRef.current);
+      const mLeft = left + rect.left;
+      const mTop = top + rect.top;
+      const mRight = mLeft + width;
+      const mBottom = mTop + height;
+      rowEls.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.right >= mLeft && r.left <= mRight && r.bottom >= mTop && r.top <= mBottom) {
+          const name = el.getAttribute('data-file-name');
+          if (name) hits.add(name);
+        }
+      });
+      setSelected(hits);
+    };
+    const onUp = () => {
+      if (!marqueeStartRef.current) return;
+      const r = marqueeRect;
+      const moved = r ? r.width > 4 || r.height > 4 : false;
+      if (moved) suppressClickRef.current = true;
+      marqueeStartRef.current = null;
+      setMarqueeRect(null);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [marqueeRect]);
 
   const handleDragStart = (name: string, e: React.DragEvent) => {
     // If dragging an unselected file, drag just it; otherwise drag the whole selection
@@ -387,14 +448,17 @@ export default function FileUploader({
       {files.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-medium">Selected Files ({files.length})</h3>
+          <TooltipProvider delayDuration={300}>
+          <div ref={listRef} className="relative space-y-2 select-none" onMouseDown={handleListMouseDown}>
           {rows.map(({ file, index, isSub }, rowPos) => {
             const isSelected = selected.has(file.name);
             const isDropTarget = dragOverName === file.name;
-            const isFirstTopRow = !isSub && rowPos === 0;
             const card = (
               <Card
                 key={`${file.name}-${index}`}
                 draggable
+                data-file-row
+                data-file-name={file.name}
                 onDragStart={(e) => handleDragStart(file.name, e)}
                 onDragOver={(e) => handleDragOver(file.name, e)}
                 onDragLeave={() => setDragOverName((cur) => (cur === file.name ? null : cur))}
@@ -528,18 +592,28 @@ export default function FileUploader({
               </Card>
             );
 
-            if (isFirstTopRow) {
-              return (
-                <HoverCard key={`${file.name}-${index}-hc`} openDelay={300}>
-                  <HoverCardTrigger asChild>{card}</HoverCardTrigger>
-                  <HoverCardContent side="top" className="text-xs w-auto max-w-xs">
-                    Select, Drag &amp; Drop if you want to merge statements.
-                  </HoverCardContent>
-                </HoverCard>
-              );
-            }
-            return card;
+            return (
+              <Tooltip key={`${file.name}-${index}-tt`}>
+                <TooltipTrigger asChild>{card}</TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Select, Drag &amp; Drop if you want to merge statements.
+                </TooltipContent>
+              </Tooltip>
+            );
           })}
+          {marqueeRect && (
+            <div
+              className="absolute border border-primary bg-primary/10 pointer-events-none rounded-sm"
+              style={{
+                left: marqueeRect.left,
+                top: marqueeRect.top,
+                width: marqueeRect.width,
+                height: marqueeRect.height,
+              }}
+            />
+          )}
+          </div>
+          </TooltipProvider>
         </div>
       )}
     </div>

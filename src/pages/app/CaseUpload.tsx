@@ -860,43 +860,88 @@ export default function CaseUpload() {
             <FileUploader
               files={files}
               onFilesChange={setFiles}
+              renderListHeaderActions={() => (
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span>
+                        <DateRangePicker
+                          value={masterTimeline}
+                          align="end"
+                          onSave={setMasterTimeline}
+                          trigger={
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className={cn(
+                                "gap-2",
+                                isValidRange(masterTimeline) &&
+                                  "border-primary text-primary hover:text-primary",
+                              )}
+                            >
+                              <CalendarRange className="h-4 w-4" />
+                              {isValidRange(masterTimeline)
+                                ? formatRangeShort(masterTimeline)
+                                : t("timeline.selectTimeline")}
+                            </Button>
+                          }
+                        />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[260px]">
+                      <p>{t("timeline.tooltip")}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               renderFileActions={(file) => {
                 if (file.isPreExisting) return null;
                 const key = sanitizeFilename(file.name);
                 const range = perFileTimeline[key] ?? null;
                 const hasRange = isValidRange(range);
                 return (
-                  <DateRangePicker
-                    value={range}
-                    align="end"
-                    onSave={(r) => {
-                      setPerFileTimeline((prev) => {
-                        const next = { ...prev };
-                        if (r) next[key] = r;
-                        else delete next[key];
-                        return next;
-                      });
-                    }}
-                    trigger={
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={cn(
-                          "h-7 px-2 gap-1 text-xs",
-                          hasRange
-                            ? "text-primary hover:text-primary"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                        title={hasRange ? formatRangeShort(range) : "Set date range for this file"}
-                      >
-                        <CalendarClock className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">
-                          {hasRange ? formatRangeShort(range) : "Timeline"}
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span>
+                          <DateRangePicker
+                            value={range}
+                            align="end"
+                            onSave={(r) => {
+                              setPerFileTimeline((prev) => {
+                                const next = { ...prev };
+                                if (r) next[key] = r;
+                                else delete next[key];
+                                return next;
+                              });
+                            }}
+                            trigger={
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className={cn(
+                                  "h-7 px-2 gap-1 text-xs",
+                                  hasRange
+                                    ? "text-primary hover:text-primary"
+                                    : "text-muted-foreground hover:text-foreground",
+                                )}
+                              >
+                                <CalendarClock className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">
+                                  {hasRange ? formatRangeShort(range) : t("timeline.short")}
+                                </span>
+                              </Button>
+                            }
+                          />
                         </span>
-                      </Button>
-                    }
-                  />
+                      </TooltipTrigger>
+                      <TooltipContent side="left" className="max-w-[260px]">
+                        <p>{t("timeline.tooltip")}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 );
               }}
               renderFileExtra={(file) => {
@@ -1018,27 +1063,6 @@ export default function CaseUpload() {
                   {savingForLater ? t("caseUpload.saving") : t("caseUpload.saveForLater")}
                 </Button>
               )}
-              <DateRangePicker
-                value={masterTimeline}
-                align="end"
-                onSave={setMasterTimeline}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="lg"
-                    className={cn(
-                      "gap-2",
-                      isValidRange(masterTimeline) && "border-primary text-primary hover:text-primary",
-                    )}
-                  >
-                    <CalendarRange className="h-4 w-4" />
-                    {isValidRange(masterTimeline)
-                      ? formatRangeShort(masterTimeline)
-                      : "Select Timeline"}
-                  </Button>
-                }
-              />
               <Button
                 onClick={handleStartAnalysis}
                 disabled={!canSubmit || submitting || savingForLater || loadingPreExisting}

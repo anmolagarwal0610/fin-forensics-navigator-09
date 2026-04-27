@@ -444,5 +444,11 @@
     "scheduledMaintenance": "Scheduled Maintenance",
     "maintenanceDisabled": "File submission is temporarily disabled during maintenance.",
     "loadingCase": "Loading case..."
+  },
+  "timeline": {
+    "selectTimeline": "Select Timeline",
+    "short": "Timeline",
+    "tooltip": "Select a timeline to run the case on, or choose a custom date range.",
+    "applyChanges": "Apply Changes"
   }
 }

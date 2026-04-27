@@ -42,6 +42,8 @@ interface FileUploaderProps {
   renderFileExtra?: (file: FileItem) => React.ReactNode;
   /** Optional extra actions rendered in the right-side action cluster of each row. */
   renderFileActions?: (file: FileItem) => React.ReactNode;
+  /** Optional actions rendered to the right of the "Selected Files (N)" header. */
+  renderListHeaderActions?: () => React.ReactNode;
 }
 
 export default function FileUploader({ 
@@ -51,6 +53,7 @@ export default function FileUploader({
   acceptedTypes = ['.pdf', '.zip'],
   renderFileExtra,
   renderFileActions,
+  renderListHeaderActions,
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});
@@ -450,7 +453,12 @@ export default function FileUploader({
 
       {files.length > 0 && (
         <div className="space-y-2">
-          <h3 className="font-medium">Selected Files ({files.length})</h3>
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="font-medium">Selected Files ({files.length})</h3>
+            {renderListHeaderActions && (
+              <div className="flex items-center gap-2">{renderListHeaderActions()}</div>
+            )}
+          </div>
           <TooltipProvider delayDuration={300}>
           <div ref={listRef} className="relative space-y-2 select-none px-4 -mx-4 py-2 -my-2" onMouseDown={handleListMouseDown}>
           {rows.map(({ file, index, isSub }, rowPos) => {
@@ -513,7 +521,12 @@ export default function FileUploader({
                 </div>
                 <div className="flex items-center gap-1">
                   {renderFileActions && (
-                    <span onClick={(e) => e.stopPropagation()} className="flex items-center">
+                    <span
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerEnter={(e) => e.stopPropagation()}
+                      onPointerMove={(e) => e.stopPropagation()}
+                      className="flex items-center"
+                    >
                       {renderFileActions(file)}
                     </span>
                   )}

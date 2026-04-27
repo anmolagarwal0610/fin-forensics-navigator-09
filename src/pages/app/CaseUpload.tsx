@@ -27,12 +27,19 @@ import { toast } from "@/hooks/use-toast";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useMaintenanceMode } from "@/hooks/useMaintenanceMode";
 import { useSecureDownload } from "@/hooks/useSecureDownload";
-import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save, AlertTriangle, Loader2 } from "lucide-react";
+import { ArrowLeft, Info, AlertCircle, Zap, Wrench, CheckCircle2, Save, AlertTriangle, Loader2, CalendarRange, CalendarClock } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { RequiredHeader } from "@/utils/headerKeywords";
 import JSZip from "jszip";
 import { countFilePages } from "@/utils/pageCounter";
 import { sanitizeFilename } from "@/lib/utils";
+import DateRangePicker from "@/components/app/DateRangePicker";
+import {
+  buildTimelineConfigFile,
+  formatRangeShort,
+  isValidRange,
+  type TimelineRange,
+} from "@/utils/timelineConfig";
 
 interface FileItem {
   name: string;

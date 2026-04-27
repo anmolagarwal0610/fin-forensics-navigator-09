@@ -1220,6 +1220,55 @@ export default function CaseAnalysisResults() {
     );
   }
 
+  // ── Merge config: hide sub-files from summary list, show "Merged" tag on primaries ──
+  const mergeConfig = (case_ as any)?.merge_config ?? null;
+  const subFileNamesLower = getSubFileNames(mergeConfig);
+  const visibleFileSummaries = analysisData.fileSummaries.filter(
+    (s) => !subFileNamesLower.has(s.originalFile.toLowerCase()),
+  );
+
+  // Open a preview for any case file by name (used by both primary file Eye and merged sub-file Eyes)
+  const previewCaseFileByName = async (fileName: string) => {
+    const file = files.find(
+      (f) =>
+        f.file_name === fileName ||
+        f.file_name.replace(/\s+/g, "_") === fileName ||
+        fileName.replace(/\s+/g, "_") === f.file_name ||
+        f.file_name.toLowerCase() === fileName.toLowerCase(),
+    );
+    if (!file) {
+      toast({
+        title: "Preview not available",
+        description: "Source file not found in case files",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const {
+        data: { user: u },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !u) throw new Error("Authentication required");
+      const filePath = `${u.id}/${id}/${file.file_name}`;
+      const { data: signedData, error } = await supabase.storage
+        .from("case-files")
+        .createSignedUrl(filePath, 3600);
+      if (signedData?.signedUrl) {
+        setPreviewFile({ name: file.file_name, url: signedData.signedUrl });
+      } else {
+        throw new Error(error?.message || "Failed to generate signed URL");
+      }
+    } catch (e) {
+      console.error("Preview error:", e);
+      toast({
+        title: "Preview not available",
+        description: "Could not load file",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <DocumentHead title={`Analysis Results - ${case_.name} - FinNavigator`} />

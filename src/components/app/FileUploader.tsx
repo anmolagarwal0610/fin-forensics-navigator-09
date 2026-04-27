@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { countFilePages } from "@/utils/pageCounter";
 import { verifyPdfPassword } from "@/utils/passwordVerifier";
 import { toast } from "@/hooks/use-toast";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 interface FileItem {
   name: string;
@@ -30,6 +31,7 @@ interface FileItem {
   columnMapping?: Record<string, string>;
   headerRowIndex?: number;
   accountHolderName?: string;
+  mergeParentName?: string;
 }
 
 interface FileUploaderProps {

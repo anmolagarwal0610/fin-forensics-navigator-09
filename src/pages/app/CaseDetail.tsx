@@ -393,7 +393,7 @@ export default function CaseDetail() {
             <CardTitle className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                {t('caseDetail.files')} ({files.length})
+                {t('caseDetail.files')} ({visibleFiles.length})
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {/* Download All Files */}

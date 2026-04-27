@@ -197,6 +197,14 @@ export default function CaseAnalysisResults() {
     return Object.values(groupingOverrides.individual).some((f) => Object.keys(f).length > 0);
   }, [groupingOverrides]);
 
+  // Timeline state for re-analysis
+  const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
+  const [resultsPerFileTimeline, setResultsPerFileTimeline] = useState<Record<string, TimelineRange>>({});
+  const hasTimelineChanges = useMemo(() => {
+    if (isValidRange(resultsMasterTimeline)) return true;
+    return Object.values(resultsPerFileTimeline).some(isValidRange);
+  }, [resultsMasterTimeline, resultsPerFileTimeline]);
+
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);

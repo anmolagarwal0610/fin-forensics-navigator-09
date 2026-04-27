@@ -1,83 +1,185 @@
 ## Goal
 
-When users merge files at upload (drag-and-drop), reflect that hierarchy across the app:
-- Hide sub-files from flat lists (Case Detail "Files (n)" and Results "File Analysis Summary").
-- Show a small "Merged" label next to the primary file. Hovering it underlines it and reveals a tooltip listing the merged sub-file names, each with an eye icon to preview the original file.
+Let users restrict analysis to a date range — overall ("master") and per-file — both at upload time (Case Upload page) and after results are available (Analysis Results page). Selection is sent to the backend as `timeline_config.json` inside the input ZIP.
 
-## Persistence: where merge info lives
-
-Today, merge info is only written into `merge_config.json` inside the input ZIP sent to the backend. The frontend doesn't store it anywhere queryable, so the Results / Case Detail pages have no way to know which file was merged into which.
-
-**Approach:** add a single JSON column on `cases` to store the user-defined merge hierarchy at upload time, and read it on view pages. Lightweight, no new tables.
-
-```sql
-alter table public.cases
-  add column if not exists merge_config jsonb;
-```
-
-Shape:
 ```json
-{ "merges": [ { "primary": "FileA.pdf", "sub_files": ["FileB.pdf", "FileC.pdf"] } ] }
+{
+  "master": { "start_date": "2024-01-15", "end_date": "2024-01-22" },
+  "per_file": {
+    "HDFC_Anmol_Jan2024.pdf": { "start_date": "2024-01-10", "end_date": "2024-01-31" }
+  }
+}
 ```
 
-(`merge_config.json` continues to be sent to the backend exactly as today — no backend change required.)
+No DB column. JSON is rebuilt from local UI state every time and bundled into the ZIP — same pattern as today's `header_mapping.json` / `merge_config.json`.
 
-## Changes
+---
 
-### 1. CaseUpload.tsx — persist merges to `cases.merge_config`
+## 1. New shared component: `DateRangePicker`
 
-Right where `merge_config.json` is built (around line 441–462), additionally:
-- If `primaryToSubs.size > 0`: `update cases set merge_config = {...} where id = caseId`.
-- If 0: set it to `null` (clear stale merges on re-analysis).
+`src/components/app/DateRangePicker.tsx`
 
-Use sanitized filenames (same as the JSON) so they match `case_files.file_name` exactly.
+A reusable popover containing two side-by-side `Calendar`s (shadcn `react-day-picker`):
+- **Left** = start date, **Right** = end date.
+- Each calendar uses `captionLayout="dropdown-buttons"` with month + year dropdowns (range: 2000 → current year + 1) for fast navigation.
+- Above each calendar, a manual `Input type="date"` (ISO `YYYY-MM-DD`) — typing updates the calendar selection, and clicking the calendar updates the input. Two-way bound.
+- Validation: end must be ≥ start; if violated, end is highlighted red and Save is disabled.
+- Footer: **Cancel** + **Save** (Save disabled until both dates valid).
+- Optional **Clear** link to reset to no range.
+- Returns `{ start_date: string; end_date: string } | null` via `onSave`.
 
-### 2. Case Detail page (`src/pages/app/CaseDetail.tsx`) — Files (n) section
-
-Mirror the Results-page treatment of merged files (per Screenshot 2):
-- Fetch `case_.merge_config` along with the case (already loaded via `getCaseById`).
-- Build a Set of "sub-file names" → exclude them from the rendered grid. The header count `Files (n)` shows only top-level files.
-- For each primary file that has sub-files, render a small grey **"Merged"** chip next to the filename:
-  - Hover → underline the word + show a Tooltip listing each sub-file name (truncated if long, wrapping otherwise) with an eye icon next to each that opens the existing `FilePreviewModal` flow (reuse `handlePreviewFile`).
-- Keep the existing CTAs (Download All Files, Add or Remove Files) and the existing per-file Eye / Download buttons unchanged. "Download All Files" still zips every physical file (primaries + sub-files).
-- Make the rendering dynamic: `Files (count of top-level files)`; sub-files are not numbered.
-
-### 3. Results page — File Analysis Summary (`src/pages/app/CaseAnalysisResults.tsx`, ~line 919, 1687–1780)
-
-- Load `merge_config` from the case (it's already on `caseData`).
-- When iterating `originalFiles` to build `parsedData.fileSummaries` (line 919), **skip any file whose name appears as a sub-file** in `merge_config`. The numbered list and the count then naturally show only primaries.
-- In the summary header row (line 1707 area), if the current `summary.originalFile` is a primary in `merge_config`, render:
-  - `originalFile` (existing truncation/tooltip preserved)
-  - then a small `text-muted-foreground text-xs` **"Merged"** label inside a `Tooltip`:
-    - Trigger: `<span className="cursor-help hover:underline">Merged</span>`
-    - Content: vertical list of sub-file names. Each row = filename (truncated to ~30 chars with full-name title) + an eye `Button` that runs the **same signed-URL preview flow already used at line 1727–1778** (`supabase.storage.from('case-files').createSignedUrl(...)`) for the sub-file. Long names wrap to next line; very long ones get truncated with hover-full tooltip.
-- All existing CTAs (View Summary, Raw Transactions Download, Summary Download, Graph) are unchanged.
-
-### 4. Shared helper
-
-Add `src/utils/mergeConfig.ts` with:
-- `type MergeConfig = { merges: Array<{ primary: string; sub_files: string[] }> }`
-- `getSubFileNames(mc): Set<string>`
-- `getSubFilesFor(mc, primaryName): string[]`
-- Case-insensitive matching against `file_name` (re-use the same normalization style as the strict file-matching memory).
-
-### 5. Types
-
-- Extend `CaseRecord` in `src/api/cases.ts` to include `merge_config: MergeConfig | null`.
-- Regenerate `src/integrations/supabase/types.ts` is not needed if we cast; but we'll widen the local type.
-
-## Out of scope / not changing
-
-- No backend change. `merge_config.json` continues to be sent in the input ZIP unchanged.
-- No change to drag-merge UX in `FileUploader.tsx`.
-- No change to "Add or Remove Files" flow itself (it already re-runs through CaseUpload, which will refresh `cases.merge_config`).
-- "Download All Files" continues to download every physical file (sub-files included), since they exist as real `case_files` rows.
-
-## Migration
-
-Single migration:
-```sql
-alter table public.cases add column if not exists merge_config jsonb;
+Props:
+```ts
+{
+  value: { start_date: string; end_date: string } | null;
+  onSave: (range: { start_date: string; end_date: string } | null) => void;
+  trigger: React.ReactNode;       // the CTA / icon button that opens the popover
+  align?: "start" | "end" | "center";
+}
 ```
 
-No RLS change needed — existing `cases` policies already cover the new column.
+Implementation notes:
+- Use shadcn `Popover` + two `Calendar` components in a single `PopoverContent` (`flex gap-3`, responsive: stack on `< sm`).
+- `pointer-events-auto` on each `<Calendar>` per shadcn datepicker guidance.
+- Date format on the wire: `YYYY-MM-DD` (matches the example JSON).
+
+---
+
+## 2. CaseUpload page — `src/pages/app/CaseUpload.tsx`
+
+### State
+```ts
+const [masterTimeline, setMasterTimeline] = useState<TimelineRange | null>(null);
+const [perFileTimeline, setPerFileTimeline] = useState<Record<string, TimelineRange>>({}); // keyed by sanitized filename
+```
+
+### "Select Timeline" CTA (master)
+- Place a secondary outline `Button` immediately to the **left** of the existing **Start Analysis** button.
+- Label: `Select Timeline` with `Calendar` icon. If a master range is set, show it inline: `Jan 15 → Jan 22`.
+- Wraps `<DateRangePicker value={masterTimeline} onSave={setMasterTimeline} />`.
+
+### Per-file calendar icon
+- In the file list (FileUploader rows / row actions), add a small icon-only `Button variant="ghost" size="icon"` with the `Calendar` icon, next to existing per-file actions (preview, delete, merge controls, etc.).
+- Visual indicator: when a range is set for that file, the icon is filled / coloured (e.g. `text-primary`) and a tiny `Badge` shows the range below the filename (truncates on small viewports).
+- Wraps the same `DateRangePicker`, keyed by the sanitized filename.
+- This requires a small prop addition to `FileUploader.tsx`:
+  - `getFileTimeline(name) => TimelineRange | null`
+  - `onFileTimelineChange(name, range)`
+  - Renders the icon when both callbacks are supplied (so it's opt-in and doesn't affect other call sites).
+
+### Building `timeline_config.json` (in `triggerAnalysis`, alongside merge_config — ~line 441–465)
+```ts
+const hasMaster = !!masterTimeline;
+const perFileEntries = Object.entries(perFileTimeline)
+  .filter(([name]) => files.some(f => sanitizeFilename(f.name) === name));
+
+if (hasMaster || perFileEntries.length > 0) {
+  const timelineConfigJson = {
+    master: masterTimeline ?? null,
+    per_file: Object.fromEntries(perFileEntries),
+  };
+  const blob = new Blob([JSON.stringify(timelineConfigJson, null, 2)], { type: "application/json" });
+  configFiles.push(new File([blob], "timeline_config.json", { type: "application/json" }));
+}
+```
+Use sanitized filenames as keys so they match what the backend sees.
+
+### Config file isolation
+Add `timeline_config.json` to the existing exclusion list (so it's not shown in any frontend file list — see memory `architecture/config-file-isolation`).
+
+---
+
+## 3. Analysis Results page — `src/pages/app/CaseAnalysisResults.tsx`
+
+### State
+```ts
+const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
+const [resultsPerFileTimeline, setResultsPerFileTimeline] = useState<Record<string, TimelineRange>>({});
+const hasTimelineChanges = !!resultsMasterTimeline || Object.keys(resultsPerFileTimeline).length > 0;
+```
+
+### "Select Timeline" CTA
+- Add a secondary outline button to the **left** of the **Download Report** dropdown (around line 1322 in the header `<div className="flex gap-2 ...">`), wrapping `<DateRangePicker>` for the master range.
+- Label: `Select Timeline` with `Calendar` icon. Shows current master range when set.
+
+### Per-file calendar icon (per primary file in File Analysis Summary)
+- In each summary row's action cluster (next to View Summary / Graph / Transaction Tree CTAs in the per-file section), add a `Calendar` icon button using the same `DateRangePicker`, keyed by `summary.originalFile`.
+- Sub-files merged into a primary inherit the primary's range (no separate picker — matches the merge UI rule).
+
+### Apply Changes (shared button)
+Update the existing Apply Changes condition:
+```ts
+const canApply = hasGroupingChanges || hasTimelineChanges;
+```
+Re-label nothing — the button text stays `Apply Changes`.
+
+In `handleApplyChanges` (line 370+):
+- If `hasTimelineChanges`, build `timeline_config.json` with the same master/per_file shape and add it to `newZip`:
+  ```ts
+  newZip.file("timeline_config.json", JSON.stringify({
+    master: resultsMasterTimeline,
+    per_file: resultsPerFileTimeline,
+  }, null, 2));
+  ```
+- `grouping_logic.json` is added only when grouping changes exist (current behaviour preserved).
+- Continue with the existing `parse-statements` job submission flow.
+
+After successful submit, clear local timeline state alongside the existing grouping reset.
+
+### ApplyChangesDialog text
+Extend `ApplyChangesDialog` body to mention timeline changes when present (e.g. "Timeline range will be applied to the analysis"). Single dialog, single confirm.
+
+---
+
+## 4. Shared types & utility
+
+`src/utils/timelineConfig.ts`:
+```ts
+export type TimelineRange = { start_date: string; end_date: string };
+export type TimelineConfig = {
+  master: TimelineRange | null;
+  per_file: Record<string, TimelineRange>;
+};
+export function buildTimelineConfigFile(cfg: TimelineConfig): File | null;
+export function isValidRange(r: Partial<TimelineRange>): r is TimelineRange;
+```
+`buildTimelineConfigFile` returns `null` if both master is null and per_file is empty (so the JSON is omitted entirely from the ZIP).
+
+---
+
+## 5. i18n
+
+Add minimal English + Hindi keys:
+- `timeline.selectTimeline` = "Select Timeline" / "समयरेखा चुनें"
+- `timeline.startDate`, `timeline.endDate`, `timeline.save`, `timeline.cancel`, `timeline.clear`
+- `timeline.invalidRange` = "End date must be on or after start date"
+
+---
+
+## 6. UI rules (consistency)
+
+- Buttons: outline secondary variant for "Select Timeline"; icon-only `ghost` button for per-file pickers.
+- Calendar trigger displays formatted range `MMM dd → MMM dd, yyyy` (using `date-fns format`) when a range is set; otherwise just the label + icon.
+- Manual date `<Input type="date">` is sized `h-9 text-sm`, sits above its calendar.
+- Mobile (<640px): stack the two calendars vertically inside the popover (`flex-col`); popover width caps at viewport-12.
+- Save button styling matches existing primary CTAs.
+- Disabled Save when: missing start, missing end, or end < start.
+
+---
+
+## 7. Files touched
+
+- `src/components/app/DateRangePicker.tsx` (new)
+- `src/utils/timelineConfig.ts` (new)
+- `src/pages/app/CaseUpload.tsx` (state + Select Timeline CTA + JSON build)
+- `src/components/app/FileUploader.tsx` (optional per-row calendar icon props, additive)
+- `src/pages/app/CaseAnalysisResults.tsx` (state + Select Timeline CTA + per-file icons + Apply Changes integration + JSON build)
+- `src/components/app/ApplyChangesDialog.tsx` (mention timeline if present)
+- `src/i18n/locales/en.json`, `src/i18n/locales/hi.json`
+
+## Out of scope
+
+- No DB schema change.
+- No backend code change (backend will read `timeline_config.json` from the input ZIP — out of this repo).
+- No change to merge UI, grouping UI, or existing CTAs other than appending the new ones.
+- Existing flows (Add Files, HITL Review, retry, viewing previous results) are untouched — they don't add a timeline picker, and `timeline_config.json` is only emitted when the user explicitly sets a range.

@@ -1,35 +1,81 @@
+# Plan: Merge Statements via Drag & Drop on Upload Page
 
-# Plan: UI-Only Stuck-Processing Email Alert (3h+)
+Let users group uploaded statements into a "primary + sub-files" hierarchy from the Upload Files for Analysis page, then send the resulting merge instructions to the backend as a config file at "Start Analysis" time.
 
-Detect cases stuck in `Processing` for ≥3 hours from the **frontend** and fire an email to `help@finnavigatorai.com`. No DB schema changes, no `stale_alert_sent` writes — only an email send.
+## UX behavior
 
-## How it works
+1. **Selection** — Click a file row to select it. Selected rows get a subtle accent ring/background using the existing `accent` / `primary` theme tokens (matches the dropzone active state). Multi-select with Ctrl/Cmd-click and Shift-click.
+2. **Drag & drop merge** — Drag any file (or a multi-selection) onto another file row. The dragged file(s) become **sub-files** under the target (which becomes the **primary**). Sub-files render indented beneath the parent with slightly smaller font and a subtle left border.
+3. **Hover discovery hint** — On the **first** (top) statement row, show a Radix `HoverCard`/`Tooltip` with the text: *"Select, Drag & Drop if you want to merge statements."* Trigger on hover, dismissible.
+4. **Unmerge CTA** — Each sub-file gets a small, very subtle "Unmerge" text/button (muted-foreground color, `text-xs`, ghost variant) placed just to the **left of the existing X (remove)** button. Click → file is detached and re-appears as a top-level row in its original position.
+5. **Remove (X)** — Unchanged. Removes the file from the case entirely. If a primary is removed, its sub-files are promoted back to top-level. If a sub-file is removed, it's just removed.
+6. **All existing per-file UI is preserved** — page count, password lock badge, "Map File Columns" CTA, header-mapped badge, pre-existing badge, password input panel — all render identically on both primaries and sub-files.
+7. **Constraints**
+   - A sub-file cannot itself be a primary (one-level hierarchy only). Dropping onto a sub-file targets its parent.
+   - A primary cannot be dragged into another primary while it has sub-files (must unmerge first) — prevents accidental nesting.
+   - Pre-existing files (Add Files mode) can participate in merges with new files; behavior is symmetric.
 
-1. Add a lightweight hook `useStaleProcessingWatcher` mounted once inside `AppLayout` (so it runs on any authenticated app page).
-2. Hook queries the user's own cases where `status = 'Processing'` and `updated_at < now() - 3h`.
-3. For each stuck case, check a `localStorage` key `stale-alert-sent:<caseId>` — if absent, call an edge function to send the alert, then write the key. This prevents re-sending on every render/refresh (best-effort, per-browser).
-4. Re-check every 15 minutes via `setInterval` + on window focus.
+## Visual sketch
 
-## Email sender
+```text
+┌─ Selected Files (5) ────────────────────────────┐
+│ ▸ HDFC_Anmol_Jan2024.pdf   12 pages    [×]      │  ← primary (hover hint here)
+│   └ HDFC_Anmol_Feb2024.pdf 10 pages  unmerge [×]│  ← sub-file (smaller, indented)
+│   └ HDFC_Anmol_Mar2024.pdf  9 pages  unmerge [×]│
+│ ▸ ICICI_Statement.pdf       8 pages    [×]      │
+│ ▸ SBI_Bonus.xlsx          Map Cols     [×]      │
+└─────────────────────────────────────────────────┘
+```
 
-Reuse the existing `send-mismatch-alert` pattern (direct fetch to Resend, purple-gradient template, `help@finnavigatorai.com` recipient). Create a tiny new edge function `send-stale-processing-alert` that:
-- Accepts `{ caseId, caseName, hoursStuck, fileCount, processingStarted }` from the authenticated client.
-- Validates JWT (`supabase.auth.getClaims`) — only the case's creator or an admin can trigger.
-- Sends the email via Resend with the same visual language as `check-stale-processing` (purple header, warning box, details box).
+## Data model
 
-No DB writes. No `stale_alert_sent` toggling. No cron. Pure on-demand send when a logged-in user views the app and has a stuck case.
+Extend `FileItem` (frontend-only — no DB changes) with:
 
-## Files
+```ts
+interface FileItem {
+  ...existing fields...
+  mergeParentName?: string;  // if set, this file is a sub-file of the named primary
+}
+```
+
+Selection state lives in `CaseUpload.tsx` as `selectedNames: Set<string>`. Merge state is fully derived from the `mergeParentName` field on each `FileItem` — no separate `groups` array needed, which keeps add/remove/unmerge flows trivial.
+
+## JSON sent to backend
+
+When the user clicks **Start Analysis**, build:
+
+```json
+{
+  "merges": [
+    { "primary": "HDFC_Anmol_Jan2024.pdf",
+      "sub_files": ["HDFC_Anmol_Feb2024.pdf", "HDFC_Anmol_Mar2024.pdf"] }
+  ]
+}
+```
+
+Filenames use the **sanitized** names (same as `header_mapping.json`). Only primaries with at least one sub-file are included. If `merges` is empty, the file is omitted entirely.
+
+Wrap as `merges.json` and push it into the existing `configFiles: File[]` array in `handleStartAnalysis` — same mechanism currently used for `grouping_logic.json` and `header_mapping.json`. No changes to `startJob`, `uploadInput`, or backend contract beyond adding the new config file to the ZIP.
+
+## Files to change
 
 | File | Change |
 |------|--------|
-| `src/hooks/useStaleProcessingWatcher.ts` | NEW — query stuck cases, dedupe via localStorage, invoke edge function |
-| `src/components/app/AppLayout.tsx` | Mount the hook once |
-| `supabase/functions/send-stale-processing-alert/index.ts` | NEW — JWT-verified Resend sender, mirrors existing email template |
-| `supabase/config.toml` | Register new function with `verify_jwt = true` |
+| `src/components/app/FileUploader.tsx` | Add: HTML5 drag-and-drop on file rows; selection state via prop callbacks; render sub-files indented with smaller font; "Unmerge" button next to X; HoverCard hint on first row. Sort/render order: each primary followed by its sub-files. |
+| `src/pages/app/CaseUpload.tsx` | Extend `FileItem` with `mergeParentName`. Add `selectedNames` state + handlers (`onToggleSelect`, `onMerge(targets, primary)`, `onUnmerge(name)`). On X-remove of a primary, clear `mergeParentName` on its children. In `handleStartAnalysis`, build `merges.json` from current state and push into `configFiles`. |
+| (no other files) | No DB, no edge function, no `startJob`/`uploadInput` changes. |
 
-## Limits & trade-offs
+## Edge cases handled
 
-- Alert fires only when a logged-in user opens the app — won't catch cases of users who never return. Acceptable per request ("UI only").
-- LocalStorage dedupe is per-browser; same user on a new device may resend once. Acceptable.
-- No interaction with the broken DB trigger / `stale_alert_sent` column — fully decoupled from "cases fix 8".
+- Removing a primary promotes its sub-files back to top-level (no orphaning).
+- Unmerging the last sub-file leaves the (former) primary as a normal top-level row.
+- Dropping a file onto itself is a no-op.
+- Drag preview uses native HTML5 drag image; drop targets get a subtle ring while a drag is in progress.
+- Selection is cleared after a successful merge.
+- Order: sub-files render in the order they were merged in; the primary keeps its original position.
+
+## Out of scope
+
+- No backend changes (FE only sends the JSON; backend parses it).
+- No persistence of merge state in DB / Save-for-Later (merges are reset if the user navigates away — same as selection state today).
+- No nested merges (one-level hierarchy).

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { countFilePages } from "@/utils/pageCounter";
 import { verifyPdfPassword } from "@/utils/passwordVerifier";
 import { toast } from "@/hooks/use-toast";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 
 interface FileItem {
   name: string;
@@ -30,6 +31,7 @@ interface FileItem {
   columnMapping?: Record<string, string>;
   headerRowIndex?: number;
   accountHolderName?: string;
+  mergeParentName?: string;
 }
 
 interface FileUploaderProps {
@@ -159,13 +161,22 @@ export default function FileUploader({
   });
 
   const removeFile = (index: number) => {
-    const updatedFiles = files.filter((_, i) => i !== index);
+    const removed = files[index];
+    // Promote any sub-files of the removed primary back to top-level
+    const updatedFiles = files
+      .filter((_, i) => i !== index)
+      .map((f) => (f.mergeParentName === removed.name ? { ...f, mergeParentName: undefined } : f));
     onFilesChange(updatedFiles);
     // Clean up password input
     setPasswordInputs(prev => {
       const newInputs = { ...prev };
       delete newInputs[index];
       return newInputs;
+    });
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.delete(removed.name);
+      return next;
     });
   };
 
@@ -242,6 +253,111 @@ export default function FileUploader({
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
+  // ── Selection + Drag/Drop merge state ──
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [dragOverName, setDragOverName] = useState<string | null>(null);
+
+  const toggleSelect = (name: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (e.metaKey || e.ctrlKey) {
+        next.has(name) ? next.delete(name) : next.add(name);
+      } else {
+        if (next.size === 1 && next.has(name)) {
+          next.clear();
+        } else {
+          next.clear();
+          next.add(name);
+        }
+      }
+      return next;
+    });
+  };
+
+  const handleDragStart = (name: string, e: React.DragEvent) => {
+    // If dragging an unselected file, drag just it; otherwise drag the whole selection
+    let names: string[];
+    if (selected.has(name)) {
+      names = Array.from(selected);
+    } else {
+      names = [name];
+      setSelected(new Set([name]));
+    }
+    e.dataTransfer.setData('application/x-merge-files', JSON.stringify(names));
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (targetName: string, e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('application/x-merge-files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverName(targetName);
+  };
+
+  const handleDrop = (targetName: string, e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverName(null);
+    const raw = e.dataTransfer.getData('application/x-merge-files');
+    if (!raw) return;
+    let dragged: string[] = [];
+    try { dragged = JSON.parse(raw); } catch { return; }
+
+    // Resolve target — if target is a sub-file, use its parent
+    const targetItem = files.find((f) => f.name === targetName);
+    if (!targetItem) return;
+    const primaryName = targetItem.mergeParentName || targetItem.name;
+
+    // Filter: cannot merge into self; cannot merge a primary that has children
+    const childNames = new Set(
+      files.filter((f) => f.mergeParentName).map((f) => f.name)
+    );
+    const validDragged = dragged.filter((n) => {
+      if (n === primaryName) return false;
+      const item = files.find((f) => f.name === n);
+      if (!item) return false;
+      // If this dragged file is itself a primary with sub-files, block it
+      const hasChildren = files.some((f) => f.mergeParentName === n);
+      if (hasChildren) return false;
+      return true;
+    });
+
+    if (validDragged.length === 0) return;
+
+    onFilesChange((prev) =>
+      prev.map((f) =>
+        validDragged.includes(f.name) ? { ...f, mergeParentName: primaryName } : f
+      )
+    );
+    setSelected(new Set());
+    void childNames;
+  };
+
+  const handleUnmerge = (name: string) => {
+    onFilesChange((prev) =>
+      prev.map((f) => (f.name === name ? { ...f, mergeParentName: undefined } : f))
+    );
+  };
+
+  // Build display order: each top-level (no parent) followed by its sub-files
+  type Row = { file: FileItem; index: number; isSub: boolean };
+  const rows: Row[] = [];
+  files.forEach((f, i) => {
+    if (f.mergeParentName) return;
+    rows.push({ file: f, index: i, isSub: false });
+    files.forEach((sub, j) => {
+      if (sub.mergeParentName === f.name) {
+        rows.push({ file: sub, index: j, isSub: true });
+      }
+    });
+  });
+  // Append any orphans (parent missing — defensive)
+  files.forEach((f, i) => {
+    if (f.mergeParentName && !files.some((p) => p.name === f.mergeParentName)) {
+      rows.push({ file: f, index: i, isSub: false });
+    }
+  });
+
   return (
     <div className="space-y-4">
       <Card 
@@ -271,14 +387,32 @@ export default function FileUploader({
       {files.length > 0 && (
         <div className="space-y-2">
           <h3 className="font-medium">Selected Files ({files.length})</h3>
-          {files.map((file, index) => (
-            <Card key={index} className="p-3">
+          {rows.map(({ file, index, isSub }, rowPos) => {
+            const isSelected = selected.has(file.name);
+            const isDropTarget = dragOverName === file.name;
+            const isFirstTopRow = !isSub && rowPos === 0;
+            const card = (
+              <Card
+                key={`${file.name}-${index}`}
+                draggable
+                onDragStart={(e) => handleDragStart(file.name, e)}
+                onDragOver={(e) => handleDragOver(file.name, e)}
+                onDragLeave={() => setDragOverName((cur) => (cur === file.name ? null : cur))}
+                onDrop={(e) => handleDrop(file.name, e)}
+                onClick={(e) => toggleSelect(file.name, e)}
+                className={cn(
+                  "p-3 cursor-pointer transition-all",
+                  isSub && "ml-8 border-l-2 border-l-primary/30",
+                  isSelected && "ring-2 ring-primary bg-primary/5",
+                  isDropTarget && "ring-2 ring-accent bg-accent/10",
+                )}
+              >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <FileText className="h-5 w-5 text-muted-foreground" />
+                  <FileText className={cn("h-5 w-5 text-muted-foreground", isSub && "h-4 w-4")} />
                   <div>
-                    <p className="font-medium text-sm">{file.name}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <p className={cn("font-medium", isSub ? "text-xs" : "text-sm")}>{file.name}</p>
+                    <div className={cn("flex items-center gap-2 text-muted-foreground", isSub ? "text-[11px]" : "text-xs")}>
                       <span>{formatFileSize(file.size)}</span>
                       {file.isCountingPages && (
                         <span className="text-blue-600 dark:text-blue-400">• Counting pages...</span>
@@ -310,17 +444,32 @@ export default function FileUploader({
                     </div>
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(index);
-                  }}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
+                <div className="flex items-center gap-1">
+                  {isSub && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleUnmerge(file.name);
+                      }}
+                      className="h-7 px-2 text-[11px] text-muted-foreground/70 hover:text-foreground font-normal"
+                    >
+                      Unmerge
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeFile(index);
+                    }}
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
               
               {file.needsPassword && !file.passwordVerified && (
@@ -376,8 +525,21 @@ export default function FileUploader({
                   )}
                 </div>
               )}
-            </Card>
-          ))}
+              </Card>
+            );
+
+            if (isFirstTopRow) {
+              return (
+                <HoverCard key={`${file.name}-${index}-hc`} openDelay={300}>
+                  <HoverCardTrigger asChild>{card}</HoverCardTrigger>
+                  <HoverCardContent side="top" className="text-xs w-auto max-w-xs">
+                    Select, Drag &amp; Drop if you want to merge statements.
+                  </HoverCardContent>
+                </HoverCard>
+              );
+            }
+            return card;
+          })}
         </div>
       )}
     </div>

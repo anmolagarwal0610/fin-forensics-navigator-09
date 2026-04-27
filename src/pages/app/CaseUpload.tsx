@@ -53,6 +53,7 @@ interface FileItem {
   headerRowIndex?: number;
   accountHolderName?: string;
   dummyColumns?: { balance?: { header: string; defaultValue: string }; date?: { header: string; defaultValue: string } };
+  mergeParentName?: string;
 }
 
 export default function CaseUpload() {
@@ -435,6 +436,29 @@ export default function CaseUpload() {
         const mappingFile = new File([mappingBlob], 'header_mapping.json', { type: 'application/json' });
         configFiles.push(mappingFile);
         console.log(`📋 Including header_mapping.json with ${mappedFiles.length} file(s)`);
+      }
+
+      // Build merges.json from user-defined merge hierarchy
+      const primaryToSubs = new Map<string, string[]>();
+      for (const f of files) {
+        if (f.mergeParentName) {
+          const primary = sanitizeFilename(f.mergeParentName);
+          const sub = sanitizeFilename(f.name);
+          if (!primaryToSubs.has(primary)) primaryToSubs.set(primary, []);
+          primaryToSubs.get(primary)!.push(sub);
+        }
+      }
+      if (primaryToSubs.size > 0) {
+        const mergesJson = {
+          merges: Array.from(primaryToSubs.entries()).map(([primary, sub_files]) => ({
+            primary,
+            sub_files,
+          })),
+        };
+        const mergesBlob = new Blob([JSON.stringify(mergesJson, null, 2)], { type: 'application/json' });
+        const mergesFile = new File([mergesBlob], 'merges.json', { type: 'application/json' });
+        configFiles.push(mergesFile);
+        console.log(`📋 Including merges.json with ${primaryToSubs.size} primary file(s)`);
       }
 
       // Extract passwords for protected files

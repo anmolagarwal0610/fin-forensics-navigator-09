@@ -19,6 +19,7 @@ import { getCaseCsvFiles } from "@/api/cases";
 import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import JSZip from "jszip";
+import { getSubFileNames, getSubFilesFor, isMergedPrimary } from "@/utils/mergeConfig";
 export default function CaseDetail() {
   const { t } = useTranslation();
   const {
@@ -42,6 +43,16 @@ export default function CaseDetail() {
   
   // Determine if results are available (legacy URL OR secure storage)
   const hasResults = !!(case_?.result_zip_url || hasSecureResultFile);
+
+  // Merge config from the case row (set at upload time)
+  const mergeConfig = (case_ as any)?.merge_config ?? null;
+  const subFileNamesLower = getSubFileNames(mergeConfig);
+  // Files visible in the flat list = top-level only (sub-files are hidden and shown via the "Merged" tooltip)
+  const visibleFiles = files.filter((f) => !subFileNamesLower.has(f.file_name.toLowerCase()));
+
+  // Helper to find a sub-file CaseFileRecord by name (case-insensitive)
+  const findSubFileRecord = (name: string): CaseFileRecord | undefined =>
+    files.find((f) => f.file_name.toLowerCase() === name.toLowerCase());
   
   useEffect(() => {
     if (!id) return;

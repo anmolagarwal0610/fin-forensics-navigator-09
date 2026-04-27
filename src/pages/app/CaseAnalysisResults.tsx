@@ -1901,8 +1901,11 @@ export default function CaseAnalysisResults() {
                                 <TooltipContent side="top" align="start" className="max-w-sm p-2">
                                   <p className="text-xs font-medium mb-1.5">Merged files:</p>
                                   <ul className="space-y-1">
-                                    {mergedSubs.map((sub) => (
+                                    {mergedSubs.map((sub, idx) => (
                                       <li key={sub} className="flex items-center gap-2 text-xs">
+                                        <span className="font-mono text-muted-foreground w-5 text-right flex-shrink-0">
+                                          {idx + 1}.
+                                        </span>
                                         <span className="break-all flex-1 font-mono">{sub}</span>
                                         <Button
                                           variant="ghost"

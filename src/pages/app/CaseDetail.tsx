@@ -19,6 +19,7 @@ import { getCaseCsvFiles } from "@/api/cases";
 import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import JSZip from "jszip";
+import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
 export default function CaseDetail() {
   const { t } = useTranslation();
   const {
@@ -42,6 +43,16 @@ export default function CaseDetail() {
   
   // Determine if results are available (legacy URL OR secure storage)
   const hasResults = !!(case_?.result_zip_url || hasSecureResultFile);
+
+  // Merge config from the case row (set at upload time)
+  const mergeConfig = (case_ as any)?.merge_config ?? null;
+  const subFileNamesLower = getSubFileNames(mergeConfig);
+  // Files visible in the flat list = top-level only (sub-files are hidden and shown via the "Merged" tooltip)
+  const visibleFiles = files.filter((f) => !subFileNamesLower.has(f.file_name.toLowerCase()));
+
+  // Helper to find a sub-file CaseFileRecord by name (case-insensitive)
+  const findSubFileRecord = (name: string): CaseFileRecord | undefined =>
+    files.find((f) => f.file_name.toLowerCase() === name.toLowerCase());
   
   useEffect(() => {
     if (!id) return;
@@ -382,7 +393,7 @@ export default function CaseDetail() {
             <CardTitle className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                {t('caseDetail.files')} ({files.length})
+                {t('caseDetail.files')} ({visibleFiles.length})
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 {/* Download All Files */}
@@ -464,12 +475,13 @@ export default function CaseDetail() {
                 <FileText className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>{t('caseDetail.noFilesYet')}</p>
               </div> : <div className="columns-1 md:columns-2 gap-6">
-                {files.map((file, index) => {
+                {visibleFiles.map((file, index) => {
                   const ext = file.file_name.split('.').pop()?.toLowerCase();
                   const isPdf = ext === 'pdf';
                   const isSpreadsheet = ['xlsx', 'xls', 'csv'].includes(ext || '');
                   const FileIcon = isPdf ? FileText : isSpreadsheet ? FileSpreadsheet : FileText;
-                  
+                  const mergedSubs = getSubFilesFor(mergeConfig, file.file_name);
+                  const isMerged = mergedSubs.length > 0;
                   return <div key={file.id} className="flex items-center justify-between p-2 rounded border mb-2 break-inside-avoid">
                     <div className="flex items-center gap-3 flex-1 min-w-0">
                       <span className="text-xs font-medium text-muted-foreground w-5 text-center flex-shrink-0">
@@ -486,6 +498,44 @@ export default function CaseDetail() {
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
+                      {isMerged && (
+                        <TooltipProvider delayDuration={150}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-muted-foreground cursor-help hover:underline flex-shrink-0">
+                                Merged
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                              <p className="text-xs font-medium mb-1.5">Merged files:</p>
+                              <ul className="space-y-1">
+                                {mergedSubs.map((sub) => {
+                                  const subRec = findSubFileRecord(sub);
+                                  return (
+                                    <li key={sub} className="flex items-center gap-2 text-xs">
+                                      <span className="break-all flex-1">{sub}</span>
+                                      {subRec && canPreview(sub) && (
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 flex-shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handlePreviewFile(subRec);
+                                          }}
+                                          title="Preview original file"
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      )}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {canPreview(file.file_name) && (

@@ -22,6 +22,7 @@ export interface CaseRecord {
   hitl_stage?: HitlStage;
   csv_zip_url?: string;
   input_zip_url?: string;
+  merge_config?: any;
 }
 
 export interface CaseCsvFileRecord {

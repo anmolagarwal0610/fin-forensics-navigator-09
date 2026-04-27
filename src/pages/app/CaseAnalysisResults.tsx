@@ -38,6 +38,7 @@ import POIModal from "@/components/app/POIModal";
 import FileSankeyModal from "@/components/app/FileSankeyModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
+import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
 import LazySummaryTableViewer from "@/components/app/LazySummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
@@ -1219,6 +1220,55 @@ export default function CaseAnalysisResults() {
     );
   }
 
+  // ── Merge config: hide sub-files from summary list, show "Merged" tag on primaries ──
+  const mergeConfig = (case_ as any)?.merge_config ?? null;
+  const subFileNamesLower = getSubFileNames(mergeConfig);
+  const visibleFileSummaries = analysisData.fileSummaries.filter(
+    (s) => !subFileNamesLower.has(s.originalFile.toLowerCase()),
+  );
+
+  // Open a preview for any case file by name (used by both primary file Eye and merged sub-file Eyes)
+  const previewCaseFileByName = async (fileName: string) => {
+    const file = files.find(
+      (f) =>
+        f.file_name === fileName ||
+        f.file_name.replace(/\s+/g, "_") === fileName ||
+        fileName.replace(/\s+/g, "_") === f.file_name ||
+        f.file_name.toLowerCase() === fileName.toLowerCase(),
+    );
+    if (!file) {
+      toast({
+        title: "Preview not available",
+        description: "Source file not found in case files",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      const {
+        data: { user: u },
+        error: authError,
+      } = await supabase.auth.getUser();
+      if (authError || !u) throw new Error("Authentication required");
+      const filePath = `${u.id}/${id}/${file.file_name}`;
+      const { data: signedData, error } = await supabase.storage
+        .from("case-files")
+        .createSignedUrl(filePath, 3600);
+      if (signedData?.signedUrl) {
+        setPreviewFile({ name: file.file_name, url: signedData.signedUrl });
+      } else {
+        throw new Error(error?.message || "Failed to generate signed URL");
+      }
+    } catch (e) {
+      console.error("Preview error:", e);
+      toast({
+        title: "Preview not available",
+        description: "Could not load file",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <DocumentHead title={`Analysis Results - ${case_.name} - FinNavigator`} />
@@ -1366,7 +1416,7 @@ export default function CaseAnalysisResults() {
               <TrendingUp className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{analysisData.fileSummaries.length}</div>
+              <div className="text-2xl font-bold">{visibleFileSummaries.length}</div>
               <p className="text-xs text-muted-foreground">{t("analysisResults.originalFilesProcessed")}</p>
             </CardContent>
           </Card>
@@ -1685,7 +1735,7 @@ export default function CaseAnalysisResults() {
         )}
 
         {/* File Analysis Summary */}
-        {analysisData.fileSummaries.length > 0 && (
+        {visibleFileSummaries.length > 0 && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
@@ -1696,7 +1746,10 @@ export default function CaseAnalysisResults() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {analysisData.fileSummaries.map((summary, index) => (
+                {visibleFileSummaries.map((summary, index) => {
+                  const mergedSubs = getSubFilesFor(mergeConfig, summary.originalFile);
+                  const isMerged = mergedSubs.length > 0;
+                  return (
                   <Collapsible
                     key={index}
                     open={expandedSummaries.has(index)}
@@ -1776,6 +1829,39 @@ export default function CaseAnalysisResults() {
                           >
                             <Eye className="h-3.5 w-3.5" />
                           </Button>
+                          {isMerged && (
+                            <TooltipProvider delayDuration={150}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="text-xs text-muted-foreground cursor-help hover:underline ml-1 flex-shrink-0">
+                                    Merged
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                                  <p className="text-xs font-medium mb-1.5">Merged files:</p>
+                                  <ul className="space-y-1">
+                                    {mergedSubs.map((sub) => (
+                                      <li key={sub} className="flex items-center gap-2 text-xs">
+                                        <span className="break-all flex-1 font-mono">{sub}</span>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-5 w-5 flex-shrink-0"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            previewCaseFileByName(sub);
+                                          }}
+                                          title="Preview original file"
+                                        >
+                                          <Eye className="h-3 w-3" />
+                                        </Button>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                         </h4>
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
@@ -1909,7 +1995,8 @@ export default function CaseAnalysisResults() {
                       </CollapsibleContent>
                     )}
                   </Collapsible>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

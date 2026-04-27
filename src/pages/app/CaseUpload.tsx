@@ -448,17 +448,32 @@ export default function CaseUpload() {
           primaryToSubs.get(primary)!.push(sub);
         }
       }
+      // Build merge config (also persisted to cases.merge_config below)
+      const mergeConfigJson = primaryToSubs.size > 0
+        ? {
+            merges: Array.from(primaryToSubs.entries()).map(([primary, sub_files]) => ({
+              primary,
+              sub_files,
+            })),
+          }
+        : null;
       if (primaryToSubs.size > 0) {
-        const mergesJson = {
-          merges: Array.from(primaryToSubs.entries()).map(([primary, sub_files]) => ({
-            primary,
-            sub_files,
-          })),
-        };
-        const mergesBlob = new Blob([JSON.stringify(mergesJson, null, 2)], { type: 'application/json' });
+        const mergesBlob = new Blob([JSON.stringify(mergeConfigJson, null, 2)], { type: 'application/json' });
         const mergesFile = new File([mergesBlob], 'merge_config.json', { type: 'application/json' });
         configFiles.push(mergesFile);
         console.log(`📋 Including merge_config.json with ${primaryToSubs.size} primary file(s)`);
+      }
+
+      // Persist merge hierarchy to the case row so view pages can render it.
+      // Set to null if no merges, to clear stale data on re-analysis.
+      try {
+        const { error: mcErr } = await supabase
+          .from("cases")
+          .update({ merge_config: mergeConfigJson as any })
+          .eq("id", case_.id);
+        if (mcErr) console.error("Failed to persist merge_config:", mcErr);
+      } catch (e) {
+        console.error("merge_config persistence error:", e);
       }
 
       // Extract passwords for protected files

@@ -2199,6 +2199,12 @@ export default function CaseAnalysisResults() {
         onRemoveChange={handleRemoveChange}
         onApply={handleApplyChanges}
         isApplying={isApplyingChanges}
+        timelineSummary={{
+          master: isValidRange(resultsMasterTimeline) ? formatRangeShort(resultsMasterTimeline) : null,
+          perFile: Object.entries(resultsPerFileTimeline)
+            .filter(([, r]) => isValidRange(r))
+            .map(([file, r]) => ({ file, range: formatRangeShort(r) })),
+        }}
       />
 
       {/* PDF Report Preview Modal */}

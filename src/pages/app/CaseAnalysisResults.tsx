@@ -1735,7 +1735,7 @@ export default function CaseAnalysisResults() {
         )}
 
         {/* File Analysis Summary */}
-        {analysisData.fileSummaries.length > 0 && (
+        {visibleFileSummaries.length > 0 && (
           <Card className="shadow-lg">
             <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/50 dark:to-emerald-950/50 rounded-t-lg">
               <CardTitle className="text-xl flex items-center gap-2">
@@ -1746,7 +1746,10 @@ export default function CaseAnalysisResults() {
             </CardHeader>
             <CardContent className="p-6">
               <div className="space-y-4">
-                {analysisData.fileSummaries.map((summary, index) => (
+                {visibleFileSummaries.map((summary, index) => {
+                  const mergedSubs = getSubFilesFor(mergeConfig, summary.originalFile);
+                  const isMerged = mergedSubs.length > 0;
+                  return (
                   <Collapsible
                     key={index}
                     open={expandedSummaries.has(index)}

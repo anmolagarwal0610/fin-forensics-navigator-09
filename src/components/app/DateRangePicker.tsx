@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
-import { Calendar } from "@/components/ui/calendar";
+import { useEffect, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
-  fromIsoDate,
   isValidIsoDate,
   isValidRange,
-  toIsoDate,
   type TimelineRange,
 } from "@/utils/timelineConfig";
 
@@ -18,9 +15,6 @@ interface DateRangePickerProps {
   onSave: (range: TimelineRange | null) => void;
   trigger: React.ReactNode;
   align?: "start" | "end" | "center";
-  /** Optional bounds shown in the year dropdowns. */
-  fromYear?: number;
-  toYear?: number;
 }
 
 export default function DateRangePicker({
@@ -28,8 +22,6 @@ export default function DateRangePicker({
   onSave,
   trigger,
   align = "end",
-  fromYear = 2000,
-  toYear = new Date().getFullYear() + 1,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
   const [startStr, setStartStr] = useState<string>(value?.start_date ?? "");
@@ -42,9 +34,6 @@ export default function DateRangePicker({
       setEndStr(value?.end_date ?? "");
     }
   }, [open, value]);
-
-  const startDate = useMemo(() => fromIsoDate(startStr), [startStr]);
-  const endDate = useMemo(() => fromIsoDate(endStr), [endStr]);
 
   const rangeInvalid =
     isValidIsoDate(startStr) && isValidIsoDate(endStr) && startStr > endStr;
@@ -91,20 +80,7 @@ export default function DateRangePicker({
                 value={startStr}
                 onChange={(e) => setStartStr(e.target.value)}
                 max={isValidIsoDate(endStr) ? endStr : undefined}
-                className="h-9 text-sm w-[180px]"
-              />
-              <Calendar
-                mode="single"
-                selected={startDate}
-                onSelect={(d) => {
-                  const iso = toIsoDate(d ?? null);
-                  if (iso) setStartStr(iso);
-                }}
-                captionLayout="dropdown-buttons"
-                fromYear={fromYear}
-                toYear={toYear}
-                defaultMonth={startDate ?? endDate ?? new Date()}
-                className={cn("p-2 pointer-events-auto rounded-md border")}
+                className="h-9 text-sm w-[200px]"
               />
             </div>
 
@@ -119,27 +95,9 @@ export default function DateRangePicker({
                 onChange={(e) => setEndStr(e.target.value)}
                 min={isValidIsoDate(startStr) ? startStr : undefined}
                 className={cn(
-                  "h-9 text-sm w-[180px]",
+                  "h-9 text-sm w-[200px]",
                   rangeInvalid && "border-destructive focus-visible:ring-destructive",
                 )}
-              />
-              <Calendar
-                mode="single"
-                selected={endDate}
-                onSelect={(d) => {
-                  const iso = toIsoDate(d ?? null);
-                  if (iso) setEndStr(iso);
-                }}
-                disabled={(d) => {
-                  if (!isValidIsoDate(startStr)) return false;
-                  const s = fromIsoDate(startStr)!;
-                  return d < s;
-                }}
-                captionLayout="dropdown-buttons"
-                fromYear={fromYear}
-                toYear={toYear}
-                defaultMonth={endDate ?? startDate ?? new Date()}
-                className={cn("p-2 pointer-events-auto rounded-md border")}
               />
             </div>
           </div>

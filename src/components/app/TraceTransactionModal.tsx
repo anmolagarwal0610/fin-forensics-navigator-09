@@ -12,7 +12,7 @@ import "@xyflow/react/dist/style.css";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
+
 import {
   Download,
   X,
@@ -25,15 +25,18 @@ import {
 import { cn } from "@/lib/utils";
 import TraceTreeNode from "./trace/TraceTreeNode";
 import { useTraceLayout, formatAmountShort } from "./trace/useTraceLayout";
-import type { TraceTreeResponse, SelectedTransaction } from "@/types/traceTransaction";
+import type { TraceTreeResponse, SelectedTransaction, DebitTraceResponse, CreditTraceResponse } from "@/types/traceTransaction";
 import { toPng } from "html-to-image";
 import { toast } from "@/hooks/use-toast";
+import TraceLoader from "./trace/TraceLoader";
+
+export type TraceModalData = TraceTreeResponse | DebitTraceResponse | CreditTraceResponse | null;
 
 interface TraceTransactionModalProps {
   open: boolean;
   onClose: () => void;
   selectedTransaction: SelectedTransaction | null;
-  traceData: TraceTreeResponse | null;
+  traceData: TraceModalData;
   isLoading: boolean;
   error: string | null;
   onRetry?: () => void;
@@ -97,33 +100,15 @@ function TraceFlowCanvas({
   }
 
   if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-4">
-        <div className="space-y-4 w-80">
-          <Skeleton className="h-20 w-full rounded-xl" />
-          <div className="flex gap-4 justify-center">
-            <Skeleton className="h-16 w-32 rounded-xl" />
-            <Skeleton className="h-16 w-32 rounded-xl" />
-          </div>
-          <div className="flex gap-4 justify-center">
-            <Skeleton className="h-14 w-28 rounded-xl" />
-            <Skeleton className="h-14 w-28 rounded-xl" />
-            <Skeleton className="h-14 w-28 rounded-xl" />
-          </div>
-        </div>
-        <p className="text-sm text-muted-foreground mt-4 animate-pulse">
-          Tracing money flow...
-        </p>
-      </div>
-    );
+    return <TraceLoader />;
   }
 
   if (error) {
+    console.error("[TraceTransaction] Error:", error);
     return (
       <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-        <AlertTriangle className="h-12 w-12 opacity-40 text-error" />
-        <p className="text-lg font-medium">Trace Failed</p>
-        <p className="text-sm opacity-70 text-center max-w-md">{error}</p>
+        <AlertTriangle className="h-12 w-12 opacity-40 text-destructive" />
+        <p className="text-lg font-medium">Found an error. Please try again later.</p>
         {onRetry && (
           <Button variant="outline" onClick={onRetry} className="mt-4 gap-2">
             <RefreshCw className="h-4 w-4" />
@@ -168,7 +153,11 @@ function TraceFlowCanvas({
         <div className="flex items-center gap-2 shrink-0">
           {traceData.metadata && (
             <Badge variant="secondary" className="text-[10px] hidden sm:flex">
-              {traceData.metadata.total_nodes} nodes · {traceData.metadata.max_depth} levels
+              {"total_nodes" in traceData.metadata
+                ? `${(traceData.metadata as any).total_nodes} nodes · ${(traceData.metadata as any).max_depth} levels`
+                : "trace" in traceData
+                  ? `${(traceData as any).trace?.total_accounts_touched || "?"} nodes · ${(traceData as any).trace?.max_depth || "?"} levels`
+                  : ""}
             </Badge>
           )}
           <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5" onClick={handleCollapseAll}>
@@ -203,7 +192,7 @@ function TraceFlowCanvas({
           <Background gap={20} size={1} color="hsl(220, 13%, 91%)" />
           <Controls
             showInteractive={false}
-            className="!bg-card !border-border !shadow-md"
+            className="!bg-card !border-border !shadow-md [&>button]:!bg-card [&>button]:!fill-foreground [&>button]:!border-border"
           />
           <MiniMap
             nodeColor={(node) => {
@@ -215,7 +204,7 @@ function TraceFlowCanvas({
               return "hsl(220, 100%, 62%)";
             }}
             maskColor="hsl(220, 31%, 8%, 0.08)"
-            className="!bg-card !border-border"
+            className="!bg-muted/50 !border-border !rounded-md"
           />
         </ReactFlow>
       </div>

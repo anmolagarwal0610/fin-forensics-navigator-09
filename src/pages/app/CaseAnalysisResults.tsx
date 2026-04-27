@@ -16,6 +16,7 @@ import { useSecureDownload } from "@/hooks/useSecureDownload";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import { useReportGeneration } from "@/hooks/useReportGeneration";
 import type { ReportData } from "@/types/reportData";
+import type { BatchTraceResponse } from "@/types/traceTransaction";
 import {
   ArrowLeft,
   Download,
@@ -28,6 +29,7 @@ import {
   Loader2,
   BarChart3,
   Settings2,
+  GitBranch,
 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -41,6 +43,7 @@ import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
 import ShareFundTrailDialog from "@/components/app/ShareFundTrailDialog";
 import ApplyChangesDialog, { GroupingOverridesState } from "@/components/app/ApplyChangesDialog";
+import BatchTraceModal from "@/components/app/BatchTraceModal";
 import { parseExcelFile, CellData } from "@/utils/excelParser";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -95,6 +98,7 @@ interface ParsedAnalysisData {
   rawDataMap: Map<string, CellData[][]>; // Cache for raw transaction data (lazy loaded)
   poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
   reportData?: ReportData | null; // report_data.json from backend
+  fundTracesData?: BatchTraceResponse | null; // fund_traces.json batch traces
 }
 
 export default function CaseAnalysisResults() {
@@ -115,6 +119,10 @@ export default function CaseAnalysisResults() {
   // State for per-file sankey modal
   const [fileSankeyModalOpen, setFileSankeyModalOpen] = useState(false);
   const [currentFileSankeyIndex, setCurrentFileSankeyIndex] = useState(0);
+
+  // State for batch trace modal
+  const [batchTraceModalOpen, setBatchTraceModalOpen] = useState(false);
+  const [batchTraceInitialFile, setBatchTraceInitialFile] = useState<string | undefined>(undefined);
 
   // State for viewing previous results - auto-set from query param for failed cases
   const searchParams = new URLSearchParams(window.location.search);
@@ -311,6 +319,36 @@ export default function CaseAnalysisResults() {
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
 
+  // Compute beneficiary breakdown for KPI tooltip (Credit Only / Debit Only / Both)
+  const beneficiaryBreakdown = useMemo(() => {
+    const excelData = analysisData?.beneficiariesExcelData;
+    if (!excelData || excelData.length < 3) return null;
+    
+    const headerRow = excelData[1];
+    let creditIdx = -1, debitIdx = -1;
+    headerRow?.forEach((cell: any, idx: number) => {
+      const text = String(cell?.value || '').toLowerCase().trim();
+      if (text === 'total credit') creditIdx = idx;
+      if (text === 'total debit') debitIdx = idx;
+    });
+    if (creditIdx === -1 || debitIdx === -1) return null;
+    
+    let creditOnly = 0, debitOnly = 0, both = 0;
+    for (let i = 2; i < excelData.length; i++) {
+      const row = excelData[i];
+      const creditVal = typeof row?.[creditIdx]?.value === 'number' 
+        ? row[creditIdx].value 
+        : parseFloat(String(row?.[creditIdx]?.value || '0').replace(/[₹$€£,\s]/g, '')) || 0;
+      const debitVal = typeof row?.[debitIdx]?.value === 'number'
+        ? row[debitIdx].value
+        : parseFloat(String(row?.[debitIdx]?.value || '0').replace(/[₹$€£,\s]/g, '')) || 0;
+      if (creditVal > 0 && debitVal > 0) both++;
+      else if (creditVal > 0) creditOnly++;
+      else if (debitVal > 0) debitOnly++;
+    }
+    return { creditOnly, debitOnly, both };
+  }, [analysisData?.beneficiariesExcelData]);
+
   // PDF Report generation hook
   const {
     pdfUrl: reportPdfUrl,
@@ -499,9 +537,6 @@ export default function CaseAnalysisResults() {
 
             // Send alert silently
             const base64 = await file.async("base64");
-            const { data: sessionData } = await supabase.auth.getSession();
-            const accessToken = sessionData?.session?.access_token;
-            if (!accessToken) continue;
 
             // Try to find and attach the original PDF
             const baseName = rawFileName.replace("raw_transactions_", "").replace(".xlsx", "");
@@ -529,20 +564,14 @@ export default function CaseAnalysisResults() {
               }
             }
 
-            fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-mismatch-alert`, {
-              method: "POST",
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-                "Content-Type": "application/json",
-                apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-              },
-              body: JSON.stringify({
+            supabase.functions.invoke('send-mismatch-alert', {
+              body: {
                 case_name: case_.name,
                 user_email: user.email,
                 file_name: rawFileName,
                 file_base64: base64,
                 ...(pdfFileBase64 && pdfFileName ? { pdf_file_base64: pdfFileBase64, pdf_file_name: pdfFileName } : {}),
-              }),
+              },
             }).catch(() => {});
           } catch {
             // Silent - no logging
@@ -563,6 +592,10 @@ export default function CaseAnalysisResults() {
     try {
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
+
+      // Log ZIP file listing for debugging
+      const allZipFiles = Object.keys(zipData.files).filter(f => !f.endsWith('/'));
+      console.log("[Analysis] ZIP contains", allZipFiles.length, "files:", allZipFiles.join(", "));
 
       const parsedData: ParsedAnalysisData = {
         beneficiaries: [],
@@ -963,6 +996,24 @@ export default function CaseAnalysisResults() {
         parsedData.reportData = null;
       }
 
+      // Parse fund_traces.json for batch transaction tracing
+      const fundTracesFile = zipData.file("fund_traces.json");
+      if (fundTracesFile) {
+        try {
+          const ftContent = await fundTracesFile.async("text");
+          // Backend may emit NaN values which are invalid JSON — replace with null
+          const sanitizedFt = ftContent.replace(/:\s*NaN\b/g, ": null");
+          parsedData.fundTracesData = JSON.parse(sanitizedFt) as BatchTraceResponse;
+          console.log("[Analysis] ✓ fund_traces.json extracted —", parsedData.fundTracesData.seeds?.length || 0, "seeds");
+        } catch (error) {
+          console.warn("[Analysis] Failed to parse fund_traces.json:", error);
+          parsedData.fundTracesData = null;
+        }
+      } else {
+        console.log("[Analysis] No fund_traces.json found in ZIP");
+        parsedData.fundTracesData = null;
+      }
+
       parsedData.zipData = zip;
       return parsedData;
     } catch (error) {
@@ -1259,18 +1310,40 @@ export default function CaseAnalysisResults() {
 
         {/* Key Statistics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {t("analysisResults.totalBeneficiaries")}
-              </CardTitle>
-              <Users className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
-              <p className="text-xs text-muted-foreground">{t("analysisResults.identifiedInAnalysis")}</p>
-            </CardContent>
-          </Card>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Card className="border-l-4 border-l-primary shadow-md hover:shadow-lg transition-shadow cursor-help">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">
+                    {t("analysisResults.totalBeneficiaries")}
+                  </CardTitle>
+                  <Users className="h-4 w-4 text-primary" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{analysisData.totalBeneficiaryCount}</div>
+                  <p className="text-xs text-muted-foreground">{t("analysisResults.identifiedInAnalysis")}</p>
+                </CardContent>
+              </Card>
+            </TooltipTrigger>
+            {beneficiaryBreakdown && (
+              <TooltipContent side="bottom" className="text-sm">
+                <div className="space-y-1">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Credit Only</span>
+                    <span className="font-medium">{beneficiaryBreakdown.creditOnly.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Debit Only</span>
+                    <span className="font-medium">{beneficiaryBreakdown.debitOnly.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground">Credit & Debit</span>
+                    <span className="font-medium">{beneficiaryBreakdown.both.toLocaleString()}</span>
+                  </div>
+                </div>
+              </TooltipContent>
+            )}
+          </Tooltip>
 
           <Card className="border-l-4 border-l-orange-500 shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -1302,10 +1375,10 @@ export default function CaseAnalysisResults() {
         {/* Enhanced Beneficiaries Preview */}
         {(analysisData.beneficiariesExcelData || analysisData.beneficiaries.length > 0) && (
           <ExcelViewer
-            title={t("analysisResults.topBeneficiaries", { count: Math.min(100, analysisData.totalBeneficiaryCount) })}
+            title={t("analysisResults.topBeneficiaries")}
             data={analysisData.beneficiariesExcelData || []}
             onDownload={downloadBeneficiariesFile}
-            maxRows={102}
+            maxRows={1002}
             fileUrl={analysisData.beneficiariesPreviewUrl || analysisData.beneficiariesFileUrl}
             enableBeneficiaryClick={true}
             zipData={analysisData.zipData}
@@ -1319,6 +1392,8 @@ export default function CaseAnalysisResults() {
             }}
             onSaveGroupingOverride={handleSaveGroupingOverride}
             pendingOverrides={groupingOverrides.cross_file}
+            fundTracesData={analysisData.fundTracesData || null}
+            caseId={id}
           />
         )}
 
@@ -1773,6 +1848,37 @@ export default function CaseAnalysisResults() {
                             </Button>
                           </div>
                         )}
+                        {(() => {
+                          // Check if this file has batch trace data
+                          const baseName = summary.originalFile.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                          const fileIdx = analysisData.fundTracesData?.file_index;
+                          const hasTraces = fileIdx && Object.keys(fileIdx).some((key) => {
+                            const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                            return keyBase.toLowerCase() === baseName.toLowerCase();
+                          });
+                          if (!hasTraces || !analysisData.fundTracesData) return null;
+                          const matchedKey = Object.keys(fileIdx!).find((key) => {
+                            const keyBase = key.replace(/\.(pdf|csv|xlsx?)$/i, "");
+                            return keyBase.toLowerCase() === baseName.toLowerCase();
+                          });
+                          return (
+                            <div className="flex items-center gap-2 text-sm bg-amber-50 dark:bg-amber-950/30 px-3 py-2 rounded-lg">
+                              <div className="w-2 h-2 bg-amber-500 rounded-full flex-shrink-0"></div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setBatchTraceInitialFile(matchedKey);
+                                  setBatchTraceModalOpen(true);
+                                }}
+                                className="h-7 gap-1.5 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/50"
+                              >
+                                <GitBranch className="h-3 w-3" />
+                                Transaction Tree
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                     {summary.summaryFile && (
@@ -1797,6 +1903,8 @@ export default function CaseAnalysisResults() {
                               summary.summaryFile.replace(/^summary_/i, "").replace(/\.xlsx$/i, "")
                             ] || {}
                           }
+                          fundTracesData={analysisData.fundTracesData || null}
+                          caseId={id}
                         />
                       </CollapsibleContent>
                     )}
@@ -1920,6 +2028,16 @@ export default function CaseAnalysisResults() {
           fileName={`case_report_${case_?.name || "report"}.pdf`}
           fileUrl={reportPdfUrl}
           onDownload={downloadPdfReport}
+        />
+      )}
+
+      {/* Batch Trace Modal */}
+      {analysisData.fundTracesData && (
+        <BatchTraceModal
+          open={batchTraceModalOpen}
+          onClose={() => setBatchTraceModalOpen(false)}
+          batchData={analysisData.fundTracesData}
+          initialFile={batchTraceInitialFile}
         />
       )}
     </>

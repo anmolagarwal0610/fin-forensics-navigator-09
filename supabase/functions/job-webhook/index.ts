@@ -413,15 +413,27 @@ async function updateCaseStatus(supabase: any, payload: any) {
         // Fetch case details
         const { data: caseData } = await supabase
           .from("cases")
-          .select("name, creator_id")
+          .select("name, creator_id, created_at")
           .eq("id", caseId)
           .single();
         
         if (caseData) {
-          // Fetch user email
-          const { data: userData } = await supabase.auth.admin.getUserById(caseData.creator_id);
+          // Fetch user email and file count in parallel
+          const [userResult, fileCountResult] = await Promise.all([
+            supabase.auth.admin.getUserById(caseData.creator_id),
+            supabase.from("case_files").select("*", { count: "exact", head: true }).eq("case_id", caseId),
+          ]);
+          const userData = userResult.data;
+          const fileCount = fileCountResult.count ?? 'Unknown';
+          
           const currentYear = new Date().getFullYear();
           const timestamp = new Date().toLocaleString("en-US", {
+            timeZone: "Asia/Kolkata",
+            dateStyle: "full",
+            timeStyle: "long",
+          }).replace("India Standard Time", "IST").replace("GMT+5:30", "IST");
+
+          const analysisStarted = new Date(caseData.created_at).toLocaleString("en-US", {
             timeZone: "Asia/Kolkata",
             dateStyle: "full",
             timeStyle: "long",
@@ -460,11 +472,14 @@ async function updateCaseStatus(supabase: any, payload: any) {
                     <div class="details-box">
                       <p style="margin: 0 0 8px;"><strong>Job ID:</strong> ${payload.job_id}</p>
                       <p style="margin: 0 0 8px;"><strong>Task:</strong> ${payload.task}</p>
+                      <p style="margin: 0 0 8px;"><strong>Time Analysis Started:</strong> ${analysisStarted}</p>
+                      <p style="margin: 0 0 8px;"><strong>Number of Files:</strong> ${fileCount}</p>
                       <p style="margin: 0 0 8px;"><strong>Error:</strong></p>
                       <code style="display: block; background: #f9fafb; padding: 12px; border-radius: 4px; color: #dc2626; font-size: 13px; word-break: break-word;">${payload.error || 'Unknown error'}</code>
                     </div>
                     
                     <p style="margin: 16px 0 8px;"><strong>User:</strong> ${userData?.user?.email || 'Unknown'}</p>
+                    <p style="margin: 0 0 8px;"><strong>User ID:</strong> ${caseData.creator_id}</p>
                     <p style="margin: 0;"><strong>Timestamp:</strong> ${timestamp}</p>
                   </div>
                   
@@ -485,7 +500,7 @@ async function updateCaseStatus(supabase: any, payload: any) {
             },
             body: JSON.stringify({
               from: "FinNavigator Alerts <help@finnavigatorai.com>",
-              to: ["hello@finnavigatorai.com"],
+              to: ["help@finnavigatorai.com"],
               subject: `[FAILURE ALERT] Case Analysis Failed - ${caseData.name}`,
               html: emailHtml,
             }),

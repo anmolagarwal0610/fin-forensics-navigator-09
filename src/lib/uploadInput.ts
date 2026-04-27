@@ -19,7 +19,8 @@ export async function uploadInput(
   userId: string,
   caseId: string,
   skipFileInsertion: boolean = false,
-  passwords?: PasswordEntry[]
+  passwords?: PasswordEntry[],
+  configFiles?: File[]
 ): Promise<{ zipPath: string; signedUrl: string }> {
   const bucket = 'case-files';
   
@@ -119,6 +120,15 @@ export async function uploadInput(
       for (const { name, buffer } of fileBuffers) {
         zip.file(name, buffer);
         console.log(`✓ Added ${name} to ZIP`);
+      }
+      
+      // Add config files to ZIP only (not uploaded individually or inserted into DB)
+      if (configFiles && configFiles.length > 0) {
+        for (const cf of configFiles) {
+          const cfBuffer = await cf.arrayBuffer();
+          zip.file(cf.name, cfBuffer);
+          console.log(`✓ Added config file ${cf.name} to ZIP`);
+        }
       }
       
       // Add password.txt if there are protected files

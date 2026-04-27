@@ -8,6 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import BeneficiaryTransactionsDialog, { TransactionRow } from "./BeneficiaryTransactionsDialog";
 import EditGroupedNamesDialog, { BeneficiaryEntry, GroupingOverrideResult, PendingClusterState } from "./EditGroupedNamesDialog";
+import type { BatchTraceResponse } from "@/types/traceTransaction";
+import type JSZip from "jszip";
 
 interface SummaryTableViewerProps {
   data: CellData[][] | undefined;
@@ -17,6 +19,10 @@ interface SummaryTableViewerProps {
   // Grouping overrides
   onSaveGroupingOverride?: (context: "cross_file" | "individual", targetCluster: string, overrides: GroupingOverrideResult, fileName?: string) => void;
   pendingOverrides?: Record<string, PendingClusterState>;
+  // Trace transaction props
+  fundTracesData?: import("@/types/traceTransaction").BatchTraceResponse | null;
+  zipData?: JSZip | null;
+  caseId?: string;
 }
 
 type SortColumn = "transactions" | "credit" | "debit";
@@ -36,6 +42,9 @@ export default function SummaryTableViewer({
   onLoadRawData,
   onSaveGroupingOverride,
   pendingOverrides,
+  fundTracesData,
+  zipData,
+  caseId,
 }: SummaryTableViewerProps) {
   const { t } = useTranslation();
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: "transactions", direction: "desc" });
@@ -570,6 +579,9 @@ export default function SummaryTableViewer({
         onEditGroupedNames={onSaveGroupingOverride ? () => {
           setEditGroupedOpen(true);
         } : undefined}
+        fundTracesData={fundTracesData}
+        zipData={zipData}
+        caseId={caseId}
       />
 
       {/* Edit Grouped Names Dialog */}

@@ -7,6 +7,7 @@ import AvatarMenu from "./AvatarMenu";
 import { LanguageToggle } from "@/components/ui/language-toggle";
 import { Toaster } from "@/components/ui/toaster";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStaleProcessingWatcher } from "@/hooks/useStaleProcessingWatcher";
 
 export default function AppLayout({
   children
@@ -14,6 +15,9 @@ export default function AppLayout({
   const { t } = useTranslation();
   const { user } = useAuth();
   const location = useLocation();
+
+  // UI-only watcher: emails help@finnavigatorai.com when a case is stuck >=3h in Processing
+  useStaleProcessingWatcher();
 
   const getPageName = () => {
     const path = location.pathname;

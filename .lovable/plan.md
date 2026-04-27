@@ -1,74 +1,35 @@
-# Fix: Mismatch Alert — PDF Not Attaching + Duplicate Emails
 
-## Issue 1: PDF file not attached
+# Plan: UI-Only Stuck-Processing Email Alert (3h+)
 
-**Root Cause**: `file_url` in the `case_files` table stores a **relative storage path** like `15589412-.../b43053a0-.../MAHFOOZ.pdf`, not a full URL. The current code does `fetch(matchingFile.file_url)` which makes a relative HTTP request against the preview domain, returning a 404 (visible in network logs: `GET 15589412-.../MAHFOOZ.pdf → 404`).
+Detect cases stuck in `Processing` for ≥3 hours from the **frontend** and fire an email to `help@finnavigatorai.com`. No DB schema changes, no `stale_alert_sent` writes — only an email send.
 
-**Fix**: Instead of `fetch(matchingFile.file_url)`, use `supabase.storage.from('case-files').download(matchingFile.file_url)` to download the file through the Supabase SDK, which correctly resolves the storage path.
+## How it works
 
-In `CaseAnalysisResults.tsx` (~lines 515-524), replace:
+1. Add a lightweight hook `useStaleProcessingWatcher` mounted once inside `AppLayout` (so it runs on any authenticated app page).
+2. Hook queries the user's own cases where `status = 'Processing'` and `updated_at < now() - 3h`.
+3. For each stuck case, check a `localStorage` key `stale-alert-sent:<caseId>` — if absent, call an edge function to send the alert, then write the key. This prevents re-sending on every render/refresh (best-effort, per-browser).
+4. Re-check every 15 minutes via `setInterval` + on window focus.
 
-```typescript
-const pdfResp = await fetch(matchingFile.file_url);
-if (pdfResp.ok) {
-  const pdfBuf = await pdfResp.arrayBuffer();
-  pdfFileBase64 = btoa(
-    new Uint8Array(pdfBuf).reduce((s, b) => s + String.fromCharCode(b), "")
-  );
-  pdfFileName = matchingFile.file_name;
-}
-```
+## Email sender
 
-With:
+Reuse the existing `send-mismatch-alert` pattern (direct fetch to Resend, purple-gradient template, `help@finnavigatorai.com` recipient). Create a tiny new edge function `send-stale-processing-alert` that:
+- Accepts `{ caseId, caseName, hoursStuck, fileCount, processingStarted }` from the authenticated client.
+- Validates JWT (`supabase.auth.getClaims`) — only the case's creator or an admin can trigger.
+- Sends the email via Resend with the same visual language as `check-stale-processing` (purple header, warning box, details box).
 
-```typescript
-const { data: pdfBlob } = await supabase.storage
-  .from('case-files')
-  .download(matchingFile.file_url);
-if (pdfBlob) {
-  const pdfBuf = await pdfBlob.arrayBuffer();
-  pdfFileBase64 = btoa(
-    new Uint8Array(pdfBuf).reduce((s, b) => s + String.fromCharCode(b), "")
-  );
-  pdfFileName = matchingFile.file_name;
-}
-```
+No DB writes. No `stale_alert_sent` toggling. No cron. Pure on-demand send when a logged-in user views the app and has a stuck case.
 
-## Issue 2: Duplicate emails on every "View Results" click
+## Files
 
-**Root Cause**: The localStorage key uses `case_.updated_at` which comes from the `cases` table's `updated_at` column. This value can change even without new results (e.g., any case update). More critically, `case_` is a dependency of the `useEffect`, and if the reference changes on re-render (which it does since it comes from a query), the effect re-runs. The `localStorage.setItem` is inside `setTimeout` (7s delay), but if the user navigates away and back within 7s, or if `case_` object reference changes, the key might not yet be set.
+| File | Change |
+|------|--------|
+| `src/hooks/useStaleProcessingWatcher.ts` | NEW — query stuck cases, dedupe via localStorage, invoke edge function |
+| `src/components/app/AppLayout.tsx` | Mount the hook once |
+| `supabase/functions/send-stale-processing-alert/index.ts` | NEW — JWT-verified Resend sender, mirrors existing email template |
+| `supabase/config.toml` | Register new function with `verify_jwt = true` |
 
-However, the **real issue** is that `localStorage.setItem(storageKey, "1")` is placed **inside** the `setTimeout` callback. If the useEffect fires, checks localStorage (empty), then fires again before the 7s timeout completes, the second invocation also sees no localStorage entry and schedules another timeout. This happens because `case_` is in the dependency array and React may re-render with a new object reference.
+## Limits & trade-offs
 
-**Fix**: Move `localStorage.setItem(storageKey, "1")` **before** the `setTimeout` (immediately when the effect runs), so duplicate effect invocations see the flag instantly. Also use the case `id` + a stable result identifier (like `result_zip_url` or the `updated_at` of the result_files record) instead of `case_.updated_at` as the storage key. Since the secure flow doesn't update `result_zip_url`, use `case_.updated_at` but truncate to minute precision to avoid micro-changes.
-
-Actually, the simplest robust fix: set the localStorage flag **synchronously before the timeout**, not inside it:
-
-```typescript
-const storageKey = `mismatch_checked_${id}_${case_.updated_at}`;
-if (localStorage.getItem(storageKey)) return;
-localStorage.setItem(storageKey, "1"); // Set immediately, not inside setTimeout
-
-const timer = setTimeout(async () => {
-  // ... scan logic
-}, 7000);
-```
-
-For Issues 1 and 2, make sure no flow is broken
-
-## Issue 3: Cache invalidation on deploy (informational — no code changes) Dont do this
-
-When you deploy new code to Cloudflare Pages, users with cached assets see the old version until they hard-refresh. Options:
-
-1. **Service Worker with update detection** — Register a service worker that checks for new versions periodically (e.g., every 24h or on each navigation). When a new version is detected, prompt the user or auto-reload.
-2. **Vite's built-in cache busting** — Vite already hashes filenames, so new deploys serve new files. The issue is the cached `index.html`. Set `Cache-Control: no-cache` on `index.html` in Cloudflare Pages headers config, while keeping hashed assets cached long-term. This way the browser always fetches a fresh `index.html` which points to the new hashed JS/CSS files.
-3. **Cloudflare Pages `_headers` file** — Add a `public/_headers` file with `/ Cache-Control: no-cache` for HTML. This is the simplest approach and requires no timer — users get new code on their next page load/navigation without hard refresh.
-
-**Recommended**: Option 3 (Cloudflare `_headers` file) is the simplest and most reliable. No timer needed.
-
-## Files to modify
-
-
-| File                                    | Change                                                                                    |
-| --------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `src/pages/app/CaseAnalysisResults.tsx` | Fix PDF download to use Supabase storage SDK; move localStorage.setItem before setTimeout |
+- Alert fires only when a logged-in user opens the app — won't catch cases of users who never return. Acceptable per request ("UI only").
+- LocalStorage dedupe is per-browser; same user on a new device may resend once. Acceptable.
+- No interaction with the broken DB trigger / `stale_alert_sent` column — fully decoupled from "cases fix 8".

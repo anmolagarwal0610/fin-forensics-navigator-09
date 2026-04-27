@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -13,7 +13,9 @@ import { toast } from "@/hooks/use-toast";
 import { format, parse, isValid, isWithinInterval, startOfDay, endOfDay } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import TraceTransactionModal from "./TraceTransactionModal";
-import type { SelectedTransaction, TraceTreeResponse } from "@/types/traceTransaction";
+import type { SelectedTransaction, TraceTreeResponse, BatchTraceResponse, DebitTraceResponse, CreditTraceResponse } from "@/types/traceTransaction";
+import { checkBatchCache, checkOnDemandCacheZip, getFromMemoryCache, requestOnDemandTrace } from "@/lib/traceTransaction";
+import type JSZip from "jszip";
 
 export interface TransactionRow {
   description: string;
@@ -33,6 +35,9 @@ interface BeneficiaryTransactionsDialogProps {
   transactions: TransactionRow[];
   isLoading?: boolean;
   onEditGroupedNames?: () => void;
+  fundTracesData?: BatchTraceResponse | null;
+  zipData?: JSZip | null;
+  caseId?: string;
 }
 
 export default function BeneficiaryTransactionsDialog({
@@ -42,6 +47,9 @@ export default function BeneficiaryTransactionsDialog({
   transactions,
   isLoading = false,
   onEditGroupedNames,
+  fundTracesData,
+  zipData,
+  caseId,
 }: BeneficiaryTransactionsDialogProps) {
   
   // Filter state
@@ -49,13 +57,12 @@ export default function BeneficiaryTransactionsDialog({
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   
   // Trace transaction state
-  const [selectedTxIndex, setSelectedTxIndex] = useState<number | null>(null);
+  const [selectedTxIndices, setSelectedTxIndices] = useState<Set<number>>(new Set());
   const [showTraceModal, setShowTraceModal] = useState(false);
 
-  // Mock trace data - will be replaced with API call
-  const [traceData] = useState<TraceTreeResponse | null>(null);
-  const [traceLoading] = useState(false);
-  const [traceError] = useState<string | null>(null);
+  const [traceData, setTraceData] = useState<DebitTraceResponse | CreditTraceResponse | null>(null);
+  const [traceLoading, setTraceLoading] = useState(false);
+  const [traceError, setTraceError] = useState<string | null>(null);
 
   
   // Parse transaction date
@@ -124,22 +131,108 @@ export default function BeneficiaryTransactionsDialog({
 
   const hasActiveFilters = selectedTypes.length > 0 || dateRange?.from || dateRange?.to;
 
-  // Build selected transaction for trace
-  const selectedTransaction: SelectedTransaction | null = useMemo(() => {
-    if (selectedTxIndex === null || !filteredTransactions[selectedTxIndex]) return null;
-    const tx = filteredTransactions[selectedTxIndex];
+  // Build selected transactions for trace — use original index in transactions array
+  const selectedTransactions: SelectedTransaction[] = useMemo(() => {
+    return Array.from(selectedTxIndices).map((filteredIdx) => {
+      const tx = filteredTransactions[filteredIdx];
+      if (!tx) return null;
+      // Find original index in unfiltered transactions for correct cache lookup
+      const originalIdx = transactions.indexOf(tx);
+      const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
+      const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
+      return {
+        beneficiary: tx.beneficiary || beneficiaryName,
+        amount: debitNum || creditNum || 0,
+        date: tx.date || '',
+        source_file: tx.source_file || '',
+        description: tx.description,
+        debit: tx.debit,
+        credit: tx.credit,
+        row_index: originalIdx >= 0 ? originalIdx : filteredIdx,
+      };
+    }).filter(Boolean) as SelectedTransaction[];
+  }, [selectedTxIndices, filteredTransactions, transactions, beneficiaryName]);
+
+  // Current trace index for sequential tracing
+  const [currentTraceIdx, setCurrentTraceIdx] = useState(0);
+  const selectedTransaction = selectedTransactions[currentTraceIdx] || null;
+
+  // Trace fetch logic: batch cache → ZIP cache → memory cache → API
+  const fetchTraceForTransaction = useCallback(async (tx: SelectedTransaction) => {
+    const fileName = tx.source_file;
+    const rowIndex = tx.row_index;
+
+    // 1. Batch cache
+    if (fundTracesData) {
+      const batchHit = checkBatchCache(fundTracesData, fileName, rowIndex);
+      if (batchHit && batchHit.tree) {
+        // Convert BatchTraceSeed to DebitTraceResponse-like
+        return {
+          metadata: { request: { file_name: fileName, row_index: rowIndex, amount: tx.amount, type: "debit" as const }, window_days: fundTracesData.metadata.window_days, min_confidence: fundTracesData.metadata.min_confidence, generated_at: fundTracesData.metadata.generated_at },
+          trace: batchHit,
+        } as any;
+      }
+    }
+
+    // 2. ZIP on-demand cache
+    const zipHit = await checkOnDemandCacheZip(zipData, fileName, rowIndex);
+    if (zipHit) return zipHit;
+
+    // 3. In-memory LRU cache
+    const memHit = getFromMemoryCache(fileName, rowIndex);
+    if (memHit) return memHit;
+
+    // 4. API call
+    if (!caseId) throw new Error("Case ID not available for trace request");
     const debitNum = typeof tx.debit === 'string' ? parseFloat(tx.debit.replace(/[₹$€£,\s]/g, '')) : (tx.debit as number);
     const creditNum = typeof tx.credit === 'string' ? parseFloat(tx.credit.replace(/[₹$€£,\s]/g, '')) : (tx.credit as number);
-    return {
-      beneficiary: tx.beneficiary || beneficiaryName,
-      amount: debitNum || creditNum || 0,
-      date: tx.date || '',
-      source_file: tx.source_file || '',
-      description: tx.description,
-      debit: tx.debit,
-      credit: tx.credit,
-    };
-  }, [selectedTxIndex, filteredTransactions, beneficiaryName]);
+    const txType: "debit" | "credit" = (debitNum && debitNum > 0) ? "debit" : "credit";
+    
+    const results = await requestOnDemandTrace({
+      window_days: 5,
+      transactions: [{ file_name: fileName, row_index: rowIndex, amount: tx.amount, type: txType }],
+    }, caseId);
+
+    return results[0] || null;
+  }, [fundTracesData, zipData, caseId]);
+
+  const handleTraceClick = useCallback(async () => {
+    if (selectedTransactions.length === 0) return;
+    setCurrentTraceIdx(0);
+    setTraceError(null);
+    setTraceLoading(true);
+    setShowTraceModal(true);
+
+    try {
+      const result = await fetchTraceForTransaction(selectedTransactions[0]);
+      setTraceData(result);
+    } catch (err: any) {
+      setTraceError(err?.message || "Failed to fetch trace data");
+    } finally {
+      setTraceLoading(false);
+    }
+  }, [selectedTransactions, fetchTraceForTransaction]);
+
+  const handleTraceNext = useCallback(async () => {
+    const nextIdx = currentTraceIdx + 1;
+    if (nextIdx >= selectedTransactions.length) {
+      setShowTraceModal(false);
+      setCurrentTraceIdx(0);
+      setTraceData(null);
+      return;
+    }
+    setCurrentTraceIdx(nextIdx);
+    setTraceLoading(true);
+    setTraceError(null);
+    try {
+      const result = await fetchTraceForTransaction(selectedTransactions[nextIdx]);
+      setTraceData(result);
+    } catch (err: any) {
+      setTraceError(err?.message || "Failed to fetch trace data");
+    } finally {
+      setTraceLoading(false);
+    }
+  }, [currentTraceIdx, selectedTransactions, fetchTraceForTransaction]);
   
   const formatAmount = (value: number | string): string => {
     if (value === null || value === undefined || value === "" || value === 0) return "-";
@@ -234,15 +327,15 @@ export default function BeneficiaryTransactionsDialog({
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {selectedTxIndex !== null && (
+              {selectedTxIndices.size > 0 && (
                 <Button
                   size="sm"
                   variant="accent"
                   className="h-8 gap-1.5 text-xs"
-                  onClick={() => setShowTraceModal(true)}
+                  onClick={handleTraceClick}
                 >
                   <GitBranch className="h-3.5 w-3.5" />
-                  Trace Transaction
+                  Trace {selectedTxIndices.size > 1 ? `${selectedTxIndices.size} Transactions` : "Transaction"}
                 </Button>
               )}
               <Badge variant="secondary" className="text-xs font-medium px-2 sm:px-3 py-1 shrink-0">
@@ -502,9 +595,14 @@ export default function BeneficiaryTransactionsDialog({
                       </td>
                       <td className="px-3 py-2.5 text-center">
                         <Checkbox
-                          checked={selectedTxIndex === idx}
+                          checked={selectedTxIndices.has(idx)}
                           onCheckedChange={(checked) => {
-                            setSelectedTxIndex(checked ? idx : null);
+                            setSelectedTxIndices((prev) => {
+                              const next = new Set(prev);
+                              if (checked) next.add(idx);
+                              else next.delete(idx);
+                              return next;
+                            });
                           }}
                           className="mx-auto"
                         />
@@ -540,7 +638,7 @@ export default function BeneficiaryTransactionsDialog({
         {/* Trace Transaction Modal */}
         <TraceTransactionModal
           open={showTraceModal}
-          onClose={() => setShowTraceModal(false)}
+          onClose={handleTraceNext}
           selectedTransaction={selectedTransaction}
           traceData={traceData}
           isLoading={traceLoading}

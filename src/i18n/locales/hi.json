@@ -126,7 +126,7 @@
     "presentInMultipleFiles": "एक से अधिक फाइलों में मौजूद लाभार्थी",
     "analysisFiles": "विश्लेषण फाइलें",
     "originalFilesProcessed": "मूल फाइलें प्रोसेस की गईं",
-    "topBeneficiaries": "शीर्ष {{count}} लाभार्थी",
+    "topBeneficiaries": "समग्र लाभार्थी",
     "transactionFlowAnalysis": "लेनदेन प्रवाह विश्लेषण",
     "interactiveVisualization": "रुचि के व्यक्तियों के संबंधों और लेनदेन प्रवाह का इंटरैक्टिव विज़ुअलाइज़ेशन",
     "sankeyGraph": "सैंकी ग्राफ",

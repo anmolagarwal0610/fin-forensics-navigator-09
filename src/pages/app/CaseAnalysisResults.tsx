@@ -1923,55 +1923,6 @@ export default function CaseAnalysisResults() {
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          {(() => {
-                            const tlKey = summary.originalFile;
-                            const range = resultsPerFileTimeline[tlKey] ?? null;
-                            const hasRange = isValidRange(range);
-                            return (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span onClick={(e) => e.stopPropagation()}>
-                                      <DateRangePicker
-                                        value={range}
-                                        align="start"
-                                        onSave={(r) =>
-                                          setResultsPerFileTimeline((prev) => {
-                                            const next = { ...prev };
-                                            if (r) next[tlKey] = r;
-                                            else delete next[tlKey];
-                                            return next;
-                                          })
-                                        }
-                                        trigger={
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className={cn(
-                                              "h-6 px-2 ml-1 text-xs gap-1 flex-shrink-0",
-                                              hasRange
-                                                ? "text-primary hover:text-primary"
-                                                : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            <CalendarClock className="h-3.5 w-3.5" />
-                                            <span className="hidden md:inline">
-                                              {hasRange ? formatRangeShort(range) : t("timeline.short")}
-                                            </span>
-                                          </Button>
-                                        }
-                                      />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-[260px]">
-                                    <p>{t("timeline.tooltip")}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                          })()}
                         </h4>
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
@@ -2217,9 +2168,7 @@ export default function CaseAnalysisResults() {
         isApplying={isApplyingChanges}
         timelineSummary={{
           master: isValidRange(resultsMasterTimeline) ? formatRangeShort(resultsMasterTimeline) : null,
-          perFile: Object.entries(resultsPerFileTimeline)
-            .filter(([, r]) => isValidRange(r))
-            .map(([file, r]) => ({ file, range: formatRangeShort(r) })),
+          perFile: [],
         }}
       />
 

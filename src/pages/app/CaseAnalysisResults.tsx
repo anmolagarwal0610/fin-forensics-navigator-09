@@ -494,6 +494,8 @@ export default function CaseAnalysisResults() {
 
       // 6. Clear state and navigate
       setGroupingOverrides({ cross_file: {}, individual: {} });
+      setResultsMasterTimeline(null);
+      setResultsPerFileTimeline({});
       setApplyChangesOpen(false);
       queryClient.removeQueries({ queryKey: ["case-results", id] });
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === "analysis-data" && q.queryKey[1] === id });

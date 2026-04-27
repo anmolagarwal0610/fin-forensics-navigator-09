@@ -53,6 +53,7 @@ interface FileItem {
   headerRowIndex?: number;
   accountHolderName?: string;
   dummyColumns?: { balance?: { header: string; defaultValue: string }; date?: { header: string; defaultValue: string } };
+  mergeParentName?: string;
 }
 
 export default function CaseUpload() {

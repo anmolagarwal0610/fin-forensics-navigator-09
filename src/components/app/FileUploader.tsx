@@ -449,7 +449,7 @@ export default function FileUploader({
         <div className="space-y-2">
           <h3 className="font-medium">Selected Files ({files.length})</h3>
           <TooltipProvider delayDuration={300}>
-          <div ref={listRef} className="relative space-y-2 select-none" onMouseDown={handleListMouseDown}>
+          <div ref={listRef} className="relative space-y-2 select-none px-4 -mx-4 py-2 -my-2" onMouseDown={handleListMouseDown}>
           {rows.map(({ file, index, isSub }, rowPos) => {
             const isSelected = selected.has(file.name);
             const isDropTarget = dragOverName === file.name;

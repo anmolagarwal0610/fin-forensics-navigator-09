@@ -1,47 +1,34 @@
-## Refinements to file merging UX
+## Expand Marquee Selection Area in FileUploader
 
-### 1. Click-to-toggle multi-select (no Ctrl/Cmd needed)
+### Problem
+The marquee (rubber-band) selection can only be initiated in the small vertical gaps between file cards. Users cannot start the selection from the left or right sides of the file list because the container has no horizontal padding.
 
-In `FileUploader.tsx` `toggleSelect`, treat every plain click as a toggle: if name is in the set, remove it; otherwise add it. Drop the Ctrl/Cmd branch and the "single-selected → clear" special case. Background click on the list container clears the selection.
+### Solution
+Add horizontal padding to the file list container and adjust the marquee positioning logic to account for the padding offset.
 
-### 2. Tooltip visible on every row (not just first)
+### Changes
 
-Replace the per-first-row `HoverCard` wrapper with a `Tooltip` (from `@/components/ui/tooltip`, already imported in CaseUpload) wrapping every row card. Content: *"Select, Drag & Drop if you want to merge statements."* Use `TooltipProvider` once around the rows list with `delayDuration={300}`. Remove the `HoverCard` import.
+**File: `src/components/app/FileUploader.tsx`**
 
-### 3. Rename JSON file to `merge_config.json`
+1. **Container padding (line ~452)**:
+   - Change from: `className="relative space-y-2 select-none"`
+   - Change to: `className="relative space-y-2 select-none px-4 -mx-4"`
+   
+   The `px-4` adds 16px of clickable padding on left/right. The `-mx-4` compensates to maintain visual alignment with the parent container.
 
-In `src/pages/app/CaseUpload.tsx` (lines ~441–461), change:
+2. **Marquee rectangle positioning (line ~297-302 in useEffect)**:
+   - The marquee rectangle uses coordinates relative to the container. With padding added, the marquee origin needs to account for this.
+   - Update `marqueeStartRef` initialization to use the padded coordinate space, OR
+   - Keep the marquee logic unchanged since `getBoundingClientRect()` already returns coordinates relative to the viewport, and the subtraction `e.clientX - rect.left` will correctly account for the new padding.
 
-- File name from `merges.json` → `merge_config.json`
-- Console log message accordingly
-JSON shape stays the same:
+   Actually, looking more carefully - the marquee calculation uses `rect.left` from `getBoundingClientRect()`, so adding padding will automatically be handled because `rect.left` will shift. The key is just ensuring users have padded area to click.
 
-```json
-{ "merges": [ { "primary": "...", "sub_files": ["..."] } ] }
-```
+### Visual Result
+- Users can now click and drag from 16px outside the left edge of file cards
+- Users can now click and drag from 16px outside the right edge of file cards  
+- The marquee selection "field area" is significantly expanded while maintaining the same visual layout
 
-### 4. Marquee (rubber-band) selection like desktop folders
-
-Add a marquee selection layer wrapping the rows list in `FileUploader.tsx`:
-
-- Wrap `rows.map(...)` in a `<div ref={listRef} className="relative" onMouseDown={...}>`.
-- On `mousedown` on the wrapper background (not on a card or button/input): record start point in list-relative coords, set `isMarqueeing=true`, capture pointer.
-- On `mousemove`: compute the rectangle (min/max of start vs current), render an absolutely positioned overlay div with `border border-primary bg-primary/10 pointer-events-none`.
-- During movement, intersect the marquee rect with each row's `getBoundingClientRect()` (offset by the wrapper's rect). For every intersecting row, add its filename to `selected`. (Additive; preserves prior selection if user holds the mouse — and since plain click already toggles, holding mouse + dragging behaves naturally.)
-- On `mouseup`: clear marquee state. If the gesture was a tiny drag (<4px), let the underlying click handler run as a normal toggle; otherwise suppress the click that follows by checking a `wasMarqueeingRef`.
-- Skip starting marquee if `mousedown.target.closest('[data-file-row]')` exists, so dragging files for merge still works. Each row card gets `data-file-row` and remains `draggable`.
-
-Edge cases handled:
-
-- Marquee never starts on Card/Button/Input → drag-to-merge and password input remain functional.
-- Selection is purely additive during a marquee; starting a marquee on empty space without modifier clears prior selection first (matches desktop behavior).
-- Sub-files are selectable too, same as before.
-
-Do what they do in google drive to select multiple files.
-
-### Files changed
-
-- `src/components/app/FileUploader.tsx` — selection logic, tooltip per row, marquee layer.
-- `src/pages/app/CaseUpload.tsx` — rename `merges.json` → `merge_config.json`.
-
-No backend or other component changes.
+### Testing
+- Verify marquee selection works when clicking in the padded left/right margins
+- Verify file cards still align visually with the parent container
+- Verify existing drag-and-drop and click-selection behaviors remain functional

@@ -1340,7 +1340,30 @@ export default function CaseAnalysisResults() {
             <p className="text-base md:text-lg text-muted-foreground">{case_.name}</p>
           </div>
           <div className="flex gap-2 w-full sm:w-auto">
-            {hasGroupingChanges && (
+            <DateRangePicker
+              value={resultsMasterTimeline}
+              align="end"
+              onSave={setResultsMasterTimeline}
+              trigger={
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  className={cn(
+                    "gap-2 w-full sm:w-auto",
+                    isValidRange(resultsMasterTimeline) && "border-primary text-primary hover:text-primary",
+                  )}
+                >
+                  <CalendarRange className="h-4 w-4" />
+                  <span className="truncate">
+                    {isValidRange(resultsMasterTimeline)
+                      ? formatRangeShort(resultsMasterTimeline)
+                      : "Select Timeline"}
+                  </span>
+                </Button>
+              }
+            />
+            {(hasGroupingChanges || hasTimelineChanges) && (
               <Button
                 onClick={() => setApplyChangesOpen(true)}
                 size="default"

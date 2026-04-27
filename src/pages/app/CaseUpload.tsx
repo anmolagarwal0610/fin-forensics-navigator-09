@@ -32,7 +32,7 @@ import { Link } from "react-router-dom";
 import type { RequiredHeader } from "@/utils/headerKeywords";
 import JSZip from "jszip";
 import { countFilePages } from "@/utils/pageCounter";
-import { sanitizeFilename } from "@/lib/utils";
+import { cn, sanitizeFilename } from "@/lib/utils";
 import DateRangePicker from "@/components/app/DateRangePicker";
 import {
   buildTimelineConfigFile,

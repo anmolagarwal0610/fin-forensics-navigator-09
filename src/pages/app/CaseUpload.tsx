@@ -860,6 +860,45 @@ export default function CaseUpload() {
             <FileUploader
               files={files}
               onFilesChange={setFiles}
+              renderFileActions={(file) => {
+                if (file.isPreExisting) return null;
+                const key = sanitizeFilename(file.name);
+                const range = perFileTimeline[key] ?? null;
+                const hasRange = isValidRange(range);
+                return (
+                  <DateRangePicker
+                    value={range}
+                    align="end"
+                    onSave={(r) => {
+                      setPerFileTimeline((prev) => {
+                        const next = { ...prev };
+                        if (r) next[key] = r;
+                        else delete next[key];
+                        return next;
+                      });
+                    }}
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className={cn(
+                          "h-7 px-2 gap-1 text-xs",
+                          hasRange
+                            ? "text-primary hover:text-primary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                        title={hasRange ? formatRangeShort(range) : "Set date range for this file"}
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">
+                          {hasRange ? formatRangeShort(range) : "Timeline"}
+                        </span>
+                      </Button>
+                    }
+                  />
+                );
+              }}
               renderFileExtra={(file) => {
                 // Pre-existing badge
                 if (file.isPreExisting) {

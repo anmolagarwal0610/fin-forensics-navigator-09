@@ -31,7 +31,6 @@ import {
   Settings2,
   GitBranch,
   CalendarRange,
-  CalendarClock,
 } from "lucide-react";
 import DocumentHead from "@/components/common/DocumentHead";
 import ImageLightbox from "@/components/app/ImageLightbox";
@@ -199,11 +198,10 @@ export default function CaseAnalysisResults() {
 
   // Timeline state for re-analysis
   const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
-  const [resultsPerFileTimeline, setResultsPerFileTimeline] = useState<Record<string, TimelineRange>>({});
   const hasTimelineChanges = useMemo(() => {
     if (isValidRange(resultsMasterTimeline)) return true;
-    return Object.values(resultsPerFileTimeline).some(isValidRange);
-  }, [resultsMasterTimeline, resultsPerFileTimeline]);
+    return false;
+  }, [resultsMasterTimeline]);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
@@ -467,9 +465,7 @@ export default function CaseAnalysisResults() {
       if (hasTimelineChanges) {
         const timelinePayload = {
           master: isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null,
-          per_file: Object.fromEntries(
-            Object.entries(resultsPerFileTimeline).filter(([, r]) => isValidRange(r)),
-          ),
+          per_file: {},
         };
         newZip.file("timeline_config.json", JSON.stringify(timelinePayload, null, 2));
       }
@@ -495,7 +491,6 @@ export default function CaseAnalysisResults() {
       // 6. Clear state and navigate
       setGroupingOverrides({ cross_file: {}, individual: {} });
       setResultsMasterTimeline(null);
-      setResultsPerFileTimeline({});
       setApplyChangesOpen(false);
       queryClient.removeQueries({ queryKey: ["case-results", id] });
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] === "analysis-data" && q.queryKey[1] === id });
@@ -1906,8 +1901,11 @@ export default function CaseAnalysisResults() {
                                 <TooltipContent side="top" align="start" className="max-w-sm p-2">
                                   <p className="text-xs font-medium mb-1.5">Merged files:</p>
                                   <ul className="space-y-1">
-                                    {mergedSubs.map((sub) => (
+                                    {mergedSubs.map((sub, idx) => (
                                       <li key={sub} className="flex items-center gap-2 text-xs">
+                                        <span className="font-mono text-muted-foreground w-5 text-right flex-shrink-0">
+                                          {idx + 1}.
+                                        </span>
                                         <span className="break-all flex-1 font-mono">{sub}</span>
                                         <Button
                                           variant="ghost"
@@ -1928,55 +1926,6 @@ export default function CaseAnalysisResults() {
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          {(() => {
-                            const tlKey = summary.originalFile;
-                            const range = resultsPerFileTimeline[tlKey] ?? null;
-                            const hasRange = isValidRange(range);
-                            return (
-                              <TooltipProvider delayDuration={200}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span onClick={(e) => e.stopPropagation()}>
-                                      <DateRangePicker
-                                        value={range}
-                                        align="start"
-                                        onSave={(r) =>
-                                          setResultsPerFileTimeline((prev) => {
-                                            const next = { ...prev };
-                                            if (r) next[tlKey] = r;
-                                            else delete next[tlKey];
-                                            return next;
-                                          })
-                                        }
-                                        trigger={
-                                          <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className={cn(
-                                              "h-6 px-2 ml-1 text-xs gap-1 flex-shrink-0",
-                                              hasRange
-                                                ? "text-primary hover:text-primary"
-                                                : "text-muted-foreground hover:text-foreground",
-                                            )}
-                                            onClick={(e) => e.stopPropagation()}
-                                          >
-                                            <CalendarClock className="h-3.5 w-3.5" />
-                                            <span className="hidden md:inline">
-                                              {hasRange ? formatRangeShort(range) : t("timeline.short")}
-                                            </span>
-                                          </Button>
-                                        }
-                                      />
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="max-w-[260px]">
-                                    <p>{t("timeline.tooltip")}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            );
-                          })()}
                         </h4>
                         {summary.summaryFile && (
                           <CollapsibleTrigger asChild>
@@ -2222,9 +2171,7 @@ export default function CaseAnalysisResults() {
         isApplying={isApplyingChanges}
         timelineSummary={{
           master: isValidRange(resultsMasterTimeline) ? formatRangeShort(resultsMasterTimeline) : null,
-          perFile: Object.entries(resultsPerFileTimeline)
-            .filter(([, r]) => isValidRange(r))
-            .map(([file, r]) => ({ file, range: formatRangeShort(r) })),
+          perFile: [],
         }}
       />
 

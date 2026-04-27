@@ -19,7 +19,7 @@ import { getCaseCsvFiles } from "@/api/cases";
 import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import JSZip from "jszip";
-import { getSubFileNames, getSubFilesFor, isMergedPrimary } from "@/utils/mergeConfig";
+import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
 export default function CaseDetail() {
   const { t } = useTranslation();
   const {

@@ -487,7 +487,7 @@ export default function FileUploader({
             const card = (
               <Card
                 key={`${file.name}-${index}`}
-                draggable
+                draggable={!isLocked(file.name)}
                 data-file-row
                 data-file-name={file.name}
                 onDragStart={(e) => handleDragStart(file.name, e)}

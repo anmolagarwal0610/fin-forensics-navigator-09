@@ -339,6 +339,29 @@ export default function CaseAnalysisResults() {
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
 
+  // Seed the timeline picker once per analysis-data load from the previous
+  // timeline_config.json (source of truth lives in the result ZIP).
+  useEffect(() => {
+    if (!analysisData) return;
+    const seedKey = `${id}|${case_?.updated_at ?? ""}`;
+    if (timelineSeededFor === seedKey) return;
+    if (analysisData.previousMaster && isValidRange(analysisData.previousMaster)) {
+      setResultsMasterTimeline(analysisData.previousMaster);
+    } else {
+      setResultsMasterTimeline(null);
+    }
+    setTimelineSeededFor(seedKey);
+  }, [analysisData, id, case_?.updated_at, timelineSeededFor]);
+
+  // True when the user-picked master differs from the previously persisted master.
+  const hasTimelineChanges = useMemo(() => {
+    const prev = analysisData?.previousMaster ?? null;
+    const curr = isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null;
+    if (!prev && !curr) return false;
+    if (!prev || !curr) return true;
+    return prev.start_date !== curr.start_date || prev.end_date !== curr.end_date;
+  }, [resultsMasterTimeline, analysisData?.previousMaster]);
+
   // Compute beneficiary breakdown for KPI tooltip (Credit Only / Debit Only / Both)
   const beneficiaryBreakdown = useMemo(() => {
     const excelData = analysisData?.beneficiariesExcelData;

@@ -47,6 +47,7 @@ import {
   isValidRange,
   type TimelineRange,
 } from "@/utils/timelineConfig";
+import { listPreviousRawEntries } from "@/utils/rawFiles";
 import LazySummaryTableViewer from "@/components/app/LazySummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
@@ -108,6 +109,10 @@ interface ParsedAnalysisData {
   poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
   reportData?: ReportData | null; // report_data.json from backend
   fundTracesData?: BatchTraceResponse | null; // fund_traces.json batch traces
+  // Previous timeline_config.json from the result ZIP (source of truth).
+  previousMaster?: TimelineRange | null;
+  previousPerFile?: Record<string, TimelineRange>;
+  previousTimelineConfigText?: string | null;
 }
 
 export default function CaseAnalysisResults() {
@@ -643,7 +648,36 @@ export default function CaseAnalysisResults() {
         summaryDataMap: new Map(),
         rawDataMap: new Map(), // Initialize empty - will be lazily populated
         poiDataMap: new Map(), // Initialize empty - will be lazily populated
+        previousMaster: null,
+        previousPerFile: {},
+        previousTimelineConfigText: null,
       };
+
+      // Extract previous timeline_config.json (source of truth for prior master).
+      const prevTimelineFile = zipData.file("timeline_config.json");
+      if (prevTimelineFile) {
+        try {
+          const txt = await prevTimelineFile.async("text");
+          parsedData.previousTimelineConfigText = txt;
+          const parsed = JSON.parse(txt) as {
+            master?: TimelineRange | null;
+            per_file?: Record<string, TimelineRange>;
+          };
+          if (parsed && isValidRange(parsed.master)) {
+            parsedData.previousMaster = parsed.master as TimelineRange;
+          }
+          if (parsed && parsed.per_file) {
+            const seeded: Record<string, TimelineRange> = {};
+            for (const [k, v] of Object.entries(parsed.per_file)) {
+              if (isValidRange(v)) seeded[k] = v;
+            }
+            parsedData.previousPerFile = seeded;
+          }
+          console.log("[Analysis] ✓ Loaded previous timeline_config.json");
+        } catch (e) {
+          console.warn("[Analysis] Failed to parse timeline_config.json:", e);
+        }
+      }
 
       // Process fund_trail_main.html first (highest priority)
       const fundTrailFile = zipData.file("fund_trail_main.html");

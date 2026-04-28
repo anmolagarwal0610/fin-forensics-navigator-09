@@ -42,7 +42,6 @@ import SummaryTableViewer from "@/components/app/SummaryTableViewer";
 import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
 import DateRangePicker from "@/components/app/DateRangePicker";
 import {
-  buildTimelineConfigFile,
   formatRangeShort,
   isValidRange,
   type TimelineRange,

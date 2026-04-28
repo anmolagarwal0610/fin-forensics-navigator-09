@@ -203,10 +203,6 @@ export default function CaseAnalysisResults() {
 
   // Timeline state for re-analysis
   const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
-  const hasTimelineChanges = useMemo(() => {
-    if (isValidRange(resultsMasterTimeline)) return true;
-    return false;
-  }, [resultsMasterTimeline]);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);

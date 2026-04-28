@@ -15,6 +15,10 @@ interface DateRangePickerProps {
   onSave: (range: TimelineRange | null) => void;
   trigger: React.ReactNode;
   align?: "start" | "end" | "center";
+  /** Optional ISO YYYY-MM-DD lower bound (inclusive). */
+  minDate?: string;
+  /** Optional ISO YYYY-MM-DD upper bound (inclusive). */
+  maxDate?: string;
 }
 
 export default function DateRangePicker({
@@ -22,6 +26,8 @@ export default function DateRangePicker({
   onSave,
   trigger,
   align = "end",
+  minDate,
+  maxDate,
 }: DateRangePickerProps) {
   const [open, setOpen] = useState(false);
   const [startStr, setStartStr] = useState<string>(value?.start_date ?? "");
@@ -37,8 +43,12 @@ export default function DateRangePicker({
 
   const rangeInvalid =
     isValidIsoDate(startStr) && isValidIsoDate(endStr) && startStr > endStr;
+  const outOfBounds =
+    isValidIsoDate(startStr) &&
+    isValidIsoDate(endStr) &&
+    ((minDate && startStr < minDate) || (maxDate && endStr > maxDate));
   const canSave =
-    isValidIsoDate(startStr) && isValidIsoDate(endStr) && !rangeInvalid;
+    isValidIsoDate(startStr) && isValidIsoDate(endStr) && !rangeInvalid && !outOfBounds;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -79,7 +89,8 @@ export default function DateRangePicker({
                 type="date"
                 value={startStr}
                 onChange={(e) => setStartStr(e.target.value)}
-                max={isValidIsoDate(endStr) ? endStr : undefined}
+                min={minDate || undefined}
+                max={isValidIsoDate(endStr) ? endStr : (maxDate || undefined)}
                 className="h-9 text-sm w-[200px]"
               />
             </div>
@@ -93,7 +104,8 @@ export default function DateRangePicker({
                 type="date"
                 value={endStr}
                 onChange={(e) => setEndStr(e.target.value)}
-                min={isValidIsoDate(startStr) ? startStr : undefined}
+                min={isValidIsoDate(startStr) ? startStr : (minDate || undefined)}
+                max={maxDate || undefined}
                 className={cn(
                   "h-9 text-sm w-[200px]",
                   rangeInvalid && "border-destructive focus-visible:ring-destructive",
@@ -105,6 +117,11 @@ export default function DateRangePicker({
           {rangeInvalid && (
             <p className="px-4 pb-2 text-xs text-destructive">
               End date must be on or after start date.
+            </p>
+          )}
+          {!rangeInvalid && outOfBounds && (
+            <p className="px-4 pb-2 text-xs text-destructive">
+              Must be within {minDate ?? "—"} → {maxDate ?? "—"}.
             </p>
           )}
 

@@ -449,6 +449,8 @@
     "selectTimeline": "Select Timeline",
     "short": "Timeline",
     "tooltip": "Select a timeline to run the case on, or choose a custom date range.",
-    "applyChanges": "Apply Changes"
+    "applyChanges": "Apply Changes",
+    "outsideMasterCleared": "Per-file timeline for {{file}} cleared because it's outside the new master range.",
+    "boundsHint": "Must be within {{start}} → {{end}}"
   }
 }

@@ -40,6 +40,7 @@ import {
   isValidRange,
   type TimelineRange,
 } from "@/utils/timelineConfig";
+import { listPreviousRawEntries } from "@/utils/rawFiles";
 
 interface FileItem {
   name: string;
@@ -80,6 +81,9 @@ export default function CaseUpload() {
   const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]);
   const [originalDbFiles, setOriginalDbFiles] = useState<string[]>([]);
   const [existingGroupingLogic, setExistingGroupingLogic] = useState<string | null>(null);
+  // Raw `timeline_config.json` text from the previous result ZIP, kept verbatim
+  // so we can re-emit it when the user makes no timeline changes.
+  const [existingTimelineConfig, setExistingTimelineConfig] = useState<string | null>(null);
   const [mapDialogFile, setMapDialogFile] = useState<FileItem | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
@@ -90,6 +94,51 @@ export default function CaseUpload() {
   const [masterTimeline, setMasterTimeline] = useState<TimelineRange | null>(null);
   // Keyed by sanitized filename (matches what is sent to the backend)
   const [perFileTimeline, setPerFileTimeline] = useState<Record<string, TimelineRange>>({});
+
+  // Reconcile per-file timeline entries when the master changes — drop any
+  // entry that now falls outside the master range.
+  useEffect(() => {
+    if (!isValidRange(masterTimeline)) return;
+    const masterStart = masterTimeline.start_date;
+    const masterEnd = masterTimeline.end_date;
+    let cleared: string[] = [];
+    setPerFileTimeline((prev) => {
+      const next: Record<string, TimelineRange> = {};
+      for (const [key, range] of Object.entries(prev)) {
+        if (range.start_date >= masterStart && range.end_date <= masterEnd) {
+          next[key] = range;
+        } else {
+          cleared.push(key);
+        }
+      }
+      return cleared.length > 0 ? next : prev;
+    });
+    if (cleared.length > 0) {
+      for (const file of cleared) {
+        toast({ title: t("timeline.outsideMasterCleared", { file }) });
+      }
+    }
+  }, [masterTimeline, t]);
+
+  // Drop per-file timeline entries for files that were merged into a parent
+  // (sub-files inherit the parent's processing window).
+  useEffect(() => {
+    setPerFileTimeline((prev) => {
+      const subKeys = new Set(
+        files.filter((f) => f.mergeParentName).map((f) => sanitizeFilename(f.name)),
+      );
+      let changed = false;
+      const next: Record<string, TimelineRange> = {};
+      for (const [key, range] of Object.entries(prev)) {
+        if (subKeys.has(key)) {
+          changed = true;
+          continue;
+        }
+        next[key] = range;
+      }
+      return changed ? next : prev;
+    });
+  }, [files]);
 
   // Check if this is "add files" mode
   const isAddFilesMode = searchParams.get("addFiles") === "true";
@@ -319,33 +368,81 @@ export default function CaseUpload() {
       const zip = new JSZip();
       const zipData = await zip.loadAsync(arrayBuffer);
 
-      // Find all raw_transactions_*.xlsx files
-      const rawFiles = Object.keys(zipData.files).filter(
-        (name) => name.startsWith("raw_transactions_") && name.endsWith(".xlsx"),
-      );
-
+      // Prefer raw_transactions_overall_*.xlsx; fall back to raw_transactions_*.xlsx.
+      const rawEntries = listPreviousRawEntries(zipData);
       const preExistingFiles: FileItem[] = [];
+      for (const { zipFileName, displayName } of rawEntries) {
+        const file = zipData.file(zipFileName);
+        if (!file) continue;
+        const content = await file.async("blob");
+        const fileObj = new File([content], displayName, {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        preExistingFiles.push({
+          name: displayName,
+          size: content.size,
+          file: fileObj,
+          pageCount: 0, // Pre-existing files don't count toward page usage
+          isCountingPages: false,
+          isPreExisting: true,
+        });
+      }
 
-      for (const fileName of rawFiles) {
-        const file = zipData.file(fileName);
-        if (file) {
-          const content = await file.async("blob");
-          // Remove "raw_transactions_" prefix for display name
-          const displayName = fileName.replace("raw_transactions_", "");
+      // Reconstruct merge hierarchy from merge_config.json (read-only display).
+      const mergeFile = zipData.file("merge_config.json");
+      if (mergeFile) {
+        try {
+          const mergeJson = JSON.parse(await mergeFile.async("text")) as {
+            merges?: Array<{ primary: string; sub_files: string[] }>;
+          };
+          if (mergeJson?.merges?.length) {
+            const subToPrimary = new Map<string, string>();
+            for (const m of mergeJson.merges) {
+              const primarySan = sanitizeFilename(m.primary);
+              for (const sub of m.sub_files || []) {
+                subToPrimary.set(sanitizeFilename(sub), primarySan);
+              }
+            }
+            // Map sanitized → display name from the loaded files, then assign parent.
+            const sanToDisplay = new Map<string, string>();
+            for (const f of preExistingFiles) sanToDisplay.set(sanitizeFilename(f.name), f.name);
+            for (const f of preExistingFiles) {
+              const sanitized = sanitizeFilename(f.name);
+              const parentSan = subToPrimary.get(sanitized);
+              if (parentSan && sanToDisplay.has(parentSan)) {
+                f.mergeParentName = sanToDisplay.get(parentSan)!;
+              }
+            }
+            console.log(`📋 Reconstructed merges from merge_config.json (${mergeJson.merges.length} primary)`);
+          }
+        } catch (e) {
+          console.warn("Failed to parse merge_config.json:", e);
+        }
+      }
 
-          // Create a File object from the blob
-          const fileObj = new File([content], displayName, {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          });
-
-          preExistingFiles.push({
-            name: displayName,
-            size: content.size,
-            file: fileObj,
-            pageCount: 0, // Pre-existing files don't count toward page usage
-            isCountingPages: false,
-            isPreExisting: true,
-          });
+      // Read previous timeline_config.json from result ZIP and seed state.
+      const timelineFile = zipData.file("timeline_config.json");
+      if (timelineFile) {
+        try {
+          const txt = await timelineFile.async("text");
+          setExistingTimelineConfig(txt);
+          const parsed = JSON.parse(txt) as {
+            master?: TimelineRange | null;
+            per_file?: Record<string, TimelineRange>;
+          };
+          if (parsed && isValidRange(parsed.master)) {
+            setMasterTimeline(parsed.master as TimelineRange);
+          }
+          if (parsed && parsed.per_file) {
+            const seeded: Record<string, TimelineRange> = {};
+            for (const [k, v] of Object.entries(parsed.per_file)) {
+              if (isValidRange(v)) seeded[k] = v;
+            }
+            if (Object.keys(seeded).length > 0) setPerFileTimeline(seeded);
+          }
+          console.log("📋 Loaded previous timeline_config.json from result ZIP");
+        } catch (e) {
+          console.warn("Failed to parse previous timeline_config.json:", e);
         }
       }
 
@@ -494,6 +591,13 @@ export default function CaseUpload() {
               isValidRange(masterTimeline) ? "set" : "none"
             }, per_file=${perFileEntries.length})`,
           );
+        } else if (isAddFilesMode && existingTimelineConfig) {
+          // No new selections — re-emit the previous timeline_config.json verbatim
+          // so the backend always receives the latest known config.
+          const blob = new Blob([existingTimelineConfig], { type: "application/json" });
+          const file = new File([blob], "timeline_config.json", { type: "application/json" });
+          configFiles.push(file);
+          console.log("📋 Re-emitting previous timeline_config.json (no user changes)");
         }
       }
 
@@ -860,6 +964,11 @@ export default function CaseUpload() {
             <FileUploader
               files={files}
               onFilesChange={setFiles}
+              lockedFileNames={
+                isAddFilesMode
+                  ? new Set(files.filter((f) => f.isPreExisting).map((f) => f.name))
+                  : undefined
+              }
               renderListHeaderActions={() => (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
@@ -897,6 +1006,9 @@ export default function CaseUpload() {
               )}
               renderFileActions={(file) => {
                 if (file.isPreExisting) return null;
+                // Hide per-file timeline CTA on merged sub-files — only the primary
+                // exposes a per-file timeline.
+                if (file.mergeParentName) return null;
                 const key = sanitizeFilename(file.name);
                 const range = perFileTimeline[key] ?? null;
                 const hasRange = isValidRange(range);
@@ -908,6 +1020,8 @@ export default function CaseUpload() {
                           <DateRangePicker
                             value={range}
                             align="end"
+                            minDate={isValidRange(masterTimeline) ? masterTimeline.start_date : undefined}
+                            maxDate={isValidRange(masterTimeline) ? masterTimeline.end_date : undefined}
                             onSave={(r) => {
                               setPerFileTimeline((prev) => {
                                 const next = { ...prev };

@@ -44,6 +44,13 @@ interface FileUploaderProps {
   renderFileActions?: (file: FileItem) => React.ReactNode;
   /** Optional actions rendered to the right of the "Selected Files (N)" header. */
   renderListHeaderActions?: () => React.ReactNode;
+  /**
+   * Optional set of file display names that are "locked" — for those files we
+   * hide the X (remove) and Unmerge buttons, disable drag start, and refuse
+   * inbound drops. Used by the Add Files flow to render the previous merge
+   * hierarchy read-only.
+   */
+  lockedFileNames?: Set<string>;
 }
 
 export default function FileUploader({ 
@@ -54,10 +61,15 @@ export default function FileUploader({
   renderFileExtra,
   renderFileActions,
   renderListHeaderActions,
+  lockedFileNames,
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});
   const [showPassword, setShowPassword] = useState<Record<number, boolean>>({});
+  const isLocked = useCallback(
+    (name: string) => !!lockedFileNames && lockedFileNames.has(name),
+    [lockedFileNames],
+  );
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     // Check for duplicate file names (case-insensitive)
@@ -343,6 +355,11 @@ export default function FileUploader({
   }, [marqueeRect]);
 
   const handleDragStart = (name: string, e: React.DragEvent) => {
+    // Locked files cannot initiate a merge drag.
+    if (isLocked(name)) {
+      e.preventDefault();
+      return;
+    }
     // If dragging an unselected file, drag just it; otherwise drag the whole selection
     let names: string[];
     if (selected.has(name)) {
@@ -374,6 +391,9 @@ export default function FileUploader({
     const targetItem = files.find((f) => f.name === targetName);
     if (!targetItem) return;
     const primaryName = targetItem.mergeParentName || targetItem.name;
+
+    // If the resolved primary is locked, refuse inbound merges.
+    if (isLocked(primaryName) || isLocked(targetName)) return;
 
     // Filter: cannot merge into self; cannot merge a primary that has children
     const childNames = new Set(
@@ -467,7 +487,7 @@ export default function FileUploader({
             const card = (
               <Card
                 key={`${file.name}-${index}`}
-                draggable
+                draggable={!isLocked(file.name)}
                 data-file-row
                 data-file-name={file.name}
                 onDragStart={(e) => handleDragStart(file.name, e)}
@@ -530,7 +550,7 @@ export default function FileUploader({
                       {renderFileActions(file)}
                     </span>
                   )}
-                  {isSub && (
+                  {isSub && !isLocked(file.name) && (
                     <Button
                       variant="ghost"
                       size="sm"
@@ -543,17 +563,19 @@ export default function FileUploader({
                       Unmerge
                     </Button>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFile(index);
-                    }}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  {!isLocked(file.name) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFile(index);
+                      }}
+                      className="text-muted-foreground hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               

@@ -42,11 +42,11 @@ import SummaryTableViewer from "@/components/app/SummaryTableViewer";
 import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
 import DateRangePicker from "@/components/app/DateRangePicker";
 import {
-  buildTimelineConfigFile,
   formatRangeShort,
   isValidRange,
   type TimelineRange,
 } from "@/utils/timelineConfig";
+import { listPreviousRawEntries } from "@/utils/rawFiles";
 import LazySummaryTableViewer from "@/components/app/LazySummaryTableViewer";
 import FilePreviewModal from "@/components/app/FilePreviewModal";
 import FundTrailViewer from "@/components/app/FundTrailViewer";
@@ -108,6 +108,10 @@ interface ParsedAnalysisData {
   poiDataMap: Map<string, CellData[][]>; // Cache for POI data (lazy loaded)
   reportData?: ReportData | null; // report_data.json from backend
   fundTracesData?: BatchTraceResponse | null; // fund_traces.json batch traces
+  // Previous timeline_config.json from the result ZIP (source of truth).
+  previousMaster?: TimelineRange | null;
+  previousPerFile?: Record<string, TimelineRange>;
+  previousTimelineConfigText?: string | null;
 }
 
 export default function CaseAnalysisResults() {
@@ -198,10 +202,9 @@ export default function CaseAnalysisResults() {
 
   // Timeline state for re-analysis
   const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
-  const hasTimelineChanges = useMemo(() => {
-    if (isValidRange(resultsMasterTimeline)) return true;
-    return false;
-  }, [resultsMasterTimeline]);
+  // Whether we've already seeded the picker from the previous timeline_config.json
+  // for the current analysis-data load. Reset whenever a new ZIP arrives.
+  const [timelineSeededFor, setTimelineSeededFor] = useState<string | null>(null);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);
@@ -335,6 +338,29 @@ export default function CaseAnalysisResults() {
 
   const loading = caseLoading || analysisLoading || resultStatusLoading;
 
+  // Seed the timeline picker once per analysis-data load from the previous
+  // timeline_config.json (source of truth lives in the result ZIP).
+  useEffect(() => {
+    if (!analysisData) return;
+    const seedKey = `${id}|${case_?.updated_at ?? ""}`;
+    if (timelineSeededFor === seedKey) return;
+    if (analysisData.previousMaster && isValidRange(analysisData.previousMaster)) {
+      setResultsMasterTimeline(analysisData.previousMaster);
+    } else {
+      setResultsMasterTimeline(null);
+    }
+    setTimelineSeededFor(seedKey);
+  }, [analysisData, id, case_?.updated_at, timelineSeededFor]);
+
+  // True when the user-picked master differs from the previously persisted master.
+  const hasTimelineChanges = useMemo(() => {
+    const prev = analysisData?.previousMaster ?? null;
+    const curr = isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null;
+    if (!prev && !curr) return false;
+    if (!prev || !curr) return true;
+    return prev.start_date !== curr.start_date || prev.end_date !== curr.end_date;
+  }, [resultsMasterTimeline, analysisData?.previousMaster]);
+
   // Compute beneficiary breakdown for KPI tooltip (Credit Only / Debit Only / Both)
   const beneficiaryBreakdown = useMemo(() => {
     const excelData = analysisData?.beneficiariesExcelData;
@@ -445,29 +471,34 @@ export default function CaseAnalysisResults() {
         versions: [...existingVersions, newVersion],
       };
 
-      // 2. Extract raw_transactions_*.xlsx and build new ZIP
+      // 2. Extract previous raw transactions (preferring the *_overall_* variant)
+      //    and assemble the re-analysis ZIP.
       const newZip = new JSZip();
-      const rawFiles = Object.keys(analysisData.zipData.files).filter(
-        (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx"),
-      );
-      for (const rawFile of rawFiles) {
-        const file = analysisData.zipData.file(rawFile);
+      const rawEntries = listPreviousRawEntries(analysisData.zipData);
+      for (const { zipFileName, displayName } of rawEntries) {
+        const file = analysisData.zipData.file(zipFileName);
         if (file) {
           const content = await file.async("arraybuffer");
-          newZip.file(rawFile.replace("raw_transactions_", ""), content);
+          newZip.file(displayName, content);
         }
       }
       if (hasGroupingChanges) {
         newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
       }
 
-      // Add timeline_config.json if user set any timeline range
+      // Always include the latest timeline_config.json:
+      // - If the user changed the master, send the new one (preserving any
+      //   previous per_file overrides from the prior config).
+      // - Otherwise, re-emit the previous config verbatim (if it existed).
+      // - If neither current nor previous exists, skip (backward compat).
       if (hasTimelineChanges) {
         const timelinePayload = {
           master: isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null,
-          per_file: {},
+          per_file: analysisData.previousPerFile ?? {},
         };
         newZip.file("timeline_config.json", JSON.stringify(timelinePayload, null, 2));
+      } else if (analysisData.previousTimelineConfigText) {
+        newZip.file("timeline_config.json", analysisData.previousTimelineConfigText);
       }
 
       const zipBlob = await newZip.generateAsync({ type: "blob" });
@@ -485,7 +516,7 @@ export default function CaseAnalysisResults() {
         mode: "parse-statements",
         task: "parse-statements",
         stage: "grouping_reanalysis",
-        file_count: rawFiles.length,
+        file_count: rawEntries.length,
       });
 
       // 6. Clear state and navigate
@@ -643,7 +674,36 @@ export default function CaseAnalysisResults() {
         summaryDataMap: new Map(),
         rawDataMap: new Map(), // Initialize empty - will be lazily populated
         poiDataMap: new Map(), // Initialize empty - will be lazily populated
+        previousMaster: null,
+        previousPerFile: {},
+        previousTimelineConfigText: null,
       };
+
+      // Extract previous timeline_config.json (source of truth for prior master).
+      const prevTimelineFile = zipData.file("timeline_config.json");
+      if (prevTimelineFile) {
+        try {
+          const txt = await prevTimelineFile.async("text");
+          parsedData.previousTimelineConfigText = txt;
+          const parsed = JSON.parse(txt) as {
+            master?: TimelineRange | null;
+            per_file?: Record<string, TimelineRange>;
+          };
+          if (parsed && isValidRange(parsed.master)) {
+            parsedData.previousMaster = parsed.master as TimelineRange;
+          }
+          if (parsed && parsed.per_file) {
+            const seeded: Record<string, TimelineRange> = {};
+            for (const [k, v] of Object.entries(parsed.per_file)) {
+              if (isValidRange(v)) seeded[k] = v;
+            }
+            parsedData.previousPerFile = seeded;
+          }
+          console.log("[Analysis] ✓ Loaded previous timeline_config.json");
+        } catch (e) {
+          console.warn("[Analysis] Failed to parse timeline_config.json:", e);
+        }
+      }
 
       // Process fund_trail_main.html first (highest priority)
       const fundTrailFile = zipData.file("fund_trail_main.html");

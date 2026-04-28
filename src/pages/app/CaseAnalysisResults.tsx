@@ -517,7 +517,7 @@ export default function CaseAnalysisResults() {
         mode: "parse-statements",
         task: "parse-statements",
         stage: "grouping_reanalysis",
-        file_count: rawFiles.length,
+        file_count: rawEntries.length,
       });
 
       // 6. Clear state and navigate

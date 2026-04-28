@@ -203,6 +203,9 @@ export default function CaseAnalysisResults() {
 
   // Timeline state for re-analysis
   const [resultsMasterTimeline, setResultsMasterTimeline] = useState<TimelineRange | null>(null);
+  // Whether we've already seeded the picker from the previous timeline_config.json
+  // for the current analysis-data load. Reset whenever a new ZIP arrives.
+  const [timelineSeededFor, setTimelineSeededFor] = useState<string | null>(null);
 
   // Apply Changes dialog state
   const [applyChangesOpen, setApplyChangesOpen] = useState(false);

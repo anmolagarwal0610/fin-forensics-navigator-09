@@ -484,6 +484,22 @@ export default function CaseAnalysisResults() {
       }
       if (hasGroupingChanges) {
         newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
+      } else if (existingVersions.length > 0) {
+        // Preserve previous grouping history even when the user only changes
+        // other settings (e.g. timeline). Backend should always receive the
+        // latest known grouping_logic.json on every rerun.
+        newZip.file(
+          "grouping_logic.json",
+          JSON.stringify({ versions: existingVersions }, null, 2),
+        );
+      }
+
+      // Always forward merge_config.json verbatim if it existed in the previous
+      // result ZIP, so merged-file relationships survive every rerun.
+      const prevMergeFile = analysisData.zipData.file("merge_config.json");
+      if (prevMergeFile) {
+        const mergeBytes = await prevMergeFile.async("arraybuffer");
+        newZip.file("merge_config.json", mergeBytes);
       }
 
       // Always include the latest timeline_config.json:

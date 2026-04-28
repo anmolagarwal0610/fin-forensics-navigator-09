@@ -591,6 +591,13 @@ export default function CaseUpload() {
               isValidRange(masterTimeline) ? "set" : "none"
             }, per_file=${perFileEntries.length})`,
           );
+        } else if (isAddFilesMode && existingTimelineConfig) {
+          // No new selections — re-emit the previous timeline_config.json verbatim
+          // so the backend always receives the latest known config.
+          const blob = new Blob([existingTimelineConfig], { type: "application/json" });
+          const file = new File([blob], "timeline_config.json", { type: "application/json" });
+          configFiles.push(file);
+          console.log("📋 Re-emitting previous timeline_config.json (no user changes)");
         }
       }
 
@@ -957,6 +964,11 @@ export default function CaseUpload() {
             <FileUploader
               files={files}
               onFilesChange={setFiles}
+              lockedFileNames={
+                isAddFilesMode
+                  ? new Set(files.filter((f) => f.isPreExisting).map((f) => f.name))
+                  : undefined
+              }
               renderListHeaderActions={() => (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
@@ -994,6 +1006,9 @@ export default function CaseUpload() {
               )}
               renderFileActions={(file) => {
                 if (file.isPreExisting) return null;
+                // Hide per-file timeline CTA on merged sub-files — only the primary
+                // exposes a per-file timeline.
+                if (file.mergeParentName) return null;
                 const key = sanitizeFilename(file.name);
                 const range = perFileTimeline[key] ?? null;
                 const hasRange = isValidRange(range);
@@ -1005,6 +1020,8 @@ export default function CaseUpload() {
                           <DateRangePicker
                             value={range}
                             align="end"
+                            minDate={isValidRange(masterTimeline) ? masterTimeline.start_date : undefined}
+                            maxDate={isValidRange(masterTimeline) ? masterTimeline.end_date : undefined}
                             onSave={(r) => {
                               setPerFileTimeline((prev) => {
                                 const next = { ...prev };

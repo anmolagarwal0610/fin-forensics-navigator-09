@@ -472,29 +472,34 @@ export default function CaseAnalysisResults() {
         versions: [...existingVersions, newVersion],
       };
 
-      // 2. Extract raw_transactions_*.xlsx and build new ZIP
+      // 2. Extract previous raw transactions (preferring the *_overall_* variant)
+      //    and assemble the re-analysis ZIP.
       const newZip = new JSZip();
-      const rawFiles = Object.keys(analysisData.zipData.files).filter(
-        (n) => n.startsWith("raw_transactions_") && n.endsWith(".xlsx"),
-      );
-      for (const rawFile of rawFiles) {
-        const file = analysisData.zipData.file(rawFile);
+      const rawEntries = listPreviousRawEntries(analysisData.zipData);
+      for (const { zipFileName, displayName } of rawEntries) {
+        const file = analysisData.zipData.file(zipFileName);
         if (file) {
           const content = await file.async("arraybuffer");
-          newZip.file(rawFile.replace("raw_transactions_", ""), content);
+          newZip.file(displayName, content);
         }
       }
       if (hasGroupingChanges) {
         newZip.file("grouping_logic.json", JSON.stringify(overridesPayload, null, 2));
       }
 
-      // Add timeline_config.json if user set any timeline range
+      // Always include the latest timeline_config.json:
+      // - If the user changed the master, send the new one (preserving any
+      //   previous per_file overrides from the prior config).
+      // - Otherwise, re-emit the previous config verbatim (if it existed).
+      // - If neither current nor previous exists, skip (backward compat).
       if (hasTimelineChanges) {
         const timelinePayload = {
           master: isValidRange(resultsMasterTimeline) ? resultsMasterTimeline : null,
-          per_file: {},
+          per_file: analysisData.previousPerFile ?? {},
         };
         newZip.file("timeline_config.json", JSON.stringify(timelinePayload, null, 2));
+      } else if (analysisData.previousTimelineConfigText) {
+        newZip.file("timeline_config.json", analysisData.previousTimelineConfigText);
       }
 
       const zipBlob = await newZip.generateAsync({ type: "blob" });

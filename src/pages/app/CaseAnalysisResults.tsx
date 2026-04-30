@@ -2021,6 +2021,15 @@ export default function CaseAnalysisResults() {
                                         >
                                           <Eye className="h-3 w-3" />
                                         </Button>
+                                        {isSubMismatched(
+                                          analysisData?.ownerMismatchAlerts ?? null,
+                                          summary.originalFile,
+                                          sub,
+                                        ) && (
+                                          <span className="text-[10px] text-destructive font-medium ml-1 flex-shrink-0">
+                                            Account Name Mismatch
+                                          </span>
+                                        )}
                                       </li>
                                     ))}
                                   </ul>

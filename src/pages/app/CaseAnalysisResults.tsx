@@ -708,7 +708,18 @@ export default function CaseAnalysisResults() {
         previousMaster: null,
         previousPerFile: {},
         previousTimelineConfigText: null,
+        ownerMismatchAlerts: null,
       };
+
+      // Load owner_mismatch_alerts.json (account-name mismatches per primary).
+      parsedData.ownerMismatchAlerts = await loadOwnerMismatchAlerts(zipData);
+      if (parsedData.ownerMismatchAlerts) {
+        console.log(
+          "[Analysis] ✓ Loaded owner_mismatch_alerts.json with",
+          parsedData.ownerMismatchAlerts.alerts?.length ?? 0,
+          "alert(s)"
+        );
+      }
 
       // Extract previous timeline_config.json (source of truth for prior master).
       const prevTimelineFile = zipData.file("timeline_config.json");

@@ -427,6 +427,22 @@ export default function CaseUpload() {
           console.warn("Failed to read cases.merge_config:", e);
         }
       }
+      // Load owner_mismatch_alerts.json from the same result ZIP so the Add
+      // Files page can surface "Account Name Mismatch" inside the Merged
+      // tooltip. Silent on failure.
+      try {
+        const alerts = await loadOwnerMismatchAlerts(zipData);
+        setOwnerMismatchAlerts(alerts);
+        if (alerts) {
+          console.log(
+            "📋 Loaded owner_mismatch_alerts.json with",
+            alerts.alerts?.length ?? 0,
+            "alert(s)"
+          );
+        }
+      } catch (e) {
+        console.warn("Failed to load owner_mismatch_alerts.json:", e);
+      }
       const originalMerges: Record<string, string> = {};
       if (mergeJson?.merges?.length) {
         const subToPrimary = new Map<string, string>();

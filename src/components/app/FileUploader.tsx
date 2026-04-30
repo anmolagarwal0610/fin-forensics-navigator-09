@@ -542,6 +542,11 @@ export default function FileUploader({
                                     {idx + 1}.
                                   </span>
                                   <span className="break-all flex-1">{sub}</span>
+                                  {isSubMismatched(ownerMismatchAlerts, file.name, sub) && (
+                                    <span className="text-[10px] text-destructive font-medium flex-shrink-0">
+                                      Account Name Mismatch
+                                    </span>
+                                  )}
                                 </li>
                               ))}
                             </ul>

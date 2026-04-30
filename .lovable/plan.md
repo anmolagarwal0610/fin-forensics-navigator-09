@@ -1,52 +1,119 @@
-# Persist Merge Info Across Re-runs (FE-only)
+# Show "Account Name Mismatch" in Merged Tooltips
 
-## Problem
+## Goal
 
-Merge relationships disappear after a case is re-run via "Add or Remove Files" because:
+Backend now emits `owner_mismatch_alerts.json` inside the result ZIP whenever an account-owner name on a sub-file does not match the resolved owner of its primary. We need to surface this inside the existing **Merged** hover tooltip in three places:
 
-1. The backend does not echo `merge_config.json` back into the result ZIP, so subsequent reads from the ZIP find nothing.
-2. `CaseUpload.tsx` rebuilds `cases.merge_config` from whatever `mergeParentName` it managed to reconstruct from the (now-empty) ZIP. With nothing to reconstruct, it overwrites the DB row with `null`, wiping prior merges.
-3. The Add Files page (`FileUploader`) never shows a "Merged" pill — it only nests sub-files visually. Users want the same `Merged` tag + tooltip they see on Case Preview / Analysis Results.
+- Analysis Results page (individual summary)
+- Case Preview / Detail page
+- Add or Remove Files page (FileUploader)
 
-`cases.merge_config` already exists in the DB and is the right source of truth. We just need FE to read/write it consistently and never let it get wiped silently.
+UI requirement: next to the **eye (preview) icon** of any sub-file row inside the tooltip that appears in the alerts JSON, render small red text **"Account Name Mismatch"**. No other UI changes; no toast, no banner.
 
-## Changes
+Backward compat: if the JSON is absent, or a primary/sub is not listed in `alerts[].extracted_names`, no red text is shown — current behavior preserved.
 
-### 1. `src/pages/app/CaseUpload.tsx` — Add Files mode
+## Data shape recap
 
-- In `loadPreExistingFiles`, after attempting to read `merge_config.json` from the result ZIP, **fall back to `cases.merge_config**` (already on the loaded `case_` row) when the ZIP entry is missing or empty. Use the same sub-to-primary reconstruction logic to set `mergeParentName` on the loaded `FileItem`s.
-- In `handleStartAnalysis` (the persist-to-DB block around line 605), **never overwrite `cases.merge_config` with `null` when in Add Files mode and the user did not explicitly unmerge everything**. Specifically:
-  - If `primaryToSubs.size > 0`, write the new computed `mergeConfigJson` (current behavior).
-  - If `primaryToSubs.size === 0` AND `isAddFilesMode` AND we previously had a non-null `case_.merge_config` AND no pre-existing sub-files were unmerged by the user, skip the update entirely (preserve DB value).
-  - We detect "user explicitly unmerged" by tracking whether any file that originally had a `mergeParentName` (after `loadPreExistingFiles`) lost it before submit. If yes, allow the overwrite.
+```json
+{
+  "alerts": [
+    {
+      "primary_file": "ADIL_429902010084243.xlsx",
+      "extracted_names": [
+        { "file": "ADIL_...xlsx", "role": "primary", ... },
+        { "file": "Chawalas_...xlsx", "role": "sub", ... }
+      ]
+    }
+  ]
+}
+```
 
-### 2. `src/components/app/FileUploader.tsx` — Show "Merged" pill on Add Files page
+Logic: a sub-file is "mismatched" iff there exists an alert whose `primary_file` matches the parent name AND the sub-file appears in that alert's `extracted_names` with `role: "sub"`. (Subs without a mismatch are simply not listed in `extracted_names`, per spec.)
 
-- For each top-level row that has at least one child (`files.some(f => f.mergeParentName === file.name)`), render the same "Merged" pill we use on Case Preview / Analysis Results, next to the filename:
-  - Pill text: `Merged`
-  - Hover tooltip lists the numbered sub-file names (matching the existing format on `CaseDetail.tsx` lines 506–510 and `CaseAnalysisResults.tsx` lines 1974–1978).
-- Reuse the existing `Tooltip` primitives already imported in `FileUploader.tsx`.
+## Files to change
 
-### 3. `src/pages/app/CaseAnalysisResults.tsx` — Apply Changes flow
+### 1. New utility — `src/utils/ownerMismatchAlerts.ts`
 
-- In `handleApplyChanges` (around line 497), when forwarding `merge_config.json`:
-  - If the previous result ZIP contains it, forward verbatim (current behavior).
-  - **Else, fall back to `case_.merge_config**` from the DB and serialize it into the new ZIP as `merge_config.json`.
-- This guarantees the backend receives the merge hierarchy on every rerun, regardless of whether previous backend runs echoed the file.
+Tiny pure helpers (case-insensitive base-name compare, consistent with existing merge utils):
 
-### 4. No backend, schema, or RLS changes
+```ts
+export type OwnerMismatchAlerts = {
+  alerts: Array<{
+    primary_file: string;
+    extracted_names?: Array<{ file: string; role: "primary" | "sub" }>;
+  }>;
+};
 
-`cases.merge_config jsonb` already exists. All work is FE-only.
+export function isSubMismatched(
+  alerts: OwnerMismatchAlerts | null | undefined,
+  primaryName: string,
+  subName: string,
+): boolean;
 
-even if it does not exists, make a way for the FE to capture it when it does and use that as a fallback.
+export function getMismatchedSubsFor(
+  alerts: OwnerMismatchAlerts | null | undefined,
+  primaryName: string,
+): Set<string>; // lowercased sub names
+```
 
-## Files to edit
+Plus a JSZip loader:
 
-- `src/pages/app/CaseUpload.tsx` — fallback read from `cases.merge_config`; guard against null overwrite.
-- `src/components/app/FileUploader.tsx` — add "Merged" pill + numbered tooltip on parent rows.
-- `src/pages/app/CaseAnalysisResults.tsx` — fallback to `cases.merge_config` when forwarding into the rerun ZIP.
+```ts
+export async function loadOwnerMismatchAlerts(zip: JSZip): Promise<OwnerMismatchAlerts | null>;
+```
+
+Returns `null` if the file is missing or unparseable — never throws.
+
+### 2. `src/pages/app/CaseAnalysisResults.tsx`
+
+- Inside the result-ZIP parser (around line ~700, alongside `timeline_config.json` extraction), load `owner_mismatch_alerts.json` into `parsedData.ownerMismatchAlerts`. Add the field to the parsed-data type (line ~105 area).
+- In the Merged tooltip render (around line 1987–2010), for each sub `<li>`, compute `mismatched = isSubMismatched(alerts, parentFileName, sub)` and render after the eye `Button`:
+  ```tsx
+  {mismatched && (
+    <span className="text-[10px] text-destructive font-medium ml-1 flex-shrink-0">
+      Account Name Mismatch
+    </span>
+  )}
+  ```
+
+### 3. `src/pages/app/CaseDetail.tsx`
+
+This page does not currently parse the result ZIP. Add a lightweight fetch (only when a result is available) using the existing `useSecureDownload().fetchFileForParsing` hook to pull just `owner_mismatch_alerts.json`:
+
+- New state `const [ownerAlerts, setOwnerAlerts] = useState<OwnerMismatchAlerts | null>(null);`
+- New effect that runs once when `hasResults` becomes true: fetch the result ZIP, `loadAsync`, then `loadOwnerMismatchAlerts(zip)`. Cache result; ignore failures silently.
+- In the Merged tooltip (lines 510–537), inside each sub `<li>` after the existing preview `Button`, render the same red `Account Name Mismatch` span when `isSubMismatched(ownerAlerts, file.file_name, sub)` is true.
+
+### 4. `src/components/app/FileUploader.tsx` + `src/pages/app/CaseUpload.tsx`
+
+The uploader has no direct ZIP access. Pass alerts in as a prop:
+
+- Add to `FileUploaderProps`:
+  ```ts
+  ownerMismatchAlerts?: OwnerMismatchAlerts | null;
+  ```
+- In the parent-row Merged tooltip (lines 525–537), inject the red span beside each sub name (no eye icon exists in this tooltip — render it inline at the end of the line):
+  ```tsx
+  <span className="break-all flex-1">{sub}</span>
+  {isSubMismatched(ownerMismatchAlerts, file.name, sub) && (
+    <span className="text-[10px] text-destructive font-medium flex-shrink-0">
+      Account Name Mismatch
+    </span>
+  )}
+  ```
+- In `CaseUpload.tsx → loadPreExistingFiles` (around line 394, where `merge_config.json` is read from the same `zipData`), also call `loadOwnerMismatchAlerts(zipData)` and store on a new `const [ownerMismatchAlerts, setOwnerMismatchAlerts] = useState(...)`. Pass it through to `<FileUploader ownerMismatchAlerts={...} />` (line 1016).
+
+### 5. i18n (optional)
+
+Add `caseDetail.accountNameMismatch: "Account Name Mismatch"` to `en.json` / `hi.json` and use `t(...)` for the three render sites. Hindi translation: `"खाता नाम बेमेल"`.
 
 ## Out of scope
 
-- Backend changes (backend is not expected to persist or echo merge config).
-- Changing how `CaseDetail` / `CaseAnalysisResults` *display* the Merged pill (already correct; they read from `cases.merge_config`, which this plan keeps populated).
+- Persisting `owner_mismatch_alerts.json` across reruns. Backend will emit it fresh on every run, so a rerun without mismatches will simply not include the file → tooltip cleanly shows no red text. No DB column, no FE fallback persistence needed.
+- Forwarding the alerts JSON into the rerun ZIP (backend regenerates it).
+- Any UI outside the existing Merged hover tooltip (no banners, no badges on parent rows).
+- Backend changes.
+
+## Backward compatibility
+
+If the result ZIP lacks `owner_mismatch_alerts.json` (older cases, or new cases with no mismatches), all three helpers short-circuit to `false` / empty set → identical to current UI.

@@ -496,10 +496,19 @@ export default function CaseAnalysisResults() {
 
       // Always forward merge_config.json verbatim if it existed in the previous
       // result ZIP, so merged-file relationships survive every rerun.
+      // Fallback: if the previous result ZIP did not contain it (some backend
+      // runs strip it), use cases.merge_config from the DB so the backend
+      // always receives the latest merge hierarchy.
       const prevMergeFile = analysisData.zipData.file("merge_config.json");
       if (prevMergeFile) {
         const mergeBytes = await prevMergeFile.async("arraybuffer");
         newZip.file("merge_config.json", mergeBytes);
+      } else {
+        const dbMergeConfig = (case_ as any)?.merge_config;
+        if (dbMergeConfig && Array.isArray(dbMergeConfig.merges) && dbMergeConfig.merges.length > 0) {
+          newZip.file("merge_config.json", JSON.stringify(dbMergeConfig, null, 2));
+          console.log("📋 Forwarding merge_config from cases.merge_config (DB fallback)");
+        }
       }
 
       // Always include the latest timeline_config.json:

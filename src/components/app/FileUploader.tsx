@@ -484,6 +484,10 @@ export default function FileUploader({
           {rows.map(({ file, index, isSub }, rowPos) => {
             const isSelected = selected.has(file.name);
             const isDropTarget = dragOverName === file.name;
+            const mergedSubsForRow = !isSub
+              ? files.filter((f) => f.mergeParentName === file.name).map((f) => f.name)
+              : [];
+            const isMergedParent = mergedSubsForRow.length > 0;
             const card = (
               <Card
                 key={`${file.name}-${index}`}
@@ -506,7 +510,34 @@ export default function FileUploader({
                 <div className="flex items-center gap-3">
                   <FileText className={cn("h-5 w-5 text-muted-foreground", isSub && "h-4 w-4")} />
                   <div>
-                    <p className={cn("font-medium", isSub ? "text-xs" : "text-sm")}>{file.name}</p>
+                    <div className="flex items-center gap-2">
+                      <p className={cn("font-medium", isSub ? "text-xs" : "text-sm")}>{file.name}</p>
+                      {isMergedParent && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-xs text-muted-foreground cursor-help hover:underline flex-shrink-0"
+                            >
+                              Merged
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top" align="start" className="max-w-sm p-2">
+                            <p className="text-xs font-medium mb-1.5">Merged files:</p>
+                            <ul className="space-y-1">
+                              {mergedSubsForRow.map((sub, idx) => (
+                                <li key={sub} className="flex items-center gap-2 text-xs">
+                                  <span className="font-mono text-muted-foreground w-5 text-right flex-shrink-0">
+                                    {idx + 1}.
+                                  </span>
+                                  <span className="break-all flex-1">{sub}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
                     <div className={cn("flex items-center gap-2 text-muted-foreground", isSub ? "text-[11px]" : "text-xs")}>
                       <span>{formatFileSize(file.size)}</span>
                       {file.isCountingPages && (

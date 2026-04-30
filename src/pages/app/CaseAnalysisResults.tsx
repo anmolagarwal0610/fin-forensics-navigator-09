@@ -117,6 +117,7 @@ interface ParsedAnalysisData {
   previousMaster?: TimelineRange | null;
   previousPerFile?: Record<string, TimelineRange>;
   previousTimelineConfigText?: string | null;
+  ownerMismatchAlerts?: OwnerMismatchAlerts | null;
 }
 
 export default function CaseAnalysisResults() {

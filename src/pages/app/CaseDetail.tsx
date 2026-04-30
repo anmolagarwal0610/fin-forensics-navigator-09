@@ -560,6 +560,11 @@ export default function CaseDetail() {
                                           <Eye className="h-3 w-3" />
                                         </Button>
                                       )}
+                                      {isSubMismatched(ownerAlerts, file.file_name, sub) && (
+                                        <span className="text-[10px] text-destructive font-medium ml-1 flex-shrink-0">
+                                          Account Name Mismatch
+                                        </span>
+                                      )}
                                     </li>
                                   );
                                 })}

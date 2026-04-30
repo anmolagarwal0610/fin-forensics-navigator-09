@@ -1041,6 +1041,7 @@ export default function CaseUpload() {
                   ? new Set(files.filter((f) => f.isPreExisting).map((f) => f.name))
                   : undefined
               }
+              ownerMismatchAlerts={ownerMismatchAlerts}
               renderListHeaderActions={() => (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>

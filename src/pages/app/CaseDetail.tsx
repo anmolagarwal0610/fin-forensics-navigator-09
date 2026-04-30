@@ -61,6 +61,27 @@ export default function CaseDetail() {
   // Helper to find a sub-file CaseFileRecord by name (case-insensitive)
   const findSubFileRecord = (name: string): CaseFileRecord | undefined =>
     files.find((f) => f.file_name.toLowerCase() === name.toLowerCase());
+
+  // Fetch owner_mismatch_alerts.json from the result ZIP whenever results
+  // become available. Silent on failure — tooltip just won't show red text.
+  useEffect(() => {
+    if (!id || !hasResults) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const buf = await fetchFileForParsing(id, case_?.result_zip_url, "result_zip");
+        if (!buf || cancelled) return;
+        const zip = await new JSZip().loadAsync(buf);
+        const alerts = await loadOwnerMismatchAlerts(zip);
+        if (!cancelled) setOwnerAlerts(alerts);
+      } catch (e) {
+        console.warn("[CaseDetail] Failed to load owner mismatch alerts:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, hasResults, case_?.result_zip_url, case_?.updated_at, fetchFileForParsing]);
   
   useEffect(() => {
     if (!id) return;

@@ -40,6 +40,11 @@ import FileSankeyModal from "@/components/app/FileSankeyModal";
 import ExcelViewer from "@/components/app/ExcelViewer";
 import SummaryTableViewer from "@/components/app/SummaryTableViewer";
 import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
+import {
+  loadOwnerMismatchAlerts,
+  isSubMismatched,
+  type OwnerMismatchAlerts,
+} from "@/utils/ownerMismatchAlerts";
 import DateRangePicker from "@/components/app/DateRangePicker";
 import {
   formatRangeShort,
@@ -112,6 +117,7 @@ interface ParsedAnalysisData {
   previousMaster?: TimelineRange | null;
   previousPerFile?: Record<string, TimelineRange>;
   previousTimelineConfigText?: string | null;
+  ownerMismatchAlerts?: OwnerMismatchAlerts | null;
 }
 
 export default function CaseAnalysisResults() {
@@ -702,7 +708,18 @@ export default function CaseAnalysisResults() {
         previousMaster: null,
         previousPerFile: {},
         previousTimelineConfigText: null,
+        ownerMismatchAlerts: null,
       };
+
+      // Load owner_mismatch_alerts.json (account-name mismatches per primary).
+      parsedData.ownerMismatchAlerts = await loadOwnerMismatchAlerts(zipData);
+      if (parsedData.ownerMismatchAlerts) {
+        console.log(
+          "[Analysis] ✓ Loaded owner_mismatch_alerts.json with",
+          parsedData.ownerMismatchAlerts.alerts?.length ?? 0,
+          "alert(s)"
+        );
+      }
 
       // Extract previous timeline_config.json (source of truth for prior master).
       const prevTimelineFile = zipData.file("timeline_config.json");
@@ -2004,6 +2021,15 @@ export default function CaseAnalysisResults() {
                                         >
                                           <Eye className="h-3 w-3" />
                                         </Button>
+                                        {isSubMismatched(
+                                          analysisData?.ownerMismatchAlerts ?? null,
+                                          summary.originalFile,
+                                          sub,
+                                        ) && (
+                                          <span className="text-[10px] text-destructive font-medium ml-1 flex-shrink-0">
+                                            Account Name Mismatch
+                                          </span>
+                                        )}
                                       </li>
                                     ))}
                                   </ul>

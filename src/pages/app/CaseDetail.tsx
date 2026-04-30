@@ -20,6 +20,12 @@ import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import JSZip from "jszip";
 import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
+import {
+  loadOwnerMismatchAlerts,
+  isSubMismatched,
+  type OwnerMismatchAlerts,
+} from "@/utils/ownerMismatchAlerts";
+import { useSecureDownload } from "@/hooks/useSecureDownload";
 export default function CaseDetail() {
   const { t } = useTranslation();
   const {
@@ -37,6 +43,8 @@ export default function CaseDetail() {
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
   const [addFilesDialogOpen, setAddFilesDialogOpen] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [ownerAlerts, setOwnerAlerts] = useState<OwnerMismatchAlerts | null>(null);
+  const { fetchFileForParsing } = useSecureDownload();
   
   // Check for secure result files (new flow where result_zip_url is null)
   const { hasResultFile: hasSecureResultFile } = useResultFileStatus(id);
@@ -53,6 +61,27 @@ export default function CaseDetail() {
   // Helper to find a sub-file CaseFileRecord by name (case-insensitive)
   const findSubFileRecord = (name: string): CaseFileRecord | undefined =>
     files.find((f) => f.file_name.toLowerCase() === name.toLowerCase());
+
+  // Fetch owner_mismatch_alerts.json from the result ZIP whenever results
+  // become available. Silent on failure — tooltip just won't show red text.
+  useEffect(() => {
+    if (!id || !hasResults) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const buf = await fetchFileForParsing(id, case_?.result_zip_url, "result_zip");
+        if (!buf || cancelled) return;
+        const zip = await new JSZip().loadAsync(buf);
+        const alerts = await loadOwnerMismatchAlerts(zip);
+        if (!cancelled) setOwnerAlerts(alerts);
+      } catch (e) {
+        console.warn("[CaseDetail] Failed to load owner mismatch alerts:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [id, hasResults, case_?.result_zip_url, case_?.updated_at, fetchFileForParsing]);
   
   useEffect(() => {
     if (!id) return;
@@ -530,6 +559,11 @@ export default function CaseDetail() {
                                         >
                                           <Eye className="h-3 w-3" />
                                         </Button>
+                                      )}
+                                      {isSubMismatched(ownerAlerts, file.file_name, sub) && (
+                                        <span className="text-[10px] text-destructive font-medium ml-1 flex-shrink-0">
+                                          Account Name Mismatch
+                                        </span>
                                       )}
                                     </li>
                                   );

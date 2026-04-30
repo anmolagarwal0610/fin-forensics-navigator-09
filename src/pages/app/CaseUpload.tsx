@@ -41,6 +41,7 @@ import {
   type TimelineRange,
 } from "@/utils/timelineConfig";
 import { listPreviousRawEntries } from "@/utils/rawFiles";
+import { loadOwnerMismatchAlerts } from "@/utils/ownerMismatchAlerts";
 
 interface FileItem {
   name: string;
@@ -88,6 +89,9 @@ export default function CaseUpload() {
   // so we can re-emit it when the user makes no timeline changes.
   const [existingTimelineConfig, setExistingTimelineConfig] = useState<string | null>(null);
   const [mapDialogFile, setMapDialogFile] = useState<FileItem | null>(null);
+  const [ownerMismatchAlerts, setOwnerMismatchAlerts] = useState<
+    import("@/utils/ownerMismatchAlerts").OwnerMismatchAlerts | null
+  >(null);
   const workerRef = useRef<Worker | null>(null);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();
@@ -422,6 +426,22 @@ export default function CaseUpload() {
         } catch (e) {
           console.warn("Failed to read cases.merge_config:", e);
         }
+      }
+      // Load owner_mismatch_alerts.json from the same result ZIP so the Add
+      // Files page can surface "Account Name Mismatch" inside the Merged
+      // tooltip. Silent on failure.
+      try {
+        const alerts = await loadOwnerMismatchAlerts(zipData);
+        setOwnerMismatchAlerts(alerts);
+        if (alerts) {
+          console.log(
+            "📋 Loaded owner_mismatch_alerts.json with",
+            alerts.alerts?.length ?? 0,
+            "alert(s)"
+          );
+        }
+      } catch (e) {
+        console.warn("Failed to load owner_mismatch_alerts.json:", e);
       }
       const originalMerges: Record<string, string> = {};
       if (mergeJson?.merges?.length) {
@@ -1021,6 +1041,7 @@ export default function CaseUpload() {
                   ? new Set(files.filter((f) => f.isPreExisting).map((f) => f.name))
                   : undefined
               }
+              ownerMismatchAlerts={ownerMismatchAlerts}
               renderListHeaderActions={() => (
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>

@@ -1,72 +1,52 @@
-## Issues found
+# Persist Merge Info Across Re-runs (FE-only)
 
-### Issue 1 — `grouping_logic.json` is dropped on "Apply Changes" rerun
+## Problem
 
-In `CaseAnalysisResults.handleApplyChanges` (`src/pages/app/CaseAnalysisResults.tsx`, lines ~416–487), the previous `grouping_logic.json` is read from the result ZIP into `existingVersions`, but then it is **only written back to the new ZIP if the user made new grouping changes** (`if (hasGroupingChanges) { newZip.file("grouping_logic.json", ...) }`).
+Merge relationships disappear after a case is re-run via "Add or Remove Files" because:
 
-That means a rerun where the user only changes the master timeline silently drops the entire grouping history — exactly the case the user reported.
+1. The backend does not echo `merge_config.json` back into the result ZIP, so subsequent reads from the ZIP find nothing.
+2. `CaseUpload.tsx` rebuilds `cases.merge_config` from whatever `mergeParentName` it managed to reconstruct from the (now-empty) ZIP. With nothing to reconstruct, it overwrites the DB row with `null`, wiping prior merges.
+3. The Add Files page (`FileUploader`) never shows a "Merged" pill — it only nests sub-files visually. Users want the same `Merged` tag + tooltip they see on Case Preview / Analysis Results.
 
-### Issue 2 — `merge_config.json` is never forwarded on "Apply Changes" rerun
+`cases.merge_config` already exists in the DB and is the right source of truth. We just need FE to read/write it consistently and never let it get wiped silently.
 
-In the same function, the rerun ZIP only contains `raw_transactions_*` + (sometimes) `grouping_logic.json` + (sometimes) `timeline_config.json`. **`merge_config.json` from the previous result ZIP is never copied forward**, so if the backend's re-run regenerates outputs, the merged file relationships for previously merged files can be lost downstream (matches the user's "merged hover info disappears after rerun" observation).
+## Changes
 
-### Issue 3 — Per-file timeline preservation when adding a new file with its own range
+### 1. `src/pages/app/CaseUpload.tsx` — Add Files mode
 
-In `CaseUpload.handleStartAnalysis` (lines ~576–602), `per_file` is restricted to *currently uploaded files*: `sanitizedNames.has(name)`. That's correct for the case the user described (existing per-file kept, new per-file added). The bug is one level up: `loadPreExistingFiles` correctly seeds `perFileTimeline` from the previous `timeline_config.json` (lines 423–447), and the master-change reconciliation effect (lines 100–121) does not destroy entries that lie inside the master. So this path looks intact — but a partial issue exists when `buildTimelineConfigFile` returns `null` because both master and per_file are empty after filtering, falling back to `existingTimelineConfig`. That fallback already works. **No change needed here other than verifying.**
+- In `loadPreExistingFiles`, after attempting to read `merge_config.json` from the result ZIP, **fall back to `cases.merge_config**` (already on the loaded `case_` row) when the ZIP entry is missing or empty. Use the same sub-to-primary reconstruction logic to set `mergeParentName` on the loaded `FileItem`s.
+- In `handleStartAnalysis` (the persist-to-DB block around line 605), **never overwrite `cases.merge_config` with `null` when in Add Files mode and the user did not explicitly unmerge everything**. Specifically:
+  - If `primaryToSubs.size > 0`, write the new computed `mergeConfigJson` (current behavior).
+  - If `primaryToSubs.size === 0` AND `isAddFilesMode` AND we previously had a non-null `case_.merge_config` AND no pre-existing sub-files were unmerged by the user, skip the update entirely (preserve DB value).
+  - We detect "user explicitly unmerged" by tracking whether any file that originally had a `mergeParentName` (after `loadPreExistingFiles`) lost it before submit. If yes, allow the overwrite.
 
-### Issue 4 — Apply Changes also drops the `previousPerFile`'s extra entries when user changes master
+### 2. `src/components/app/FileUploader.tsx` — Show "Merged" pill on Add Files page
 
-When the user changes only the master, line 497 builds `per_file: analysisData.previousPerFile ?? {}` — that's correct. But when the user does NOT change the master, line 500–501 re-emits the previous JSON verbatim — also correct. So timeline path is OK on Apply Changes.
+- For each top-level row that has at least one child (`files.some(f => f.mergeParentName === file.name)`), render the same "Merged" pill we use on Case Preview / Analysis Results, next to the filename:
+  - Pill text: `Merged`
+  - Hover tooltip lists the numbered sub-file names (matching the existing format on `CaseDetail.tsx` lines 506–510 and `CaseAnalysisResults.tsx` lines 1974–1978).
+- Reuse the existing `Tooltip` primitives already imported in `FileUploader.tsx`.
 
-### Issue 5 — Case Detail / Analysis Results merge tooltips after rerun
+### 3. `src/pages/app/CaseAnalysisResults.tsx` — Apply Changes flow
 
-`CaseDetail.tsx` and `CaseAnalysisResults.tsx` both read `case_.merge_config` from the DB row. `CaseUpload.handleStartAnalysis` already persists this on every analysis (line 607–614). The reason merges visually disappear after a rerun is that `merge_config` is set to `null` whenever `primaryToSubs.size === 0`. In Apply Changes rerun (Results page), `primaryToSubs` is never rebuilt at all and the DB row is **not updated**, so the existing value is preserved — that side is fine. However, after a backend rerun completes, if the new result ZIP no longer contains `merge_config.json`, subsequent "Add or Remove Files" loads can no longer reconstruct the sub→parent relationships. Forwarding `merge_config.json` on every rerun (Issue 2) fixes this end-to-end.
+- In `handleApplyChanges` (around line 497), when forwarding `merge_config.json`:
+  - If the previous result ZIP contains it, forward verbatim (current behavior).
+  - **Else, fall back to `case_.merge_config**` from the DB and serialize it into the new ZIP as `merge_config.json`.
+- This guarantees the backend receives the merge hierarchy on every rerun, regardless of whether previous backend runs echoed the file.
 
----
+### 4. No backend, schema, or RLS changes
 
-## Required changes
+`cases.merge_config jsonb` already exists. All work is FE-only.
 
-### `src/pages/app/CaseAnalysisResults.tsx` — `handleApplyChanges`
+even if it does not exists, make a way for the FE to capture it when it does and use that as a fallback.
 
-1. **Always forward `grouping_logic.json` if it existed previously.**
-   - Remove the `if (hasGroupingChanges)` gate around `newZip.file("grouping_logic.json", ...)`.
-   - Logic:
-     - If `hasGroupingChanges` → write the merged `overridesPayload` (existing versions + new version), as today.
-     - Else if `existingVersions.length > 0` (or the original `grouping_logic.json` file exists in the ZIP) → write `{ versions: existingVersions }` verbatim.
-     - Else → skip (nothing to forward).
+## Files to edit
 
-2. **Always forward `merge_config.json` if it exists in the previous result ZIP.**
-   - Read `analysisData.zipData.file("merge_config.json")` near the raw-files copy step.
-   - If present, copy its bytes verbatim into the new ZIP under the same name.
-   - Skip if absent (backward compat for older cases without merges).
+- `src/pages/app/CaseUpload.tsx` — fallback read from `cases.merge_config`; guard against null overwrite.
+- `src/components/app/FileUploader.tsx` — add "Merged" pill + numbered tooltip on parent rows.
+- `src/pages/app/CaseAnalysisResults.tsx` — fallback to `cases.merge_config` when forwarding into the rerun ZIP.
 
-3. (No timeline change required — already correct.)
+## Out of scope
 
-### `src/pages/app/CaseUpload.tsx` — `handleStartAnalysis`
-
-Already forwards `grouping_logic.json` (line 524–529), `merge_config.json` (line 569–574), and `timeline_config.json` (line 578–602) for the Add Files flow. **No change needed**, except: extend the per-file timeline retention so existing `per_file` ranges for *previously uploaded files* survive even when the user does nothing — they already do, via the seeding in `loadPreExistingFiles` + the per-file filter that allows pre-existing sanitized names. **Verify** this with a regression test in code review.
-
-### `src/pages/app/CaseAnalysisResults.tsx` — analysis-data parsing
-
-No changes; `previousMaster`, `previousPerFile`, and `previousTimelineConfigText` are already extracted (lines 682–706).
-
-### Files to modify
-
-- `src/pages/app/CaseAnalysisResults.tsx` — adjust `handleApplyChanges` to always forward `grouping_logic.json` (when prior exists) and `merge_config.json` (when prior exists).
-
-### Backward compatibility
-
-- Old result ZIPs without `grouping_logic.json` / `merge_config.json` / `timeline_config.json` → each file is conditionally skipped, no behavior change.
-- New cases with no merges and no grouping → no spurious empty configs added.
-- Re-running a case where only the timeline changed will now correctly forward grouping + merges.
-
-### Summary of behavior after fix
-
-| Trigger | timeline_config.json | grouping_logic.json | merge_config.json |
-|---|---|---|---|
-| Add/Remove Files rerun (new files, no other changes) | re-emit previous (already works) | re-emit previous (already works) | rebuilt from `mergeParentName` (already works) |
-| Apply Changes — only timeline changed | new master + previous per_file (already works) | **re-emit previous (FIX)** | **copy previous bytes (FIX)** |
-| Apply Changes — only grouping changed | re-emit previous (already works) | new merged versions (already works) | **copy previous bytes (FIX)** |
-| Apply Changes — both changed | new master + previous per_file | new merged versions | **copy previous bytes (FIX)** |
-
-This ensures: any config the user has ever set is preserved across every rerun from every entry point.
+- Backend changes (backend is not expected to persist or echo merge config).
+- Changing how `CaseDetail` / `CaseAnalysisResults` *display* the Merged pill (already correct; they read from `cases.merge_config`, which this plan keeps populated).

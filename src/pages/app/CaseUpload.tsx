@@ -80,6 +80,9 @@ export default function CaseUpload() {
   const [useHitl, setUseHitl] = useState(false);
   const [originalPreExistingFiles, setOriginalPreExistingFiles] = useState<string[]>([]);
   const [originalDbFiles, setOriginalDbFiles] = useState<string[]>([]);
+  // Snapshot of merge relationships present at load time (pre-existing files only),
+  // used to detect whether the user explicitly unmerged anything in this session.
+  const [originalMergeMap, setOriginalMergeMap] = useState<Record<string, string>>({});
   const [existingGroupingLogic, setExistingGroupingLogic] = useState<string | null>(null);
   // Raw `timeline_config.json` text from the previous result ZIP, kept verbatim
   // so we can re-emit it when the user makes no timeline changes.

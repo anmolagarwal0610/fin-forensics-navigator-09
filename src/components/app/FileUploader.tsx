@@ -10,6 +10,10 @@ import { countFilePages } from "@/utils/pageCounter";
 import { verifyPdfPassword } from "@/utils/passwordVerifier";
 import { toast } from "@/hooks/use-toast";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  isSubMismatched,
+  type OwnerMismatchAlerts,
+} from "@/utils/ownerMismatchAlerts";
 
 interface FileItem {
   name: string;
@@ -51,6 +55,12 @@ interface FileUploaderProps {
    * hierarchy read-only.
    */
   lockedFileNames?: Set<string>;
+  /**
+   * Optional backend-provided alerts for account-owner name mismatches between
+   * a primary file and its merged sub-files. When present, mismatched sub-files
+   * are surfaced inside the existing Merged hover tooltip with red text.
+   */
+  ownerMismatchAlerts?: OwnerMismatchAlerts | null;
 }
 
 export default function FileUploader({ 

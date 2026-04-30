@@ -20,6 +20,12 @@ import { AddFilesDialog } from "@/components/app/AddFilesDialog";
 import { useResultFileStatus } from "@/hooks/useResultFileStatus";
 import JSZip from "jszip";
 import { getSubFileNames, getSubFilesFor } from "@/utils/mergeConfig";
+import {
+  loadOwnerMismatchAlerts,
+  isSubMismatched,
+  type OwnerMismatchAlerts,
+} from "@/utils/ownerMismatchAlerts";
+import { useSecureDownload } from "@/hooks/useSecureDownload";
 export default function CaseDetail() {
   const { t } = useTranslation();
   const {
@@ -37,6 +43,8 @@ export default function CaseDetail() {
   const [previewFile, setPreviewFile] = useState<{ name: string; url: string } | null>(null);
   const [addFilesDialogOpen, setAddFilesDialogOpen] = useState(false);
   const [downloadingAll, setDownloadingAll] = useState(false);
+  const [ownerAlerts, setOwnerAlerts] = useState<OwnerMismatchAlerts | null>(null);
+  const { fetchFileForParsing } = useSecureDownload();
   
   // Check for secure result files (new flow where result_zip_url is null)
   const { hasResultFile: hasSecureResultFile } = useResultFileStatus(id);

@@ -629,13 +629,38 @@ export default function CaseUpload() {
       }
 
       // Persist merge hierarchy to the case row so view pages can render it.
-      // Set to null if no merges, to clear stale data on re-analysis.
+      // Important: do NOT silently wipe an existing merge_config when in Add
+      // Files mode and the result ZIP didn't contain merge_config.json (so we
+      // had nothing to reconstruct). We only overwrite if (a) we are creating
+      // new merges, or (b) the user explicitly unmerged a previously-merged
+      // file in this session.
       try {
-        const { error: mcErr } = await supabase
-          .from("cases")
-          .update({ merge_config: mergeConfigJson as any })
-          .eq("id", case_.id);
-        if (mcErr) console.error("Failed to persist merge_config:", mcErr);
+        const userExplicitlyUnmerged =
+          isAddFilesMode &&
+          Object.entries(originalMergeMap).some(([subName, parentName]) => {
+            const stillPresent = files.find((f) => f.name === subName);
+            // If the file is still listed but no longer points at its parent,
+            // the user has unmerged it. (If the file was removed entirely,
+            // we treat that as user intent too.)
+            if (!stillPresent) return true;
+            return stillPresent.mergeParentName !== parentName;
+          });
+
+        const shouldUpdate =
+          primaryToSubs.size > 0 ||
+          !isAddFilesMode ||
+          userExplicitlyUnmerged ||
+          !(case_ as any)?.merge_config;
+
+        if (shouldUpdate) {
+          const { error: mcErr } = await supabase
+            .from("cases")
+            .update({ merge_config: mergeConfigJson as any })
+            .eq("id", case_.id);
+          if (mcErr) console.error("Failed to persist merge_config:", mcErr);
+        } else {
+          console.log("📋 Preserving existing cases.merge_config (no user changes detected)");
+        }
       } catch (e) {
         console.error("merge_config persistence error:", e);
       }

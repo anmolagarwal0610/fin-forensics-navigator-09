@@ -72,6 +72,7 @@ export default function FileUploader({
   renderFileActions,
   renderListHeaderActions,
   lockedFileNames,
+  ownerMismatchAlerts,
 }: FileUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [passwordInputs, setPasswordInputs] = useState<Record<number, string>>({});

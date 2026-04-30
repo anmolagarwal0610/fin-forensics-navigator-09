@@ -88,6 +88,9 @@ export default function CaseUpload() {
   // so we can re-emit it when the user makes no timeline changes.
   const [existingTimelineConfig, setExistingTimelineConfig] = useState<string | null>(null);
   const [mapDialogFile, setMapDialogFile] = useState<FileItem | null>(null);
+  const [ownerMismatchAlerts, setOwnerMismatchAlerts] = useState<
+    import("@/utils/ownerMismatchAlerts").OwnerMismatchAlerts | null
+  >(null);
   const workerRef = useRef<Worker | null>(null);
   const { hasAccess, pagesRemaining, loading: subLoading } = useSubscription();
   const { isMaintenanceMode, message: maintenanceMessage } = useMaintenanceMode();

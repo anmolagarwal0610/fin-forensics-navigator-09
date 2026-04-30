@@ -392,36 +392,60 @@ export default function CaseUpload() {
       }
 
       // Reconstruct merge hierarchy from merge_config.json (read-only display).
+      // Source priority:
+      //   1. merge_config.json inside the result ZIP (latest, if backend echoed it)
+      //   2. cases.merge_config column on the DB row (FE-persisted source of truth)
+      let mergeJson: { merges?: Array<{ primary: string; sub_files: string[] }> } | null = null;
       const mergeFile = zipData.file("merge_config.json");
       if (mergeFile) {
         try {
-          const mergeJson = JSON.parse(await mergeFile.async("text")) as {
-            merges?: Array<{ primary: string; sub_files: string[] }>;
-          };
-          if (mergeJson?.merges?.length) {
-            const subToPrimary = new Map<string, string>();
-            for (const m of mergeJson.merges) {
-              const primarySan = sanitizeFilename(m.primary);
-              for (const sub of m.sub_files || []) {
-                subToPrimary.set(sanitizeFilename(sub), primarySan);
-              }
-            }
-            // Map sanitized → display name from the loaded files, then assign parent.
-            const sanToDisplay = new Map<string, string>();
-            for (const f of preExistingFiles) sanToDisplay.set(sanitizeFilename(f.name), f.name);
-            for (const f of preExistingFiles) {
-              const sanitized = sanitizeFilename(f.name);
-              const parentSan = subToPrimary.get(sanitized);
-              if (parentSan && sanToDisplay.has(parentSan)) {
-                f.mergeParentName = sanToDisplay.get(parentSan)!;
-              }
-            }
-            console.log(`📋 Reconstructed merges from merge_config.json (${mergeJson.merges.length} primary)`);
-          }
+          mergeJson = JSON.parse(await mergeFile.async("text"));
+          console.log("📋 Loaded merge_config from result ZIP");
         } catch (e) {
-          console.warn("Failed to parse merge_config.json:", e);
+          console.warn("Failed to parse merge_config.json from ZIP:", e);
         }
       }
+      if (!mergeJson?.merges?.length) {
+        // Fall back to the FE-persisted DB value so merges survive backends that
+        // don't echo merge_config.json back into result ZIPs.
+        try {
+          const { data: caseRow } = await supabase
+            .from("cases")
+            .select("merge_config")
+            .eq("id", caseId)
+            .single();
+          const fromDb = (caseRow as any)?.merge_config;
+          if (fromDb && Array.isArray(fromDb.merges) && fromDb.merges.length) {
+            mergeJson = fromDb;
+            console.log("📋 Loaded merge_config from cases.merge_config (DB fallback)");
+          }
+        } catch (e) {
+          console.warn("Failed to read cases.merge_config:", e);
+        }
+      }
+      const originalMerges: Record<string, string> = {};
+      if (mergeJson?.merges?.length) {
+        const subToPrimary = new Map<string, string>();
+        for (const m of mergeJson.merges) {
+          const primarySan = sanitizeFilename(m.primary);
+          for (const sub of m.sub_files || []) {
+            subToPrimary.set(sanitizeFilename(sub), primarySan);
+          }
+        }
+        const sanToDisplay = new Map<string, string>();
+        for (const f of preExistingFiles) sanToDisplay.set(sanitizeFilename(f.name), f.name);
+        for (const f of preExistingFiles) {
+          const sanitized = sanitizeFilename(f.name);
+          const parentSan = subToPrimary.get(sanitized);
+          if (parentSan && sanToDisplay.has(parentSan)) {
+            const parentDisplay = sanToDisplay.get(parentSan)!;
+            f.mergeParentName = parentDisplay;
+            originalMerges[f.name] = parentDisplay;
+          }
+        }
+        console.log(`📋 Reconstructed merges (${mergeJson.merges.length} primary)`);
+      }
+      setOriginalMergeMap(originalMerges);
 
       // Read previous timeline_config.json from result ZIP and seed state.
       const timelineFile = zipData.file("timeline_config.json");
